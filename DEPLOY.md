@@ -369,6 +369,17 @@ curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/   # 预期 20
 如 `git pull` 报 `dubious ownership`，执行提示中的
 `git config --global --add safe.directory /opt/cursor-warco` 后重试。
 
+服务启动时会自动给旧库补列（如 `series` / `source`）。若写接口报
+`table events has no column named …`，先 `git pull` 再 `restart`；也可手动：
+
+```bash
+sudo -u umbrella sqlite3 /opt/cursor-warco/data/chronicle.db \
+  "ALTER TABLE events ADD COLUMN series TEXT NOT NULL DEFAULT '';
+   ALTER TABLE events ADD COLUMN source TEXT NOT NULL DEFAULT '';"
+# 若某列已存在会报 duplicate column，可忽略后继续加另一列
+sudo systemctl restart umbrella4365
+```
+
 ## 9. 上线验收测试（一次跑完）
 
 在服务器上执行（`MY_ADMIN_PATH` / `MY_ADMIN_KEY` 若已开新终端，先从

@@ -33,6 +33,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_events_date ON events(date DESC);
 `);
 
+/* 旧库升级：幂等补列（与 server.js 保持一致） */
+{
+  const cols = new Set(db.prepare(`PRAGMA table_info(events)`).all().map(c => c.name));
+  if (!cols.has('series')) db.exec(`ALTER TABLE events ADD COLUMN series TEXT NOT NULL DEFAULT ''`);
+  if (!cols.has('source')) db.exec(`ALTER TABLE events ADD COLUMN source TEXT NOT NULL DEFAULT ''`);
+}
+
 const EVENTS = [
   /* ==================== 正史 · 官方档案 ==================== */
   {

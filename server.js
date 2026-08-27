@@ -97,6 +97,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(day);
 `);
 
+/* 旧库升级：CREATE TABLE IF NOT EXISTS 不会补后来新增的列，启动时幂等加列 */
+(function migrateEventsSchema() {
+  const cols = new Set(db.prepare(`PRAGMA table_info(events)`).all().map(c => c.name));
+  const add = [];
+  if (!cols.has('series')) add.push(`ALTER TABLE events ADD COLUMN series TEXT NOT NULL DEFAULT ''`);
+  if (!cols.has('source')) add.push(`ALTER TABLE events ADD COLUMN source TEXT NOT NULL DEFAULT ''`);
+  for (const sql of add) {
+    db.exec(sql);
+    console.log(`  schema  · ${sql}`);
+  }
+})();
+
 /* ============ 工具 ============ */
 const MIME = {
   '.html': 'text/html; charset=utf-8',
