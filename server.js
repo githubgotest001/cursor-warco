@@ -29,20 +29,37 @@ const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-/* ============ 管理后台隐藏路径 ============
-   优先级：环境变量 ADMIN_PATH > data/config.json > 自动生成随机路径 */
+/* ============ 本地配置 data/config.json ============ */
+function readConfig() {
+  try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch { return {}; }
+}
+function writeConfig(patch) {
+  const cfg = { ...readConfig(), ...patch };
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+  return cfg;
+}
+
+/* 管理后台隐藏路径：环境变量 ADMIN_PATH > data/config.json > 自动生成随机路径 */
 function resolveAdminPath() {
   const clean = s => String(s || '').replace(/^\/+/, '').replace(/[^\w-]/g, '');
   if (process.env.ADMIN_PATH && clean(process.env.ADMIN_PATH)) return clean(process.env.ADMIN_PATH);
-  try {
-    const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-    if (cfg.adminPath) return clean(cfg.adminPath);
-  } catch {}
+  const saved = readConfig().adminPath;
+  if (saved) return clean(saved);
   const generated = 'hive-' + crypto.randomBytes(6).toString('hex');
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify({ adminPath: generated }, null, 2));
+  writeConfig({ adminPath: generated });
   return generated;
 }
 const ADMIN_PATH = resolveAdminPath();
+
+/* 访客 IP 哈希盐：持久化以保证重启前后 UV 口径一致，日志中不落明文 IP */
+function resolveVisitSalt() {
+  const saved = readConfig().visitSalt;
+  if (saved) return saved;
+  const salt = crypto.randomBytes(16).toString('hex');
+  writeConfig({ visitSalt: salt });
+  return salt;
+}
+const VISIT_SALT = resolveVisitSalt();
 
 /* ============ 数据库 ============ */
 const db = new DatabaseSync(DB_PATH);
@@ -61,6 +78,18 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   );
   CREATE INDEX IF NOT EXISTS idx_events_date ON events(date DESC);
+
+  CREATE TABLE IF NOT EXISTS visits (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts      TEXT NOT NULL,
+    day     TEXT NOT NULL,
+    path    TEXT NOT NULL,
+    status  INTEGER NOT NULL DEFAULT 200,
+    ip_hash TEXT NOT NULL,
+    ua      TEXT NOT NULL DEFAULT '',
+    referer TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_visits_day ON visits(day);
 `);
 
 /* ============ 工具 ============ */
@@ -160,6 +189,97 @@ function requireAuth(req, res) {
   return true;
 }
 
+/* ============ 访问记录 ============
+   1) 只记页面、接口与异常请求，静态资源正常命中不记，避免一次访问产生多条噪音
+   2) 同一 IP 同一路径 60 秒内只记一次
+   3) 内存缓冲后批量落库，避免每个请求一次同步写阻塞事件循环
+   4) 仅保留 LOG_KEEP_DAYS 天且设行数上限，防止被刷请求撑爆磁盘
+   5) IP 只存加盐哈希；路径 / UA / 来源一律截断 */
+const LOG_SKIP_EXT = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.css', '.js', '.map']);
+const LOG_DEDUP_MS = 60 * 1000;
+const LOG_FLUSH_MS = 5000;
+const LOG_FLUSH_MAX = 50;
+const LOG_KEEP_DAYS = 90;
+const LOG_MAX_ROWS = 200000;
+
+const visitBuf = [];
+const visitSeen = new Map();
+let stmtInsertVisit = null;
+
+const cut = (s, n) => String(s || '').slice(0, n);
+const hashIP = ip => crypto.createHash('sha256').update(VISIT_SALT + ip).digest('hex').slice(0, 16);
+
+function localNow() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function recordVisit(req, res, url) {
+  if (req.method === 'HEAD') return;
+  const p = url.pathname;
+  if (p === '/api/stats') return;                       // 后台自己看统计，不计入统计
+  const status = res.statusCode;
+  if (LOG_SKIP_EXT.has(path.extname(p).toLowerCase()) && status < 400) return;
+
+  const ipHash = hashIP(clientIP(req));
+  const key = `${ipHash}|${p}`;
+  const now = Date.now();
+  if (now - (visitSeen.get(key) || 0) < LOG_DEDUP_MS) return;
+  visitSeen.set(key, now);
+
+  const ts = localNow();
+  visitBuf.push({
+    ts, day: ts.slice(0, 10),
+    path: cut(p, 200),
+    status,
+    ipHash,
+    ua: cut(req.headers['user-agent'], 200),
+    referer: cut(req.headers['referer'], 200),
+  });
+  if (visitBuf.length >= LOG_FLUSH_MAX) flushVisits();
+}
+
+function flushVisits() {
+  if (!visitBuf.length) return;
+  const batch = visitBuf.splice(0, visitBuf.length);
+  if (!stmtInsertVisit) {
+    stmtInsertVisit = db.prepare(
+      `INSERT INTO visits (ts, day, path, status, ip_hash, ua, referer) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    );
+  }
+  try {
+    db.exec('BEGIN');
+    for (const v of batch) stmtInsertVisit.run(v.ts, v.day, v.path, v.status, v.ipHash, v.ua, v.referer);
+    db.exec('COMMIT');
+  } catch {
+    try { db.exec('ROLLBACK'); } catch {}
+  }
+}
+
+function pruneVisits() {
+  try {
+    db.prepare(`DELETE FROM visits WHERE day < date('now', 'localtime', ?)`).run(`-${LOG_KEEP_DAYS} days`);
+    const { c } = db.prepare('SELECT COUNT(*) AS c FROM visits').get();
+    if (c > LOG_MAX_ROWS) {
+      db.prepare(
+        `DELETE FROM visits WHERE id <= (SELECT id FROM visits ORDER BY id DESC LIMIT 1 OFFSET ?)`
+      ).run(LOG_MAX_ROWS);
+    }
+  } catch {}
+}
+
+setInterval(flushVisits, LOG_FLUSH_MS).unref();
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, t] of visitSeen) if (now - t > LOG_DEDUP_MS) visitSeen.delete(k);
+}, 5 * 60 * 1000).unref();
+setInterval(pruneVisits, 60 * 60 * 1000).unref();
+pruneVisits();
+
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => { flushVisits(); process.exit(0); });
+}
+
 function validateEvent(b) {
   const errors = [];
   if (!['main', 'dark'].includes(b.side)) errors.push('side 必须是 main（正史）或 dark（野史）');
@@ -183,6 +303,35 @@ async function handleAPI(req, res, url) {
     if (safeEq(body.key || '', ADMIN_KEY)) { failMap.delete(ip); return sendJSON(res, 200, { ok: true }); }
     recordFail(ip);
     return sendJSON(res, 401, { ok: false, error: 'ACCESS DENIED' });
+  }
+
+  /* 访问统计（仅后台可读） */
+  if (url.pathname === '/api/stats' && req.method === 'GET') {
+    if (!requireAuth(req, res)) return;
+    flushVisits();                                   // 先把缓冲落库，保证读到最新
+    const days = Math.min(Math.max(Number(url.searchParams.get('days')) || 14, 1), 90);
+    const today = db.prepare(
+      `SELECT COUNT(*) AS pv, COUNT(DISTINCT ip_hash) AS uv FROM visits WHERE day = date('now','localtime')`
+    ).get();
+    const total = db.prepare(`SELECT COUNT(*) AS pv, COUNT(DISTINCT ip_hash) AS uv FROM visits`).get();
+    const daily = db.prepare(
+      `SELECT day, COUNT(*) AS pv, COUNT(DISTINCT ip_hash) AS uv FROM visits
+       WHERE day >= date('now','localtime',?) GROUP BY day ORDER BY day DESC`
+    ).all(`-${days} days`);
+    const topPaths = db.prepare(
+      `SELECT path, COUNT(*) AS n FROM visits WHERE status < 400 GROUP BY path ORDER BY n DESC LIMIT 12`
+    ).all();
+    const scans = db.prepare(
+      `SELECT path, COUNT(*) AS n, MAX(ts) AS last_ts FROM visits WHERE status >= 400
+       GROUP BY path ORDER BY n DESC LIMIT 12`
+    ).all();
+    const referers = db.prepare(
+      `SELECT referer, COUNT(*) AS n FROM visits WHERE referer <> '' GROUP BY referer ORDER BY n DESC LIMIT 10`
+    ).all();
+    const recent = db.prepare(
+      `SELECT ts, path, status, ip_hash, ua, referer FROM visits ORDER BY id DESC LIMIT 60`
+    ).all();
+    return sendJSON(res, 200, { ok: true, today, total, daily, topPaths, scans, referers, recent, keepDays: LOG_KEEP_DAYS });
   }
 
   /* 事件集合 */
@@ -296,6 +445,8 @@ function serveStatic(req, res, url) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  /* 响应结束后再记录，拿得到最终状态码，且不拖慢请求 */
+  res.on('finish', () => { try { recordVisit(req, res, url); } catch {} });
   try {
     if (url.pathname.startsWith('/api/')) return await handleAPI(req, res, url);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
@@ -311,4 +462,5 @@ server.listen(PORT, () => {
   console.log(`  后台入口 http://localhost:${PORT}/${ADMIN_PATH}   （保密！/admin 恒为 404）`);
   console.log(`  管理密钥 ${ADMIN_KEY === 'redqueen-4365' ? 'redqueen-4365（默认值，部署公网前务必用环境变量 ADMIN_KEY 修改）' : '（来自环境变量）'}`);
   console.log(`  防爆破   同 IP 密钥错 ${FAIL_MAX} 次封禁 ${BLOCK_MS / 60000} 分钟${TRUST_PROXY ? ' · 反代模式(X-Forwarded-For)' : ''}`);
+  console.log(`  访问记录 IP 仅存哈希 · 保留 ${LOG_KEEP_DAYS} 天 · 上限 ${LOG_MAX_ROWS} 行 · 后台「访客监控」查看`);
 });

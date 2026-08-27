@@ -127,6 +127,31 @@
   .form .acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
   .form .msg { font-family: var(--mono); font-size: 11px; color: var(--umb-hi); letter-spacing: .1em; margin-right: auto; align-self: center; }
 
+  /* ===== 标签页 ===== */
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tabs button { letter-spacing: .18em; }
+  .tabs button.on { background: var(--umb); color: #fff; border-color: var(--umb); font-weight: 700; }
+
+  /* ===== 访客监控 ===== */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .kcard { border: 1px solid var(--line); background: var(--panel); padding: 13px 16px; }
+  .kcard .n { font-family: var(--mono); font-size: 25px; font-weight: 700; color: var(--umb-hi); line-height: 1.1; }
+  .kcard .l { font-family: var(--mono); font-size: 10px; letter-spacing: .2em; color: var(--dim); margin-top: 5px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .box2 { border: 1px solid rgba(233,230,223,.12); padding: 14px 16px; min-width: 0; }
+  .box2 h3 { font-family: var(--mono); font-size: 11px; letter-spacing: .2em; color: var(--umb-hi); margin-bottom: 12px; font-weight: 400; }
+  .bar { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .bar .k { font-family: var(--mono); font-size: 11px; color: var(--dim); white-space: nowrap; }
+  .bar .track { flex: 1; height: 6px; background: rgba(233,230,223,.07); position: relative; }
+  .bar .fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--umb); }
+  .bar .v { font-family: var(--mono); font-size: 11px; color: var(--bone); white-space: nowrap; }
+  .plist .r { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid rgba(233,230,223,.07); }
+  .plist .p { font-family: var(--mono); font-size: 11px; word-break: break-all; }
+  .plist .n { font-family: var(--mono); font-size: 11px; color: var(--umb-hi); }
+  .code { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .st-ok { color: #6fd08c; }
+  .st-bad { color: var(--umb-hi); }
+
   .toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px);
     background: var(--umb); color: #fff; font-family: var(--mono); font-size: 12px;
@@ -139,6 +164,7 @@
     .grid { grid-template-columns: 1fr; }
     th:nth-child(4), td:nth-child(4) { display: none; }
     .toolbar .stat { width: 100%; margin: 0; }
+    .cols { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -172,6 +198,12 @@
 
 <!-- ===== 工作区 ===== -->
 <div class="wrap">
+  <div class="tabs">
+    <button id="tabArchive" class="on">档案管理</button>
+    <button id="tabVisits">访客监控</button>
+  </div>
+
+  <section id="panelArchive">
   <div class="toolbar">
     <select id="fSide">
       <option value="">全部档案</option>
@@ -189,6 +221,41 @@
     <tbody id="tbody"></tbody>
   </table>
   <div class="empty" id="empty" style="display:none">NO RECORDS · 档案为空</div>
+  </section>
+
+  <!-- ===== 访客监控 ===== -->
+  <section id="panelVisits" style="display:none">
+    <div class="toolbar">
+      <select id="vDays">
+        <option value="7">最近 7 天</option>
+        <option value="14" selected>最近 14 天</option>
+        <option value="30">最近 30 天</option>
+        <option value="90">最近 90 天</option>
+      </select>
+      <button id="vRefresh">刷新数据</button>
+      <span class="stat" id="vStat"></span>
+    </div>
+
+    <div class="cards" id="vCards"></div>
+
+    <div class="cols">
+      <div class="box2"><h3>每日访问 · PV / 独立访客</h3><div id="vDaily"></div></div>
+      <div class="box2"><h3>热门路径</h3><div class="plist" id="vTop"></div></div>
+    </div>
+
+    <div class="cols">
+      <div class="box2"><h3>嗅探记录 · 4xx 异常请求</h3><div class="plist" id="vScan"></div></div>
+      <div class="box2"><h3>来源 REFERER</h3><div class="plist" id="vRef"></div></div>
+    </div>
+
+    <div class="box2">
+      <h3>最近访问</h3>
+      <table>
+        <thead><tr><th>时间</th><th>路径</th><th>状态</th><th>访客</th><th>客户端</th></tr></thead>
+        <tbody id="vRecent"></tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
 <!-- ===== 编辑弹层 ===== -->
@@ -406,11 +473,77 @@ $('saveBtn').onclick = async () => {
   else $('formMsg').textContent = data.error || '保存失败';
 };
 
+/* ===== 标签页 ===== */
+function showTab(name) {
+  const isArchive = name === 'archive';
+  $('panelArchive').style.display = isArchive ? '' : 'none';
+  $('panelVisits').style.display = isArchive ? 'none' : '';
+  $('tabArchive').classList.toggle('on', isArchive);
+  $('tabVisits').classList.toggle('on', !isArchive);
+}
+$('tabArchive').onclick = () => { showTab('archive'); history.replaceState(null, '', location.pathname); };
+$('tabVisits').onclick = () => { showTab('visits'); history.replaceState(null, '', '#visits'); loadStats(); };
+$('vRefresh').onclick = () => loadStats();
+$('vDays').onchange = () => loadStats();
+
+/* ===== 访客监控 =====
+   UA / Referer / path 全是访问者可控字符串，渲染一律走 escapeHtml，防存储型 XSS */
+function shortUA(ua) {
+  const s = String(ua || '');
+  if (!s) return '—';
+  if (/bot|spider|crawl|slurp|headless|preview/i.test(s)) return '爬虫 / 机器人';
+  const br = /Edg\//.test(s) ? 'Edge' : /OPR\//.test(s) ? 'Opera' : /Firefox\//.test(s) ? 'Firefox'
+    : /Chrome\//.test(s) ? 'Chrome' : /Safari\//.test(s) ? 'Safari'
+    : /curl|wget|python|go-http|java|okhttp/i.test(s) ? '脚本 / 命令行' : '其他';
+  const os = /Windows/.test(s) ? 'Windows' : /Android/.test(s) ? 'Android'
+    : /iPhone|iPad|iOS/.test(s) ? 'iOS' : /Mac OS X|Macintosh/.test(s) ? 'macOS'
+    : /Linux/.test(s) ? 'Linux' : '';
+  return [br, os].filter(Boolean).join(' · ');
+}
+
+async function loadStats() {
+  const res = await fetch('/api/stats?days=' + encodeURIComponent($('vDays').value), { headers: headers() });
+  const d = await res.json();
+  if (!d.ok) return toast('读取失败：' + (d.error || ''));
+
+  $('vCards').innerHTML = [
+    [d.today.pv, '今日访问 PV'], [d.today.uv, '今日访客 UV'],
+    [d.total.pv, '累计访问 PV'], [d.total.uv, '累计访客 UV'],
+  ].map(([n, l]) => `<div class="kcard"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+
+  const max = Math.max(1, ...d.daily.map(x => x.pv));
+  $('vDaily').innerHTML = d.daily.length ? d.daily.map(x => `
+    <div class="bar">
+      <span class="k">${escapeHtml(String(x.day).slice(5))}</span>
+      <span class="track"><span class="fill" style="width:${(x.pv / max * 100).toFixed(1)}%"></span></span>
+      <span class="v">${x.pv} · ${x.uv}人</span>
+    </div>`).join('') : '<div class="code">暂无数据</div>';
+
+  const plist = (arr, key) => arr.length
+    ? arr.map(x => `<div class="r"><span class="p">${escapeHtml(x[key])}</span><span class="n">${x.n}</span></div>`).join('')
+    : '<div class="code">暂无数据</div>';
+  $('vTop').innerHTML = plist(d.topPaths, 'path');
+  $('vScan').innerHTML = plist(d.scans, 'path');
+  $('vRef').innerHTML = plist(d.referers, 'referer');
+
+  $('vRecent').innerHTML = d.recent.length ? d.recent.map(r => `
+    <tr>
+      <td class="mono">${escapeHtml(r.ts)}</td>
+      <td class="mono" style="word-break:break-all">${escapeHtml(r.path)}</td>
+      <td class="mono ${r.status < 400 ? 'st-ok' : 'st-bad'}">${r.status}</td>
+      <td class="mono">${escapeHtml(String(r.ip_hash).slice(0, 8))}</td>
+      <td title="${escapeHtml(r.ua)}">${escapeHtml(shortUA(r.ua))}</td>
+    </tr>`).join('') : '<tr><td colspan="5" class="code">暂无数据</td></tr>';
+
+  $('vStat').textContent = `IP 仅存哈希 · 日志保留 ${d.keepDays} 天`;
+}
+
 /* ===== 启动 ===== */
 (async () => {
   if (KEY && await tryLogin(KEY)) {
     $('gate').classList.add('hidden');
     load();
+    if (location.hash === '#visits') { showTab('visits'); loadStats(); }
   } else {
     localStorage.removeItem(KEY_STORE);
   }
