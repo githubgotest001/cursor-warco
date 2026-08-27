@@ -197,9 +197,11 @@ sudo apt-get install -y nginx
 sudo rm -f /etc/nginx/sites-enabled/default
 ```
 
-### 5.3 写入站点配置
+### 5.3 写入站点配置（含 SEO 主域归一，一次到位）
 
-整段复制执行（注意 heredoc 用的是 `'EOF'` 带引号——防止 `$host` 等 Nginx 变量被 shell 吞掉）：
+整段复制执行（注意 heredoc 用的是 `'EOF'` 带引号——防止 `$host` 等 Nginx 变量被 shell 吞掉）。
+配置里已带 **www → 裸域 301**（避免两个域名分摊 SEO 权重），后面 certbot 签发证书时会
+自动继承这份配置，**之后不需要再回来改 Nginx**：
 
 ```bash
 sudo tee /etc/nginx/sites-available/umbrella4365.conf > /dev/null <<'EOF'
@@ -209,6 +211,13 @@ server {
 
     # 图片走 base64 JSON 上传，10MB 图约膨胀到 14MB，务必调大
     client_max_body_size 20m;
+
+    # SEO：www 统一 301 到裸域。用 $scheme 而不是写死 https，
+    # 是为了 certbot 给 www 签证书做 HTTP-01 校验时不被跳到还未启用的 HTTPS 上；
+    # certbot --redirect 之后本块整体搬进 443，$scheme 自然变成 https，无需改动
+    if ($host = www.umbrella4365.com) {
+        return 301 $scheme://umbrella4365.com$request_uri;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:4365;
@@ -236,6 +245,8 @@ sudo systemctl reload nginx
 
 curl -s -o /dev/null -w "%{http_code}\n" http://umbrella4365.com/        # 预期 200
 curl -s -o /dev/null -w "%{http_code}\n" http://umbrella4365.com/admin   # 预期 404
+curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" http://www.umbrella4365.com/
+# 预期 301 -> http://umbrella4365.com/（签发 HTTPS 后自动变为跳 https）
 ```
 
 ### 5.5 签发 HTTPS 证书（Let's Encrypt，免费 + 自动续期）
@@ -257,6 +268,8 @@ sudo certbot --nginx \
 curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/    # 预期 200
 curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" http://umbrella4365.com/
 # 预期 301 -> https://umbrella4365.com/
+curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" https://www.umbrella4365.com/
+# 预期 301 -> https://umbrella4365.com/（5.3 配置的主域归一已在 HTTPS 上生效）
 
 sudo certbot renew --dry-run    # 预期最后输出 all simulated renewals succeeded
 ```
@@ -364,6 +377,7 @@ curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/   # 预期 20
 ```bash
 echo "— 前台 HTTPS —";        curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/
 echo "— HTTP 跳 HTTPS —";     curl -s -o /dev/null -w "%{http_code}\n" http://umbrella4365.com/
+echo "— www 301 裸域 —";      curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" https://www.umbrella4365.com/
 echo "— /admin 伪装 404 —";   curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/admin
 echo "— /admin.html 404 —";   curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/admin.html
 echo "— 隐藏后台入口 200 —";  curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/$MY_ADMIN_PATH
@@ -371,6 +385,7 @@ echo "— API 数据 —";          curl -s https://umbrella4365.com/api/events 
 echo "— 档案独立页 —";        curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/ev/1
 echo "— robots/sitemap —";    curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/robots.txt; curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/sitemap.xml
 echo "— RSS / llms.txt —";    curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/feed.xml; curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/llms.txt
+echo "— AI 爬虫可读全文 —";   curl -s -A "GPTBot" https://umbrella4365.com/ | grep -c 'class="card c-'
 echo "— 密钥校验 —";          curl -s -o /dev/null -w "%{http_code}\n" -X POST https://umbrella4365.com/api/auth/check -H "Content-Type: application/json" -d "{\"key\":\"$MY_ADMIN_KEY\"}"
 echo "— 错误密钥拒绝 —";      curl -s -o /dev/null -w "%{http_code}\n" -X POST https://umbrella4365.com/api/auth/check -H "Content-Type: application/json" -d '{"key":"wrong"}'
 ```
@@ -379,9 +394,12 @@ echo "— 错误密钥拒绝 —";      curl -s -o /dev/null -w "%{http_code}\n"
 | --- | --- |
 | 前台 HTTPS | `200` |
 | HTTP 跳 HTTPS | `301` |
+| www 301 裸域 | `301 -> https://umbrella4365.com/` |
 | /admin 与 /admin.html | `404` |
 | 隐藏后台入口 | `200` |
 | API 数据 | 输出 JSON 片段 |
+| 档案独立页 / robots / sitemap / RSS / llms.txt | 均 `200` |
+| AI 爬虫可读全文 | 输出数字 > 0（服务端直出的档案卡片数，SSR 生效） |
 | 正确密钥 | `200` |
 | 错误密钥 | `401`（连错 5 次会变 `429`，15 分钟后自动解封，或重启服务立即解封） |
 
@@ -402,41 +420,18 @@ echo "— 错误密钥拒绝 —";      curl -s -o /dev/null -w "%{http_code}\n"
 内置防爆破策略：同一 IP 15 分钟内密钥错误 5 次，封禁 15 分钟（登录接口与全部写接口共用）。
 重启服务会清空封禁状态（内存态）。
 
-## 11. SEO / GEO 上线动作（建议）
+## 11. 提交 sitemap 到搜索引擎（一次性网页操作）
 
-代码已内置首页 SSR、`/ev/:id` 档案页、robots.txt、sitemap.xml、RSS 与 llms.txt
-（详见 README「SEO / GEO」一节）。上线后再做三件事：
-
-### 11.1 统一主域（www 301 到裸域，避免两个域名分摊权重）
-
-编辑 `/etc/nginx/sites-available/umbrella4365.conf`，把 certbot 生成的 443 server 块
-拆出一个专门给 www 的跳转块（证书路径照抄原文件里的两行）：
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name www.umbrella4365.com;
-    ssl_certificate     /etc/letsencrypt/live/umbrella4365.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/umbrella4365.com/privkey.pem;
-    return 301 https://umbrella4365.com$request_uri;
-}
-```
-
-原 443 块的 `server_name` 只留 `umbrella4365.com`。然后 `sudo nginx -t && sudo systemctl reload nginx`，
-验证：`curl -sI https://www.umbrella4365.com/ | grep -i location` 应输出裸域地址。
-
-### 11.2 提交 sitemap 到各搜索引擎
+服务器侧的 SEO/GEO 已全部就位：首页 SSR、`/ev/:id` 档案页、robots.txt、sitemap.xml、RSS、
+llms.txt 内置在代码里（见 README「SEO / GEO」），www→裸域 301 已随 5.3 的 Nginx 配置一步到位，
+第 9 步的验收命令也已覆盖全部 SEO 端点。剩下唯一无法用命令完成的事，是到各家控制台提交 sitemap
+（提交一次即可，之后爬虫会自己按 sitemap 的 lastmod 回访）：
 
 | 平台 | 入口 | 动作 |
 | --- | --- | --- |
 | Google Search Console | search.google.com/search-console | 验证域名后提交 `https://umbrella4365.com/sitemap.xml` |
 | Bing Webmaster Tools | bing.com/webmasters | 可直接从 GSC 导入；覆盖 Bing/DuckDuckGo/ChatGPT 搜索 |
 | 百度搜索资源平台 | ziyuan.baidu.com | 验证站点后提交 sitemap（大陆流量主要来源） |
-
-### 11.3 验证 GEO 抓取
-
-`https://umbrella4365.com/llms.txt`、`/llms-full.txt`、`/feed.xml` 应能公网打开；
-用 `curl -A "GPTBot" https://umbrella4365.com/` 确认对 AI 爬虫返回的是含全部档案的完整 HTML。
 
 ## 附录 A · Docker 部署（可选路线）
 
