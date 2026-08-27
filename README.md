@@ -29,6 +29,7 @@ node server.js    # 启动服务，默认端口 4365
 | `ADMIN_KEY` | 管理后台密钥（部署公网前务必修改） | `redqueen-4365` |
 | `ADMIN_PATH` | 后台隐藏入口路径（不含 `/`） | 自动生成随机值，存 `data/config.json` |
 | `TRUST_PROXY` | 置 `1` 表示在 Nginx 等反代之后（取 X-Forwarded-For 作为客户端 IP） | 关 |
+| `SITE_URL` | 站点对外地址，生成 canonical / sitemap / RSS 的绝对链接 | `https://umbrella4365.com` |
 
 内置防爆破：同一 IP 15 分钟内密钥错 5 次封禁 15 分钟（登录与全部写接口共用计数）。
 
@@ -42,8 +43,27 @@ node server.js    # 启动服务，默认端口 4365
 - **顶部筛选**：全部 / 只看正史 / 只看野史；报头实时显示收录总数与正史 · 野史分布。
 - **事件线索**：把漏洞/羊毛窗口的多条事件串成时间线（见下节）。
 - **调阅档案**：点卡片弹出详情（详细描述、图片、线索时间线、信源链接）。
-- **分享定位**：每条档案有 `#ev-<id>` 锚点，弹层内「⧉ 链接」一键复制，打开链接即自动定位到该条。
+- **分享定位**：每条档案有独立页面 `/ev/<id>`，弹层内「⧉ 链接」一键复制该地址，分享出去带
+  事件专属标题与预览卡片；`#ev-<id>` 锚点仍可在时间树内直接定位。
 - **社交卡片**：内置 Open Graph / Twitter 卡片与分享图 `public/og.png`，分享到群聊 / 推特有预览。
+
+## SEO / GEO
+
+面向搜索引擎与 AI 爬虫（GPTBot / ClaudeBot / PerplexityBot 等）做了服务端直出与机器可读索引：
+
+- **首页 SSR**：`/` 由服务端直出完整时间树 HTML，并内联档案数据（`window.__EVENTS__`），
+  不执行 JS 的爬虫也能读到全文；浏览器端脚本检测到直出内容后只做交互接线（hydration），
+  不重复渲染。入场动画通过 `.js` 类门控——无 JS 环境下内容直接可见，不构成隐藏文本。
+- **独立档案页**：每条档案有可索引的 `/ev/<id>` 页面，含专属 title / description / canonical /
+  Open Graph 卡片 / Article JSON-LD（日期、图片、信源 `isBasedOn`），并带较新/较旧翻页与
+  事件线索内链，方便爬虫沿内链遍历全部档案。
+- **机器可读索引**：`/robots.txt`（含 Sitemap 声明、放行全部爬虫、屏蔽 `/api/`）、
+  `/sitemap.xml`（全部页面 + lastmod）、`/feed.xml`（RSS 2.0）、
+  `/llms.txt` 与 `/llms-full.txt`（LLM 友好的 Markdown 目录 / 全文，GEO 常规做法）。
+- **结构化数据**：首页 WebSite + ItemList，档案页 Article。
+- **传输层**：文本响应 gzip + ETag/304；`/api/*` 带 `X-Robots-Tag: noindex` 防 JSON 被当作
+  重复内容收录。
+- 以上动态产物全部内存缓存，档案增删改时自动失效重建；站点地址由环境变量 `SITE_URL` 控制。
 
 ## 数据模型（events）
 

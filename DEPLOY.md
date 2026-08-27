@@ -57,6 +57,7 @@ openssl rand -hex 6   # 得到如 9f2c81ab73de → 后台路径设为 hive-9f2c8
 | `ADMIN_PATH` | 后台隐藏入口路径（不含 `/`）。`/admin` 恒为 404 | 如 `hive-9f2c81ab73de`，**保密，不要外传** |
 | `TRUST_PROXY` | 在 Nginx 后必须设为 `1`，防爆破封禁才能拿到真实客户端 IP | `1` |
 | `PORT` | 监听端口 | 保持 `4365` |
+| `SITE_URL` | 站点对外地址（canonical / sitemap / RSS 用） | 默认 `https://umbrella4365.com`，换域名才需设置 |
 
 > 不设置 `ADMIN_PATH` 时服务会自动生成随机路径并写入 `data/config.json`（启动日志可见），
 > 同样安全；显式设置的好处是换机器/清数据时入口不变。
@@ -367,6 +368,9 @@ echo "— /admin 伪装 404 —";   curl -s -o /dev/null -w "%{http_code}\n" htt
 echo "— /admin.html 404 —";   curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/admin.html
 echo "— 隐藏后台入口 200 —";  curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/$MY_ADMIN_PATH
 echo "— API 数据 —";          curl -s https://umbrella4365.com/api/events | head -c 120; echo
+echo "— 档案独立页 —";        curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/ev/1
+echo "— robots/sitemap —";    curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/robots.txt; curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/sitemap.xml
+echo "— RSS / llms.txt —";    curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/feed.xml; curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/llms.txt
 echo "— 密钥校验 —";          curl -s -o /dev/null -w "%{http_code}\n" -X POST https://umbrella4365.com/api/auth/check -H "Content-Type: application/json" -d "{\"key\":\"$MY_ADMIN_KEY\"}"
 echo "— 错误密钥拒绝 —";      curl -s -o /dev/null -w "%{http_code}\n" -X POST https://umbrella4365.com/api/auth/check -H "Content-Type: application/json" -d '{"key":"wrong"}'
 ```
@@ -397,6 +401,42 @@ echo "— 错误密钥拒绝 —";      curl -s -o /dev/null -w "%{http_code}\n"
 
 内置防爆破策略：同一 IP 15 分钟内密钥错误 5 次，封禁 15 分钟（登录接口与全部写接口共用）。
 重启服务会清空封禁状态（内存态）。
+
+## 11. SEO / GEO 上线动作（建议）
+
+代码已内置首页 SSR、`/ev/:id` 档案页、robots.txt、sitemap.xml、RSS 与 llms.txt
+（详见 README「SEO / GEO」一节）。上线后再做三件事：
+
+### 11.1 统一主域（www 301 到裸域，避免两个域名分摊权重）
+
+编辑 `/etc/nginx/sites-available/umbrella4365.conf`，把 certbot 生成的 443 server 块
+拆出一个专门给 www 的跳转块（证书路径照抄原文件里的两行）：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name www.umbrella4365.com;
+    ssl_certificate     /etc/letsencrypt/live/umbrella4365.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/umbrella4365.com/privkey.pem;
+    return 301 https://umbrella4365.com$request_uri;
+}
+```
+
+原 443 块的 `server_name` 只留 `umbrella4365.com`。然后 `sudo nginx -t && sudo systemctl reload nginx`，
+验证：`curl -sI https://www.umbrella4365.com/ | grep -i location` 应输出裸域地址。
+
+### 11.2 提交 sitemap 到各搜索引擎
+
+| 平台 | 入口 | 动作 |
+| --- | --- | --- |
+| Google Search Console | search.google.com/search-console | 验证域名后提交 `https://umbrella4365.com/sitemap.xml` |
+| Bing Webmaster Tools | bing.com/webmasters | 可直接从 GSC 导入；覆盖 Bing/DuckDuckGo/ChatGPT 搜索 |
+| 百度搜索资源平台 | ziyuan.baidu.com | 验证站点后提交 sitemap（大陆流量主要来源） |
+
+### 11.3 验证 GEO 抓取
+
+`https://umbrella4365.com/llms.txt`、`/llms-full.txt`、`/feed.xml` 应能公网打开；
+用 `curl -A "GPTBot" https://umbrella4365.com/` 确认对 AI 爬虫返回的是含全部档案的完整 HTML。
 
 ## 附录 A · Docker 部署（可选路线）
 

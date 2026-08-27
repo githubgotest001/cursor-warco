@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<script>document.documentElement.classList.add('js');/* 入场动画只在 JS 可用时启用，保证爬虫/无 JS 环境内容可见 */</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UMBRELLA 4365 · Cursor 战地纪实</title>
 <meta name="description" content="UMBRELLA 4365：Cursor 战地纪实。一条正史，一条野史，双向时间树记录 AI 编程纪元与 Cursor 圈的光与影。仅作记录，不构成立场。">
@@ -18,6 +19,12 @@
 <meta name="twitter:description" content="AI圈一天，人间一年。正史与野史，记录 Cursor 圈的光与影。">
 <meta name="twitter:image" content="https://umbrella4365.com/og.png">
 <meta name="theme-color" content="#0a0b0e">
+<meta name="author" content="Cursor 战地记者">
+<meta property="og:locale" content="zh_CN">
+<link rel="canonical" href="https://umbrella4365.com/">
+<link rel="alternate" type="application/rss+xml" title="UMBRELLA 4365 · 档案更新" href="/feed.xml">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"UMBRELLA 4365 · Cursor 战地纪实","alternateName":["UMBRELLA 4365","Cursor 战地纪实"],"url":"https://umbrella4365.com/","description":"一条正史，一条野史，双向时间树记录 AI 编程纪元与 Cursor 圈的光与影。仅作记录，不构成立场。","inLanguage":"zh-CN"}</script>
+<!--SSR:HEAD-->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=Ma+Shan+Zheng&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -39,6 +46,8 @@
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
   html { scroll-behavior: smooth; }
 
@@ -322,12 +331,12 @@
     width: min(400px, 100%); position: relative;
     padding: 13px 15px 14px;
     cursor: pointer;
-    opacity: 0;
     transition: opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1), box-shadow .3s ease;
   }
-  .row.ev.main .card { transform: translateX(-34px); }
-  .row.ev.dark .card { transform: translateX(34px); }
-  .card.in { opacity: 1; transform: none; }
+  /* 入场初始态仅在 JS 可用时应用（.js 由 head 内脚本添加），SSR 内容对无 JS 爬虫直接可见 */
+  .js .card:not(.in) { opacity: 0; }
+  .js .row.ev.main .card:not(.in) { transform: translateX(-34px); }
+  .js .row.ev.dark .card:not(.in) { transform: translateX(34px); }
 
   .card .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
   .card .tag { font-size: 10.5px; letter-spacing: .3em; padding: 2px 7px 2px 9px; font-weight: 700; }
@@ -337,7 +346,7 @@
   .card p { font-size: 12px; line-height: 1.78; }
   .card .thumb { margin: 8px 0 2px; border: 1px solid rgba(0,0,0,.2); overflow: hidden; }
   .card .thumb img { display: block; width: 100%; height: 120px; object-fit: cover; }
-  .card .more { display: inline-block; margin-top: 8px; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; opacity: .6; }
+  .card .more { display: inline-block; margin-top: 8px; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; opacity: .6; color: inherit; text-decoration: none; }
 
   /* 正史卡：无菌区档案纸 */
   .card.c-main {
@@ -493,8 +502,7 @@
     .row.ev.main .link { background: linear-gradient(90deg, rgba(233,230,223,.12), rgba(233,230,223,.85)); }
     .cell { display: block; }
     .card { width: 100%; }
-    .row.ev.main .card, .row.ev.dark .card { transform: translateY(22px); }
-    .card.in { transform: none; }
+    .js .row.ev.main .card:not(.in), .js .row.ev.dark .card:not(.in) { transform: translateY(22px); }
     .card.c-main { text-align: left; border-right: none; border-left: 3px solid var(--umb); }
     .card.c-main .head { flex-direction: row; }
 
@@ -506,7 +514,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
-    .card { opacity: 1; transform: none; }
+    .card, .js .card:not(.in) { opacity: 1; transform: none; }
   }
 </style>
 </head>
@@ -524,7 +532,7 @@
   <div class="mast-main">
     <img class="logo" src="/logo.svg" alt="UMBRELLA 4365">
     <div class="mast-title">
-      <h1 id="headline">AI圈<span class="em">一天</span>，人间<span class="em">一年</span></h1>
+      <h1 id="headline"><span class="sr-only">UMBRELLA 4365 · Cursor 战地纪实：</span>AI圈<span class="em">一天</span>，人间<span class="em">一年</span></h1>
       <div class="byline">by · Cursor 战地记者</div>
     </div>
   </div>
@@ -546,9 +554,7 @@
 
 <!-- ================= 垂直时间树 ================= -->
 <main class="stage" aria-label="Cursor 编年时间树">
-  <div class="track" id="track">
-    <div class="sysmsg" id="sysmsg">ACCESSING HIVE ARCHIVE ...</div>
-  </div>
+  <div class="track" id="track"><!--SSR:TRACK--></div>
 </main>
 
 <div class="jumpers">
@@ -558,7 +564,7 @@
 
 <footer class="foot-note">
   UMBRELLA 4365 ARCHIVE · 基于公开报道与民间情报整理 · 野史含演绎 仅作记录 不构成立场<br>
-  记者本人是 Cursor 重度用户 · <a href="https://umbrella4365.com">umbrella4365.com</a>
+  记者本人是 Cursor 重度用户 · <a href="https://umbrella4365.com">umbrella4365.com</a> · <a href="/feed.xml">RSS</a> · <a href="/llms.txt">llms.txt</a>
 </footer>
 
 <!-- ================= 档案调阅弹层 ================= -->
@@ -619,16 +625,20 @@ function openFromHash() {
 
 async function boot() {
   try {
-    const res = await fetch('/api/events');
-    if (!res.ok) throw new Error(res.status);
-    const data = await res.json();
-    EVENTS = data.events || [];
-    render();
+    if (Array.isArray(window.__EVENTS__)) {
+      EVENTS = window.__EVENTS__;                 // 服务端内联数据，省一次请求
+    } else {
+      const res = await fetch('/api/events');
+      if (!res.ok) throw new Error(res.status);
+      EVENTS = (await res.json()).events || [];
+    }
+    if (track.querySelector('.row')) wire();      // 服务端已直出（SEO）：只接管交互，不重绘
+    else render();
     updateCount();
     bindFilter();
     openFromHash();
   } catch (e) {
-    document.getElementById('sysmsg').textContent = 'RED QUEEN OFFLINE · 无法连接档案库（请先运行 node server.js）';
+    track.innerHTML = '<div class="sysmsg">RED QUEEN OFFLINE · 无法连接档案库（请先运行 node server.js）</div>';
   }
 }
 
@@ -649,8 +659,6 @@ function render() {
         <span class="t2">LIVE · 战地记者在线</span>
       </div>
     `);
-    const ml = document.getElementById('memoLink');
-    if (ml) ml.onclick = openMemo;
   }
 
   /* 线索筛选提示条 */
@@ -700,18 +708,18 @@ function render() {
       const len = LENS[n % LENS.length];
       const tuck = prevWasEvent && prevSide && prevSide !== ev.side ? ' tuck' : '';
       const no = (ev.side === 'main' ? 'A-' : 'X-') + String(ev.id).padStart(3, '0');
-      const thumb = ev.image ? `<div class="thumb"><img src="${esc(ev.image)}" alt="" loading="lazy"></div>` : '';
+      const thumb = ev.image ? `<div class="thumb"><img src="${esc(ev.image)}" alt="${esc(ev.title)}" loading="lazy" decoding="async"></div>` : '';
       const seriesTag = ev.series ? `<span class="series-tag" data-series="${esc(ev.series)}">🔗 ${esc(ev.series)}</span>` : '';
       const cardHTML = `
         <article class="card c-${ev.side}" data-id="${ev.id}">
           ${ev.side === 'dark' ? '<span class="stamp">野史</span>' : ''}
           <div class="head"><span class="tag">${esc(ev.tag) || '记录'}</span><span class="no">${no}</span></div>
-          <time>${dot(ev.date)}</time>
+          <time datetime="${esc(ev.date)}">${dot(ev.date)}</time>
           <h3>${esc(ev.title)}</h3>
           ${thumb}
           <p>${esc(ev.summary)}</p>
           ${seriesTag}
-          <span class="more">调阅档案 »</span>
+          <a class="more" href="/ev/${ev.id}">调阅档案 »</a>
         </article>`;
       track.insertAdjacentHTML('beforeend', `
         <div class="row ev ${ev.side}${tuck}" style="--len:${len}px">
@@ -735,7 +743,13 @@ function render() {
     `);
   }
 
-  /* 卡片入场 + 点击调阅 / 线索徽标 */
+  wire();
+}
+
+/* 交互接线：服务端直出（SEO）与客户端渲染共用 —— 卡片入场、点击调阅、线索徽标、手记入口 */
+function wire() {
+  const ml = document.getElementById('memoLink');
+  if (ml) ml.onclick = openMemo;
   const io = new IntersectionObserver(entries => {
     for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
   }, { threshold: 0.12 });
@@ -744,6 +758,11 @@ function render() {
     c.addEventListener('click', e => {
       const st = e.target.closest('.series-tag');
       if (st) { e.stopPropagation(); viewSeries(st.dataset.series); return; }
+      const a = e.target.closest('a.more');
+      if (a) {
+        if (e.ctrlKey || e.metaKey || e.shiftKey) return;   // 保留新标签页打开档案页的能力
+        e.preventDefault();                                  // 普通点击仍走站内调阅弹层
+      }
       openDossier(Number(c.dataset.id));
     });
   });
@@ -806,7 +825,8 @@ function openDossier(id) {
   document.getElementById('closeD').onclick = closeDossier;
   document.getElementById('shareD').onclick = e => {
     const btn = e.currentTarget;
-    try { navigator.clipboard.writeText(location.href); } catch {}
+    /* 复制档案独立页地址：分享出去有专属标题与预览卡片（SEO 友好） */
+    try { navigator.clipboard.writeText(location.origin + '/ev/' + ev.id); } catch {}
     btn.textContent = '✓ 已复制';
     setTimeout(() => { btn.textContent = '⧉ 链接'; }, 1500);
   };
@@ -885,7 +905,7 @@ let delay = 0;
         frag.appendChild(s);
       }
       node.replaceChild(frag, child);
-    } else split(child);
+    } else if (!(child.classList && child.classList.contains('sr-only'))) split(child);
   });
 })(headline);
 

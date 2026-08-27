@@ -9,16 +9,19 @@
  *   ADMIN_PATH   管理后台入口路径（不含 /）。未设置时首次启动自动生成随机路径，
  *                持久化在 data/config.json 并打印在启动日志。/admin 恒为 404。
  *   TRUST_PROXY  置 1 表示运行在反向代理（Nginx 等）之后，取 X-Forwarded-For 作为客户端 IP
+ *   SITE_URL     站点对外地址（生成 canonical / sitemap / RSS 的绝对链接），默认 https://umbrella4365.com
  */
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const zlib = require('node:zlib');
 const { DatabaseSync } = require('node:sqlite');
 
 const PORT = Number(process.env.PORT || 4365);
 const ADMIN_KEY = process.env.ADMIN_KEY || 'redqueen-4365';
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
+const SITE_URL = (process.env.SITE_URL || 'https://umbrella4365.com').replace(/\/+$/, '');
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const UPLOAD_DIR = path.join(PUBLIC_DIR, 'uploads');
@@ -109,11 +112,33 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
 };
 const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
+const COMPRESSIBLE_EXT = new Set(['.html', '.js', '.css', '.svg', '.json', '.xml', '.txt']);
+
+/* 文本响应统一出口：>1KB 且客户端支持时 gzip，缩短首字节到可读内容的时间（Core Web Vitals） */
+function wantsGzip(req) { return /\bgzip\b/i.test(String((req && req.headers['accept-encoding']) || '')); }
+
+function sendBody(res, code, headers, body) {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  headers = { Vary: 'Accept-Encoding', ...headers };
+  if (buf.length > 1024 && wantsGzip(res.req)) {
+    zlib.gzip(buf, { level: 6 }, (err, gz) => {
+      if (!err && gz && gz.length < buf.length) {
+        res.writeHead(code, { ...headers, 'Content-Encoding': 'gzip' });
+        res.end(gz);
+      } else {
+        res.writeHead(code, headers);
+        res.end(buf);
+      }
+    });
+    return;
+  }
+  res.writeHead(code, headers);
+  res.end(buf);
+}
 
 function sendJSON(res, code, obj) {
-  const body = JSON.stringify(obj);
-  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(body);
+  /* 接口数据不进搜索索引：内容已由 SSR 页面承载，避免 JSON 被当作重复内容收录 */
+  sendBody(res, code, { 'Content-Type': 'application/json; charset=utf-8', 'X-Robots-Tag': 'noindex' }, JSON.stringify(obj));
 }
 
 function readBody(req, limit = 20 * 1024 * 1024) {
@@ -293,6 +318,468 @@ function validateEvent(b) {
 
 function rowToEvent(r) { return r; }
 
+/* ==================================================================
+   SEO / GEO（生成式引擎优化）
+   - 首页服务端直出完整时间树 HTML + 内联档案数据：不执行 JS 的搜索引擎
+     与 AI 爬虫（GPTBot / ClaudeBot / PerplexityBot 等）也能读到全文
+   - 每条档案有独立可索引页面 /ev/:id（专属 title / OG 卡片 / Article JSON-LD / 内链）
+   - robots.txt · sitemap.xml · feed.xml（RSS 2.0）· llms.txt / llms-full.txt
+   - 产物全部内存缓存 + ETag，档案增删改时失效重建
+   ================================================================== */
+const escHtml = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const dotDate = d => String(d || '').replaceAll('-', '.');
+const absUrl = u => !u ? '' : /^https?:\/\//i.test(u) ? u : SITE_URL + (u.startsWith('/') ? '' : '/') + u;
+const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+const ldjson = o => JSON.stringify(o).replace(/</g, '\\u003c');   // 防内容闭合 </script>
+const rfc822 = d => new Date(d + 'T00:00:00+08:00').toUTCString();
+const isoTs = t => String(t || '').replace(' ', 'T');
+
+const SITE_NAME = 'UMBRELLA 4365 · Cursor 战地纪实';
+const SITE_DESC = 'AI圈一天，人间一年。一条正史，一条野史，双向时间树记录 Cursor 与 AI 编程圈的光与影。仅作记录，不构成立场。';
+const SITE_INTRO = 'UMBRELLA 4365（umbrella4365.com）是一个中文时间轴档案站，以「战地纪实」风格记录 AI 代码编辑器 Cursor（Anysphere 公司出品）及 AI 编程圈的重要事件。档案分两线：「正史」收录融资、发布、并购等有公开信源的报道；「野史」收录漏洞、羊毛、事故、社区传闻等民间情报（含演绎成分）。仅作记录，不构成立场。';
+
+const allEvents = () => db.prepare('SELECT * FROM events ORDER BY date DESC, id DESC').all();
+
+const seoCache = new Map(); // key -> { body: Buffer, etag }
+function seoDoc(key, build) {
+  let doc = seoCache.get(key);
+  if (!doc) {
+    const body = Buffer.from(build());
+    doc = { body, etag: `W/"${crypto.createHash('sha1').update(body).digest('base64url').slice(0, 16)}"` };
+    seoCache.set(key, doc);
+  }
+  return doc;
+}
+function sendDoc(req, res, doc, type, cacheControl) {
+  const headers = { 'Content-Type': type, 'Cache-Control': cacheControl, ETag: doc.etag };
+  if (req.headers['if-none-match'] === doc.etag) {
+    res.writeHead(304, { ...headers, Vary: 'Accept-Encoding' });
+    return res.end();
+  }
+  sendBody(res, 200, headers, doc.body);
+}
+
+/* ---- 首页 SSR：与 public/index.html 客户端 render() 输出同构 ---- */
+const SSR_PHASES = {
+  '2022': { a: 'PHASE-0 始祖毒株 · PROGENITOR', b: '暗面无记录' },
+  '2023': { a: 'PHASE-I 初次泄漏 · OUTBREAK',  b: '暗面微弱杂音' },
+  '2024': { a: 'PHASE-II 城市扩散 · SPREAD',   b: '暗面异常增殖' },
+  '2025': { a: 'PHASE-III 全球大流行 · PANDEMIC', b: '变异体横行 · MUTATION' },
+  '2026': { a: 'PHASE-IV 吞并纪元 · ASSIMILATION', b: '暗面信号追踪中…' },
+};
+const ssrPhase = y => SSR_PHASES[y] || { a: `PHASE-? 观测中 · ${y}`, b: '暗面信号追踪中…' };
+const SSR_LENS = [40, 112, 72];
+
+function ssrCard(ev) {
+  const no = (ev.side === 'main' ? 'A-' : 'X-') + String(ev.id).padStart(3, '0');
+  const thumb = ev.image ? `<div class="thumb"><img src="${escHtml(ev.image)}" alt="${escHtml(ev.title)}" loading="lazy" decoding="async"></div>` : '';
+  const seriesTag = ev.series ? `<span class="series-tag" data-series="${escHtml(ev.series)}">🔗 ${escHtml(ev.series)}</span>` : '';
+  return `
+        <article class="card c-${ev.side}" data-id="${ev.id}">
+          ${ev.side === 'dark' ? '<span class="stamp">野史</span>' : ''}
+          <div class="head"><span class="tag">${escHtml(ev.tag) || '记录'}</span><span class="no">${no}</span></div>
+          <time datetime="${escHtml(ev.date)}">${dotDate(ev.date)}</time>
+          <h3>${escHtml(ev.title)}</h3>
+          ${thumb}
+          <p>${escHtml(ev.summary)}</p>
+          ${seriesTag}
+          <a class="more" href="/ev/${ev.id}">调阅档案 »</a>
+        </article>`;
+}
+
+function ssrTrackHTML(events) {
+  let html = `
+      <div class="row intro">
+        <div class="card-intro">
+          <span class="lead">发刊词</span>AI 圈一夜巨变、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、羊毛、事故与传闻，多来自民间群聊。<span class="vow">记者不站队、不批判、仅作记录；正因热爱，才如实记下它的光与影。</span>　<span class="memo-link" id="memoLink" title="OFF THE RECORD · 记者私话">附 · 战地手记 »</span>
+        </div>
+      </div>
+      <div class="row now">
+        <div class="pulse"><span class="cursor-blink"></span><span class="t1">未完待续 · 记录进行中</span></div>
+        <span class="t2">LIVE · 战地记者在线</span>
+      </div>`;
+
+  const byYear = new Map();
+  for (const ev of events) {
+    const y = ev.date.slice(0, 4);
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y).push(ev);
+  }
+  const sideCount = { main: 0, dark: 0 };
+  let prevWasEvent = false, prevSide = null;
+
+  for (const [year, ylist] of byYear) {
+    const ph = ssrPhase(year);
+    html += `
+      <div class="row year">
+        <span class="ghost">${year}</span>
+        <span class="evo-a">${escHtml(ph.a)}</span>
+        <span class="evo-b">${escHtml(ph.b)}</span>
+        <div class="plate"><span class="gate"></span><span class="yr">${year}</span></div>
+      </div>`;
+    prevWasEvent = false; prevSide = null;
+
+    for (const ev of ylist) {
+      const n = sideCount[ev.side]++;
+      const len = SSR_LENS[n % SSR_LENS.length];
+      const tuck = prevWasEvent && prevSide && prevSide !== ev.side ? ' tuck' : '';
+      const card = ssrCard(ev);
+      html += `
+      <div class="row ev ${ev.side}${tuck}" style="--len:${len}px">
+        <div class="cell l">${ev.side === 'main' ? card + '<div class="link"></div>' : ''}</div>
+        <div class="cell r">${ev.side === 'dark' ? '<div class="link"></div>' + card : ''}</div>
+        <span class="node"></span>
+      </div>`;
+      prevWasEvent = true; prevSide = ev.side;
+    }
+  }
+
+  html += `
+      <div class="row zero">
+        <img src="/logo.svg" alt="">
+        <div class="t1">毒 株 原 点</div>
+        <div class="t2">STRAIN ZERO · 一切从这里开始</div>
+      </div>`;
+  return html;
+}
+
+function homeHeadHTML(events) {
+  const itemList = ldjson({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: 'Cursor 战地纪实档案索引',
+    numberOfItems: events.length,
+    itemListElement: events.slice(0, 100).map((e, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `${SITE_URL}/ev/${e.id}`,
+      name: `${e.title}（${e.date}）`,
+    })),
+  });
+  return `<script>window.__EVENTS__=${ldjson(events)};</script>\n<script type="application/ld+json">${itemList}</script>`;
+}
+
+const INDEX_PATH = path.join(PUBLIC_DIR, 'index.html');
+let indexTpl = { mtime: -1, text: '' };
+function indexTemplate() {
+  const st = fs.statSync(INDEX_PATH);
+  if (st.mtimeMs !== indexTpl.mtime) {
+    indexTpl = { mtime: st.mtimeMs, text: fs.readFileSync(INDEX_PATH, 'utf8') };
+    seoCache.delete('home');
+  }
+  return indexTpl.text;
+}
+
+function serveHome(req, res) {
+  indexTemplate(); // 模板文件变更时先失效缓存
+  const doc = seoDoc('home', () => {
+    const events = allEvents();
+    return indexTemplate()
+      .replace('<!--SSR:HEAD-->', homeHeadHTML(events))
+      .replace('<!--SSR:TRACK-->', ssrTrackHTML(events));
+  });
+  sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
+}
+
+/* ---- 档案独立页 /ev/:id ---- */
+function eventPageHTML(ev, events) {
+  const isMain = ev.side === 'main';
+  const sideName = isMain ? '正史' : '野史';
+  const no = (isMain ? 'A-' : 'X-') + String(ev.id).padStart(3, '0');
+  const url = `${SITE_URL}/ev/${ev.id}`;
+  const ogImg = ev.image ? absUrl(ev.image) : `${SITE_URL}/og.png`;
+  const pageTitle = `${ev.title}（${dotDate(ev.date)}）· ${sideName}档案`;
+  const desc = clip(ev.summary, 150);
+  const idx = events.findIndex(e => e.id === ev.id);
+  const newer = idx > 0 ? events[idx - 1] : null;
+  const older = idx >= 0 && idx < events.length - 1 ? events[idx + 1] : null;
+
+  const paras = String(ev.detail || '').split(/\n{2,}/).filter(Boolean)
+    .map(p => `<p>${escHtml(p).replaceAll('\n', '<br>')}</p>`).join('') || '<p>（暂无详细描述）</p>';
+
+  let seriesHtml = '';
+  if (ev.series) {
+    const arr = events.filter(e => e.series === ev.series).sort((a, b) => a.date < b.date ? -1 : 1);
+    const span = arr.length >= 2 ? Math.round(Math.abs(new Date(arr[arr.length - 1].date) - new Date(arr[0].date)) / 864e5) : 0;
+    seriesHtml = `
+      <section class="thread">
+        <div class="th-hd">🔗 事件线索 · ${escHtml(ev.series)}（${arr.length} 个节点）</div>
+        ${arr.map(e => e.id === ev.id
+          ? `<div class="node2 cur"><span class="d">${dotDate(e.date)}</span><span>${escHtml(e.title)}（本条）</span></div>`
+          : `<div class="node2"><span class="d">${dotDate(e.date)}</span><a href="/ev/${e.id}">${escHtml(e.title)}</a></div>`).join('')}
+        ${span ? `<div class="win">◷ 窗口跨度 ${span} 天（${dotDate(arr[0].date)} → ${dotDate(arr[arr.length - 1].date)}）</div>` : ''}
+      </section>`;
+  }
+  const srcHtml = ev.source ? `<div class="srcline">信源 SOURCE · <a href="${escHtml(ev.source)}" target="_blank" rel="noopener">${escHtml(ev.source)}</a></div>` : '';
+
+  const ld = ldjson({
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: ev.title,
+    description: ev.summary,
+    datePublished: ev.date,
+    dateModified: isoTs(ev.updated_at) || ev.date,
+    inLanguage: 'zh-CN',
+    mainEntityOfPage: url,
+    image: [ogImg],
+    articleSection: ev.tag || sideName,
+    keywords: [ev.tag, ev.series, 'Cursor', 'AI 编程', sideName].filter(Boolean).join(','),
+    author: { '@type': 'Person', name: 'Cursor 战地记者' },
+    publisher: { '@type': 'Organization', name: 'UMBRELLA 4365', url: `${SITE_URL}/`, logo: { '@type': 'ImageObject', url: `${SITE_URL}/og.png` } },
+    ...(ev.source ? { isBasedOn: ev.source } : {}),
+  });
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escHtml(pageTitle)} · UMBRELLA 4365</title>
+<meta name="description" content="${escHtml(desc)}">
+<link rel="canonical" href="${url}">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0a0b0e">
+<meta name="author" content="Cursor 战地记者">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="UMBRELLA 4365">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:title" content="${escHtml(pageTitle)}">
+<meta property="og:description" content="${escHtml(desc)}">
+<meta property="og:url" content="${url}">
+<meta property="og:image" content="${escHtml(ogImg)}">
+<meta property="article:published_time" content="${escHtml(ev.date)}">
+<meta property="article:modified_time" content="${escHtml(isoTs(ev.updated_at))}">
+<meta property="article:section" content="${escHtml(ev.tag || sideName)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escHtml(pageTitle)}">
+<meta name="twitter:description" content="${escHtml(desc)}">
+<meta name="twitter:image" content="${escHtml(ogImg)}">
+<link rel="alternate" type="application/rss+xml" title="UMBRELLA 4365 · 档案更新" href="/feed.xml">
+<script type="application/ld+json">${ld}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#0a0b0e; --umb:#e0242e; --umb-hi:#ff4a52; --bone:#e9e6df; --bone-dim:#9aa0a8;
+    --serif:"Noto Serif SC","STSong",serif; --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; --mono:"JetBrains Mono","Consolas",monospace; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--ink); color:var(--bone); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:680px; margin:0 auto; padding:14px clamp(14px,4vw,28px) 36px; }
+  .mast { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0 12px; border-bottom:1px solid rgba(224,36,46,.35); }
+  .brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--bone); }
+  .brand img { width:26px; height:auto; filter:drop-shadow(0 0 10px rgba(224,36,46,.4)); }
+  .brand b { font-family:var(--serif); font-size:15px; letter-spacing:.06em; }
+  .brand .em { color:var(--umb-hi); }
+  .mast .no { font-family:var(--mono); font-size:10px; letter-spacing:.18em; color:var(--bone-dim); }
+  .dossier { margin-top:18px; }
+  .bar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+    font-family:var(--mono); font-size:10px; letter-spacing:.22em; padding:8px 14px; background:var(--umb); color:#fff; }
+  .bar a { color:#fff; text-decoration:none; border-bottom:1px dashed rgba(255,255,255,.6); letter-spacing:.1em; white-space:nowrap; }
+  .body { padding:22px 24px 24px; }
+  .d-main .body { background:#edeae2; color:#1d1e22; }
+  .d-dark .body { background:#140c10; color:#efdada; border:1px dashed rgba(224,36,46,.5); border-top:none; }
+  .meta { display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; font-family:var(--mono); font-size:12px; margin-bottom:10px; }
+  .d-main .meta { color:#a01820; }
+  .d-dark .meta { color:var(--umb-hi); }
+  .meta .side-tag { font-weight:700; letter-spacing:.3em; }
+  h1 { font-family:var(--serif); font-size:24px; line-height:1.4; margin-bottom:12px; }
+  .d-dark h1 { color:#ffd9d4; }
+  .pic { margin:12px 0; border:1px solid rgba(224,36,46,.3); }
+  .pic img { display:block; width:100%; }
+  .sum { font-size:13.5px; line-height:1.9; font-weight:700; margin-bottom:12px; }
+  .d-main .sum { color:#33343a; }
+  .txt p { font-size:13px; line-height:2; margin-bottom:10px; }
+  .d-main .txt p { color:#44464c; }
+  .d-dark .txt p { color:#c7a8a6; }
+  .thread { margin:14px 0; padding:12px 14px; border:1px dashed rgba(224,36,46,.4); }
+  .thread .th-hd { font-family:var(--mono); font-size:11px; letter-spacing:.14em; margin-bottom:10px; }
+  .d-main .thread .th-hd, .d-main .thread .win { color:#a01820; }
+  .d-dark .thread .th-hd, .d-dark .thread .win { color:var(--umb-hi); }
+  .thread .node2 { display:flex; gap:10px; align-items:baseline; padding:4px 0; font-size:12.5px; line-height:1.5; }
+  .thread .node2 .d { font-family:var(--mono); white-space:nowrap; opacity:.65; }
+  .thread .node2 a { color:inherit; }
+  .thread .node2.cur { font-weight:700; }
+  .d-main .thread .node2.cur { color:#a01820; }
+  .d-dark .thread .node2.cur { color:#ffd9d4; }
+  .thread .win { margin-top:9px; padding-top:8px; border-top:1px dashed rgba(224,36,46,.25); font-family:var(--mono); font-size:11px; }
+  .srcline { margin-top:12px; font-family:var(--mono); font-size:11.5px; word-break:break-all; }
+  .srcline a { color:inherit; }
+  .d-main .srcline { color:#a01820; }
+  .d-dark .srcline { color:var(--umb-hi); }
+  .foot { margin-top:14px; padding-top:10px; border-top:1px dashed rgba(224,36,46,.35); font-family:var(--mono); font-size:10px; letter-spacing:.18em; opacity:.6; }
+  .pager { display:flex; justify-content:space-between; gap:12px; margin-top:16px; font-size:12px; }
+  .pager a { color:var(--bone-dim); text-decoration:none; border:1px solid rgba(224,36,46,.35); padding:8px 12px; max-width:48%; }
+  .pager a:hover { color:var(--bone); background:rgba(224,36,46,.12); }
+  .pager b { color:var(--umb-hi); font-family:var(--mono); font-size:10px; letter-spacing:.12em; display:block; margin-bottom:4px; }
+  .sitefoot { text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--bone-dim); opacity:.75; padding:22px 0 6px; line-height:2; }
+  .sitefoot a { color:var(--umb-hi); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <a class="brand" href="/"><img src="/logo.svg" alt="UMBRELLA 4365"><b>UMBRELLA 4365 <span class="em">· Cursor 战地纪实</span></b></a>
+    <span class="no">ARCHIVE ${no}</span>
+  </header>
+  <main>
+    <article class="dossier ${isMain ? 'd-main' : 'd-dark'}">
+      <div class="bar"><span>ARCHIVE ACCESS · ${no} · CLEARANCE LV.4</span><a href="/#ev-${ev.id}">⇱ 在时间树中定位</a></div>
+      <div class="body">
+        <div class="meta">
+          <span class="side-tag">${isMain ? '正史 · 官方档案' : '野史 · 民间情报'}</span>
+          <time datetime="${escHtml(ev.date)}">${dotDate(ev.date)}</time>
+          <span>${escHtml(ev.tag)}</span>
+        </div>
+        <h1>${escHtml(ev.title)}</h1>
+        ${ev.image ? `<div class="pic"><img src="${escHtml(ev.image)}" alt="${escHtml(ev.title)}"></div>` : ''}
+        <p class="sum">${escHtml(ev.summary)}</p>
+        <div class="txt">${paras}</div>
+        ${seriesHtml}
+        ${srcHtml}
+        <div class="foot">UMBRELLA 4365 ARCHIVE · ${sideName}档案 · 仅作记录 · 不构成立场</div>
+      </div>
+    </article>
+    <nav class="pager">
+      ${newer ? `<a href="/ev/${newer.id}"><b>« 较新档案</b>${escHtml(clip(newer.title, 20))}</a>` : '<span></span>'}
+      ${older ? `<a href="/ev/${older.id}" style="text-align:right"><b>较旧档案 »</b>${escHtml(clip(older.title, 20))}</a>` : '<span></span>'}
+    </nav>
+  </main>
+  <footer class="sitefoot">
+    基于公开报道与民间情报整理 · 野史含演绎 仅作记录 不构成立场<br>
+    <a href="/">⇱ 返回完整时间树</a> · <a href="/feed.xml">RSS</a> · <a href="${SITE_URL}">umbrella4365.com</a>
+  </footer>
+</div>
+</body>
+</html>`;
+}
+
+function serveEvent(req, res, id) {
+  const row = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
+  if (!row) {
+    return sendBody(res, 404, { 'Content-Type': 'text/html; charset=utf-8', 'X-Robots-Tag': 'noindex' },
+      '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>404 · 档案不存在</title><meta name="robots" content="noindex"></head>' +
+      '<body style="background:#0a0b0e;color:#e9e6df;font-family:Consolas,monospace;text-align:center;padding:80px 20px"><p>404 · 档案不存在或已销毁</p><p style="margin-top:14px"><a href="/" style="color:#ff4a52">⇱ 返回时间树</a></p></body></html>');
+  }
+  const doc = seoDoc(`ev:${id}`, () => eventPageHTML(row, allEvents()));
+  sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
+}
+
+/* ---- robots / sitemap / RSS / llms.txt ---- */
+function buildRobots() {
+  return `# ${SITE_NAME} · ${SITE_URL}
+# 搜索引擎与 AI/LLM 爬虫（GPTBot、ClaudeBot、PerplexityBot、Google-Extended、Bytespider 等）均欢迎抓取
+# 机器可读索引：${SITE_URL}/llms.txt（目录）与 ${SITE_URL}/llms-full.txt（全文）
+
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: ${SITE_URL}/sitemap.xml
+`;
+}
+
+function buildSitemap() {
+  const events = allEvents();
+  const latest = events.reduce((m, e) => (e.updated_at > m ? e.updated_at : m), '').slice(0, 10);
+  const urls = [
+    `  <url><loc>${SITE_URL}/</loc>${latest ? `<lastmod>${latest}</lastmod>` : ''}<changefreq>daily</changefreq><priority>1.0</priority></url>`,
+    ...events.map(e => `  <url><loc>${SITE_URL}/ev/${e.id}</loc><lastmod>${String(e.updated_at).slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
+  ];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
+}
+
+function buildFeed() {
+  const events = allEvents().slice(0, 50);
+  const items = events.map(e => `    <item>
+      <title>${escHtml(`[${e.side === 'main' ? '正史' : '野史'}] ${e.title}`)}</title>
+      <link>${SITE_URL}/ev/${e.id}</link>
+      <guid isPermaLink="true">${SITE_URL}/ev/${e.id}</guid>
+      <pubDate>${rfc822(e.date)}</pubDate>${e.tag ? `
+      <category>${escHtml(e.tag)}</category>` : ''}
+      <description>${escHtml(e.summary)}</description>
+    </item>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>${escHtml(SITE_NAME)}</title>
+    <link>${SITE_URL}/</link>
+    <description>${escHtml(SITE_DESC)}</description>
+    <language>zh-cn</language>
+    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
+    <atom:link href="${SITE_URL}/feed.xml" rel="self" type="application/rss+xml"/>
+${items}
+  </channel>
+</rss>
+`;
+}
+
+function buildLlms() {
+  const events = allEvents();
+  const line = e => `- [${e.date} ${e.title}](${SITE_URL}/ev/${e.id})：${clip(e.summary, 100)}`;
+  const main = events.filter(e => e.side === 'main');
+  const dark = events.filter(e => e.side === 'dark');
+  return `# ${SITE_NAME}
+
+> ${SITE_INTRO}
+
+已收录 ${events.length} 条档案（正史 ${main.length} · 野史 ${dark.length}），按日期倒序。每条档案的独立页面含日期、标签、摘要、详情、事件线索与信源链接。全文合集见 [llms-full.txt](${SITE_URL}/llms-full.txt)。
+
+## 正史档案（官方 · 公开报道）
+
+${main.map(line).join('\n')}
+
+## 野史档案（民间情报 · 含演绎）
+
+${dark.map(line).join('\n')}
+
+## 订阅与数据
+
+- [完整时间树](${SITE_URL}/)
+- [RSS 订阅](${SITE_URL}/feed.xml)
+- [全部档案 JSON](${SITE_URL}/api/events)
+- [网站地图](${SITE_URL}/sitemap.xml)
+`;
+}
+
+function buildLlmsFull() {
+  const events = allEvents();
+  const block = e => [
+    `## [${e.side === 'main' ? '正史' : '野史'}] ${e.title}（${e.date}${e.tag ? ' · ' + e.tag : ''}）`,
+    '',
+    `- 链接：${SITE_URL}/ev/${e.id}`,
+    ...(e.series ? [`- 事件线索：${e.series}`] : []),
+    ...(e.source ? [`- 信源：${e.source}`] : []),
+    '',
+    e.summary,
+    ...(e.detail ? ['', e.detail] : []),
+  ].join('\n');
+  return `# ${SITE_NAME}（全文）
+
+> ${SITE_INTRO}
+
+${events.map(block).join('\n\n---\n\n')}
+`;
+}
+
+/* ---- SEO 路由分发（仅 GET/HEAD 到达此处） ---- */
+function handleSEO(req, res, url) {
+  const p = url.pathname;
+  if (p === '/') { serveHome(req, res); return true; }
+  if (p === '/index.html') { res.writeHead(301, { Location: '/' }); res.end(); return true; }
+  const m = p.match(/^\/ev\/(\d+)\/?$/);
+  if (m) {
+    if (p.endsWith('/')) { res.writeHead(301, { Location: `/ev/${m[1]}` }); res.end(); return true; }
+    serveEvent(req, res, Number(m[1]));
+    return true;
+  }
+  if (p === '/robots.txt') { sendDoc(req, res, seoDoc('robots', buildRobots), 'text/plain; charset=utf-8', 'public, max-age=600'); return true; }
+  if (p === '/sitemap.xml') { sendDoc(req, res, seoDoc('sitemap', buildSitemap), 'application/xml; charset=utf-8', 'public, max-age=600'); return true; }
+  if (p === '/feed.xml') { sendDoc(req, res, seoDoc('feed', buildFeed), 'application/rss+xml; charset=utf-8', 'public, max-age=600'); return true; }
+  if (p === '/llms.txt') { sendDoc(req, res, seoDoc('llms', buildLlms), 'text/markdown; charset=utf-8', 'public, max-age=600'); return true; }
+  if (p === '/llms-full.txt') { sendDoc(req, res, seoDoc('llms-full', buildLlmsFull), 'text/markdown; charset=utf-8', 'public, max-age=600'); return true; }
+  return false;
+}
+
 /* ============ 路由 ============ */
 async function handleAPI(req, res, url) {
   const parts = url.pathname.split('/').filter(Boolean); // ['api', 'events', ':id']
@@ -393,6 +880,7 @@ async function handleAPI(req, res, url) {
             String(b.summary).trim(), String(b.detail || '').trim(), String(b.image || '').trim(),
             String(b.series || '').trim(), String(b.source || '').trim());
       const row = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
+      seoCache.clear();
       return sendJSON(res, 201, { ok: true, event: rowToEvent(row) });
     }
   }
@@ -419,12 +907,14 @@ async function handleAPI(req, res, url) {
             String(merged.summary).trim(), String(merged.detail || '').trim(), String(merged.image || '').trim(),
             String(merged.series || '').trim(), String(merged.source || '').trim(), id);
       const updated = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
+      seoCache.clear();
       return sendJSON(res, 200, { ok: true, event: rowToEvent(updated) });
     }
 
     if (req.method === 'DELETE') {
       if (!requireAuth(req, res)) return;
       db.prepare('DELETE FROM events WHERE id = ?').run(id);
+      seoCache.clear();
       return sendJSON(res, 200, { ok: true });
     }
   }
@@ -478,11 +968,19 @@ function serveStatic(req, res, url) {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) return send404(res);
     const ext = path.extname(file).toLowerCase();
-    res.writeHead(200, {
+    const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       // HTML 不缓存，保证改代码 / 部署新版后浏览器立刻拿到新页面；图片等静态资源可缓存
       'Cache-Control': ext === '.html' ? 'no-cache, must-revalidate' : 'public, max-age=3600',
-    });
+    };
+    if (COMPRESSIBLE_EXT.has(ext)) {
+      headers.Vary = 'Accept-Encoding';
+      if (st.size > 1024 && wantsGzip(req)) {
+        res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip' });
+        return fs.createReadStream(file).pipe(zlib.createGzip({ level: 6 })).pipe(res);
+      }
+    }
+    res.writeHead(200, headers);
     fs.createReadStream(file).pipe(res);
   });
 }
@@ -494,6 +992,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url.pathname.startsWith('/api/')) return await handleAPI(req, res, url);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
+    if (handleSEO(req, res, url)) return;
     return serveStatic(req, res, url);
   } catch (e) {
     return sendJSON(res, 500, { ok: false, error: String(e.message || e) });
@@ -507,4 +1006,5 @@ server.listen(PORT, () => {
   console.log(`  管理密钥 ${ADMIN_KEY === 'redqueen-4365' ? 'redqueen-4365（默认值，部署公网前务必用环境变量 ADMIN_KEY 修改）' : '（来自环境变量）'}`);
   console.log(`  防爆破   同 IP 密钥错 ${FAIL_MAX} 次封禁 ${BLOCK_MS / 60000} 分钟${TRUST_PROXY ? ' · 反代模式(X-Forwarded-For)' : ''}`);
   console.log(`  访问记录 IP 仅存哈希 · 保留 ${LOG_KEEP_DAYS} 天 · 上限 ${LOG_MAX_ROWS} 行 · 后台「访客监控」查看`);
+  console.log(`  SEO/GEO  首页 SSR + /ev/:id 档案页 · /robots.txt /sitemap.xml /feed.xml /llms.txt · 站点地址 ${SITE_URL}`);
 });
