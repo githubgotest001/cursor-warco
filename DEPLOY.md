@@ -30,7 +30,7 @@ node -v   # 应 >= v22.13
 
 ```bash
 sudo mkdir -p /opt/cursor-warco && sudo chown $USER /opt/cursor-warco
-git clone <你的仓库地址> /opt/cursor-warco
+git clone https://github.com/githubgotest001/cursor-warco.git /opt/cursor-warco
 cd /opt/cursor-warco
 
 node seed.js        # 首次建库灌入初始档案（已有 data/chronicle.db 时自动跳过）
@@ -61,48 +61,147 @@ openssl rand -hex 6   # 得到如 9f2c81ab73de → 后台路径设为 hive-9f2c8
 > 不设置 `ADMIN_PATH` 时服务会自动生成随机路径并写入 `data/config.json`（启动日志可见），
 > 同样安全；显式设置的好处是换机器/清数据时入口不变。
 
-## 4. systemd 守护进程
+## 4. systemd 守护进程（手把手）
 
-创建 `/etc/systemd/system/umbrella4365.service`：
+以下命令逐条复制执行即可，变量会自动填进配置，无需手改文件。
 
-```ini
+### 4.1 生成并保存密钥与后台路径
+
+```bash
+export MY_ADMIN_KEY=$(openssl rand -hex 24)
+export MY_ADMIN_PATH="hive-$(openssl rand -hex 6)"
+
+echo "管理密钥 ADMIN_KEY  = $MY_ADMIN_KEY"
+echo "后台路径 ADMIN_PATH = $MY_ADMIN_PATH"
+```
+
+**把这两行输出抄到密码管理器里**，后台登录全靠它们。丢了也能找回（看
+`systemctl cat umbrella4365`），但别依赖这个。
+
+### 4.2 确认 node 路径
+
+```bash
+which node    # NodeSource 安装通常是 /usr/bin/node；下面的 heredoc 会自动取这个值
+node -v       # 必须 >= v22.13
+```
+
+### 4.3 创建低权限运行用户并交接目录
+
+```bash
+sudo useradd -r -s /usr/sbin/nologin umbrella 2>/dev/null || true
+sudo chown -R umbrella:umbrella /opt/cursor-warco
+```
+
+> 服务以 `umbrella` 用户运行，即使被攻破也拿不到 root。
+> `data/`（数据库）和 `public/uploads/`（图片）都要归它所有，否则启动时写库会报权限错误。
+
+### 4.4 生成 service 文件（自动填入密钥）
+
+直接整段复制执行（heredoc 会把上面 export 的变量和 node 路径展开写进文件）：
+
+```bash
+sudo tee /etc/systemd/system/umbrella4365.service > /dev/null <<EOF
 [Unit]
 Description=UMBRELLA 4365 - Cursor Frontline Chronicle
 After=network.target
 
 [Service]
+User=umbrella
 WorkingDirectory=/opt/cursor-warco
-ExecStart=/usr/bin/node server.js
+ExecStart=$(which node) server.js
 Restart=always
 RestartSec=3
-# ↓↓↓ 换成你自己生成的值 ↓↓↓
-Environment=ADMIN_KEY=换成openssl生成的强密钥
-Environment=ADMIN_PATH=hive-换成你的随机串
+Environment=ADMIN_KEY=$MY_ADMIN_KEY
+Environment=ADMIN_PATH=$MY_ADMIN_PATH
 Environment=TRUST_PROXY=1
 Environment=PORT=4365
-# 建议用低权限用户运行（先 useradd -r -s /usr/sbin/nologin umbrella 并 chown 目录）
-# User=umbrella
 
 [Install]
 WantedBy=multi-user.target
+EOF
 ```
+
+检查生成结果（重点看三个 Environment 行是否已是真实值而不是空的）：
+
+```bash
+cat /etc/systemd/system/umbrella4365.service
+```
+
+### 4.5 启动并设置开机自启
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now umbrella4365
-systemctl status umbrella4365          # 确认 active (running)
-sudo journalctl -u umbrella4365 -n 20  # 启动日志里会打印后台入口地址
+systemctl status umbrella4365 --no-pager
 ```
 
-## 5. Nginx 反向代理 + HTTPS
+预期 `status` 输出里有：`Active: active (running)`。
+
+查看启动日志（会打印后台入口地址）：
+
+```bash
+sudo journalctl -u umbrella4365 -n 20 --no-pager
+```
+
+预期能看到：
+
+```text
+UMBRELLA 4365 · RED QUEEN SYSTEM ONLINE
+  前台     http://localhost:4365/
+  后台入口 http://localhost:4365/hive-xxxxxxxxxxxx   （保密！/admin 恒为 404）
+  管理密钥 （来自环境变量）
+  防爆破   同 IP 密钥错 5 次封禁 15 分钟 · 反代模式(X-Forwarded-For)
+```
+
+### 4.6 本机验证（此时还没装 Nginx，用 curl 测 4365 端口）
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:4365/                  # 预期 200
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:4365/admin             # 预期 404
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:4365/$MY_ADMIN_PATH    # 预期 200
+curl -s http://127.0.0.1:4365/api/events | head -c 200; echo                     # 预期 JSON 数据
+```
+
+### 4.7 第 4 步常见故障
+
+| status 里的报错 | 原因与处理 |
+| --- | --- |
+| `217/USER` | `umbrella` 用户没建成功，重跑 4.3 |
+| `203/EXEC` | node 路径不对：`which node` 确认后编辑 service 里的 `ExecStart`，再 `daemon-reload` + `restart` |
+| 日志报 `SQLITE_CANTOPEN` / 权限错误 | `data/` 不属于 umbrella 用户，重跑 4.3 的 chown |
+| `EADDRINUSE` | 4365 被占：`ss -lntp \| grep 4365` 找到旧进程 kill 掉 |
+
+改过 service 文件后固定三连：
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl restart umbrella4365 && systemctl status umbrella4365 --no-pager
+```
+
+## 5. Nginx 反向代理 + HTTPS（手把手）
+
+### 5.1 先确认 DNS 已生效
+
+```bash
+# 两条都应解析到你这台服务器的公网 IP
+ping -c 2 umbrella4365.com
+ping -c 2 www.umbrella4365.com
+```
+
+没生效就去域名控制台检查 A 记录，等 TTL 过期后再继续（certbot 验证依赖 DNS 正确）。
+
+### 5.2 安装 Nginx 并移除默认站点
 
 ```bash
 sudo apt-get install -y nginx
+sudo rm -f /etc/nginx/sites-enabled/default
 ```
 
-创建 `/etc/nginx/sites-available/umbrella4365.conf`：
+### 5.3 写入站点配置
 
-```nginx
+整段复制执行（注意 heredoc 用的是 `'EOF'` 带引号——防止 `$host` 等 Nginx 变量被 shell 吞掉）：
+
+```bash
+sudo tee /etc/nginx/sites-available/umbrella4365.conf > /dev/null <<'EOF'
 server {
     listen 80;
     server_name umbrella4365.com www.umbrella4365.com;
@@ -124,21 +223,44 @@ server {
         return 404;
     }
 }
+EOF
 ```
+
+### 5.4 启用并验证 HTTP
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/umbrella4365.conf /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+sudo ln -sf /etc/nginx/sites-available/umbrella4365.conf /etc/nginx/sites-enabled/
+sudo nginx -t                        # 预期：syntax is ok / test is successful
+sudo systemctl reload nginx
+
+curl -s -o /dev/null -w "%{http_code}\n" http://umbrella4365.com/        # 预期 200
+curl -s -o /dev/null -w "%{http_code}\n" http://umbrella4365.com/admin   # 预期 404
 ```
 
-签发免费 HTTPS 证书（Let's Encrypt，自动续期）：
+### 5.5 签发 HTTPS 证书（Let's Encrypt，免费 + 自动续期）
 
 ```bash
 sudo apt-get install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d umbrella4365.com -d www.umbrella4365.com --redirect
+
+# 非交互一步到位：换成你的邮箱（用于证书到期提醒）
+sudo certbot --nginx \
+  -d umbrella4365.com -d www.umbrella4365.com \
+  --redirect -m you@example.com --agree-tos --no-eff-email
 ```
 
-`--redirect` 会自动把 HTTP 跳转到 HTTPS。完成后访问：
+`--redirect` 会自动改写 Nginx 配置，把 HTTP 301 跳转到 HTTPS。
+
+### 5.6 验证 HTTPS 与自动续期
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/    # 预期 200
+curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" http://umbrella4365.com/
+# 预期 301 -> https://umbrella4365.com/
+
+sudo certbot renew --dry-run    # 预期最后输出 all simulated renewals succeeded
+```
+
+完成后：
 
 - 前台：`https://umbrella4365.com/`
 - 后台：`https://umbrella4365.com/<你的 ADMIN_PATH>`（只有你自己知道）
@@ -149,37 +271,72 @@ sudo certbot --nginx -d umbrella4365.com -d www.umbrella4365.com --redirect
 sudo ufw allow OpenSSH
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
-sudo ufw enable
+sudo ufw enable        # 提示会中断 SSH 时输入 y（已放行 OpenSSH，不会真断）
+sudo ufw status verbose
 ```
 
-云厂商控制台的安全组同样只放行 80/443/SSH。4365 端口不对公网暴露，
-Node 服务只被本机 Nginx 访问。
+预期 `status` 只有 SSH/80/443 三条 ALLOW。云厂商控制台的安全组同样只放行 80/443/SSH。
+4365 端口不对公网暴露，Node 服务只被本机 Nginx 访问：
 
-## 7. 数据备份
+```bash
+# 从外部机器（比如你本机）验证 4365 直连不通（超时即正确）
+curl -m 5 http://<服务器公网IP>:4365/ ; echo "exit=$?"   # 预期 exit=28（超时）
+```
+
+## 7. 数据备份（手把手）
 
 需要备份的只有两处：`data/`（数据库 + 后台路径配置）与 `public/uploads/`（图片）。
 
+### 7.1 安装 sqlite3 工具并写入备份脚本
+
+整段复制执行（heredoc 用 `'EOF'` 带引号，脚本内变量原样落盘）：
+
 ```bash
-# /opt/cursor-warco/backup.sh
+sudo apt-get install -y sqlite3
+
+sudo tee /opt/cursor-warco/backup.sh > /dev/null <<'EOF'
 #!/usr/bin/env bash
 set -e
 TS=$(date +%Y%m%d-%H%M)
 DEST=/opt/backups
 mkdir -p $DEST
-# SQLite 在线安全备份（WAL 模式下也一致）
+# SQLite 在线安全备份（WAL 模式下也能保证一致性）
 sqlite3 /opt/cursor-warco/data/chronicle.db ".backup '$DEST/chronicle-$TS.db'"
 tar czf $DEST/uploads-$TS.tar.gz -C /opt/cursor-warco/public uploads
 cp /opt/cursor-warco/data/config.json $DEST/config-$TS.json 2>/dev/null || true
 # 只保留最近 30 份
-ls -t $DEST/chronicle-*.db | tail -n +31 | xargs -r rm
+ls -t $DEST/chronicle-*.db   | tail -n +31 | xargs -r rm
 ls -t $DEST/uploads-*.tar.gz | tail -n +31 | xargs -r rm
+echo "backup done: $TS"
+EOF
+
+sudo chmod +x /opt/cursor-warco/backup.sh
 ```
 
+### 7.2 手动跑一次并验证产物
+
 ```bash
-sudo apt-get install -y sqlite3
-chmod +x /opt/cursor-warco/backup.sh
-crontab -e   # 加一行：每天凌晨 4 点备份
-# 0 4 * * * /opt/cursor-warco/backup.sh
+sudo /opt/cursor-warco/backup.sh          # 预期输出 backup done: ...
+ls -lh /opt/backups/                       # 应有 chronicle-*.db / uploads-*.tar.gz / config-*.json
+sqlite3 /opt/backups/chronicle-*.db "SELECT COUNT(*) FROM events;"   # 应输出条数（如 30）
+```
+
+### 7.3 加入定时任务（每天凌晨 4 点，非交互式追加）
+
+```bash
+( sudo crontab -l 2>/dev/null; echo "0 4 * * * /opt/cursor-warco/backup.sh >> /var/log/umbrella4365-backup.log 2>&1" ) | sudo crontab -
+sudo crontab -l    # 确认那行已存在
+```
+
+### 7.4 恢复演练（强烈建议至少做一次）
+
+```bash
+sudo systemctl stop umbrella4365
+sudo cp /opt/backups/chronicle-<某个时间戳>.db /opt/cursor-warco/data/chronicle.db
+sudo rm -f /opt/cursor-warco/data/chronicle.db-wal /opt/cursor-warco/data/chronicle.db-shm
+sudo chown umbrella:umbrella /opt/cursor-warco/data/chronicle.db
+sudo systemctl start umbrella4365
+curl -s http://127.0.0.1:4365/api/events | head -c 200; echo   # 数据回来了即成功
 ```
 
 有条件的话，把 `/opt/backups` 再同步到对象存储（OSS/COS/S3）异地保存。
@@ -188,20 +345,54 @@ crontab -e   # 加一行：每天凌晨 4 点备份
 
 ```bash
 cd /opt/cursor-warco
-git pull
+sudo -u umbrella git pull        # 目录属于 umbrella 用户，用它的身份拉取
 sudo systemctl restart umbrella4365
+systemctl status umbrella4365 --no-pager   # 确认 active (running)
+curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/   # 预期 200
 ```
 
 数据在 `data/` 与 `public/uploads/`（均已 gitignore），更新代码不会影响内容。
+如 `git pull` 报 `dubious ownership`，执行提示中的
+`git config --global --add safe.directory /opt/cursor-warco` 后重试。
 
-## 9. 上线前安全清单
+## 9. 上线验收测试（一次跑完）
+
+在服务器上执行（`MY_ADMIN_PATH` / `MY_ADMIN_KEY` 若已开新终端，先从
+`systemctl cat umbrella4365` 里抄回来再 export）：
+
+```bash
+echo "— 前台 HTTPS —";        curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/
+echo "— HTTP 跳 HTTPS —";     curl -s -o /dev/null -w "%{http_code}\n" http://umbrella4365.com/
+echo "— /admin 伪装 404 —";   curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/admin
+echo "— /admin.html 404 —";   curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/admin.html
+echo "— 隐藏后台入口 200 —";  curl -s -o /dev/null -w "%{http_code}\n" https://umbrella4365.com/$MY_ADMIN_PATH
+echo "— API 数据 —";          curl -s https://umbrella4365.com/api/events | head -c 120; echo
+echo "— 密钥校验 —";          curl -s -o /dev/null -w "%{http_code}\n" -X POST https://umbrella4365.com/api/auth/check -H "Content-Type: application/json" -d "{\"key\":\"$MY_ADMIN_KEY\"}"
+echo "— 错误密钥拒绝 —";      curl -s -o /dev/null -w "%{http_code}\n" -X POST https://umbrella4365.com/api/auth/check -H "Content-Type: application/json" -d '{"key":"wrong"}'
+```
+
+| 项目 | 预期 |
+| --- | --- |
+| 前台 HTTPS | `200` |
+| HTTP 跳 HTTPS | `301` |
+| /admin 与 /admin.html | `404` |
+| 隐藏后台入口 | `200` |
+| API 数据 | 输出 JSON 片段 |
+| 正确密钥 | `200` |
+| 错误密钥 | `401`（连错 5 次会变 `429`，15 分钟后自动解封，或重启服务立即解封） |
+
+最后用手机（非本机网络）打开 `https://umbrella4365.com/` 与后台入口，
+输入密钥登录、发一条测试档案、传一张图，全链路走通即验收完成。
+
+## 10. 上线前安全清单
 
 - [ ] `ADMIN_KEY` 已改为 `openssl rand -hex 24` 级别的强随机值（默认密钥等于裸奔）
 - [ ] `ADMIN_PATH` 已设置且只有自己知道；`https://域名/admin` 实测返回 404
 - [ ] `TRUST_PROXY=1` 已设置（否则防爆破封禁会把所有人当成同一个 Nginx IP，误伤全站）
-- [ ] 安全组/防火墙只开 80/443/SSH，4365 不对外
-- [ ] HTTPS 已生效且 HTTP 自动跳转
-- [ ] 备份脚本已跑通一次，手动恢复验证过（备份没验证过恢复 = 没有备份）
+- [ ] 服务以低权限用户 `umbrella` 运行（`systemctl show umbrella4365 -p User` 确认）
+- [ ] 安全组/防火墙只开 80/443/SSH，4365 不对外（第 6 步的外部 curl 已验证超时）
+- [ ] HTTPS 已生效且 HTTP 自动跳转，`certbot renew --dry-run` 通过
+- [ ] 备份脚本已跑通一次，恢复演练做过（备份没验证过恢复 = 没有备份）
 - [ ] 浏览器无痕窗口访问后台入口，确认要密钥才能进
 
 内置防爆破策略：同一 IP 15 分钟内密钥错误 5 次，封禁 15 分钟（登录接口与全部写接口共用）。
@@ -241,4 +432,4 @@ Nginx/HTTPS 部分与上文相同。注意 `-p 127.0.0.1:4365:4365` 只绑定本
 | 启动报 `node:sqlite` 不存在 | Node 版本过低，需 ≥ 22.13 |
 | 上传图片报错/被截断 | 检查 Nginx `client_max_body_size` 是否 ≥ 20m |
 | 后台登录总提示封禁 | 未设 `TRUST_PROXY=1` 导致全站共享一个 IP 计数；重启服务清封禁后补配置 |
-| 忘了后台入口路径 | 服务器上看 `data/config.json`（或 systemd 环境变量）；`journalctl -u umbrella4365` 的启动日志也有 |
+| 忘了后台入口路径 / 密钥 | `systemctl cat umbrella4365` 看 Environment 行；自动生成的路径在 `data/config.json`；`journalctl -u umbrella4365 -n 20` 的启动日志也有入口地址 |

@@ -108,6 +108,8 @@
   .legend .k.main b { color: var(--bone); }
   .legend .k.dark b { color: var(--umb-hi); }
   .legend .hint { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; opacity: .75; }
+  /* 方位文案：桌面显示"脊柱左右"，移动端切换为"浅色/深色档案" */
+  .lr-m { display: none; }
 
   /* ================= 蜂巢（垂直时间树） ================= */
   .stage {
@@ -376,6 +378,8 @@
     .brow span:not(.mid) { display: none; }
     .legend { gap: 8px; }
     .legend .hint { display: none; }
+    .lr-d { display: none; }
+    .lr-m { display: inline; }
     .mast-main { gap: 10px; padding: 7px 0 2px; }
     .mast-title { gap: 8px; }
 
@@ -437,8 +441,8 @@
   </div>
   <div class="legend">
     <div class="keys">
-      <span class="k main"><span class="swatch"></span><b>正史</b>・脊柱之左 官方档案</span>
-      <span class="k dark"><span class="swatch"></span><b>野史</b>・脊柱之右 民间情报</span>
+      <span class="k main"><span class="swatch"></span><b>正史</b>・<span class="lr-d">脊柱之左 </span>官方档案</span>
+      <span class="k dark"><span class="swatch"></span><b>野史</b>・<span class="lr-d">脊柱之右 </span>民间情报</span>
     </div>
     <span class="hint">时间由新到旧 · 向下回溯历史 · 点击卡片调阅完整档案</span>
   </div>
@@ -503,7 +507,7 @@ function render() {
   track.insertAdjacentHTML('beforeend', `
     <div class="row intro">
       <div class="card-intro">
-        <span class="lead">发刊词</span>AI 圈一夜迭代、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up">脊柱之左是台面上的正史</span>，<span class="down">之右是同一时刻的暗面野史</span>——漏洞、羊毛、事故与传闻，多来自民间群聊。<span class="vow">记者不站队、不批判、仅作记录；本人是 Cursor 重度用户，正因热爱，才如实记下它的光与影。</span>
+        <span class="lead">发刊词</span>AI 圈一夜迭代、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、羊毛、事故与传闻，多来自民间群聊。<span class="vow">记者不站队、不批判、仅作记录；本人是 Cursor 重度用户，正因热爱，才如实记下它的光与影。</span>
       </div>
     </div>
     <div class="row now">
