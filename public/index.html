@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UMBRELLA 4365 · Cursor 战地纪实</title>
+<meta name="description" content="UMBRELLA 4365：Cursor 战地纪实。一条正史，一条野史，双向时间树记录 AI 编程纪元。仅作记录，不构成立场。">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=Ma+Shan+Zheng&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:      #0a0b0e;   /* 蜂巢夜幕 */
+    --ink-soft: #12141a;
+    --umb:      #e0242e;   /* 保护伞红 */
+    --umb-hi:   #ff4a52;
+    --umb-dim:  #7d1a20;
+    --bone:     #e9e6df;   /* 骨白 */
+    --bone-dim: #9aa0a8;
+    --steel:    #58606e;
+    --spine:    rgba(224, 36, 46, .6);
+    --serif: "Noto Serif SC", "STSong", serif;
+    --sans:  "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --hand:  "Ma Shan Zheng", "KaiTi", cursive;
+    --mono:  "JetBrains Mono", "Consolas", monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--ink);
+    color: var(--bone);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== 全局氛围：噪点 + 蜂巢纹理 ===== */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 50;
+    opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97'%3E%3Cpath d='M28 0L56 16.17V48.5L28 64.66L0 48.5V16.17L28 0Z M28 64.66V97' fill='none' stroke='rgba(233,230,223,.045)'/%3E%3C/svg%3E");
+  }
+
+  /* ================= 报头 ================= */
+  .masthead {
+    padding: 14px clamp(16px, 4vw, 48px) 0;
+    border-bottom: 1px solid rgba(224,36,46,.35);
+    background: linear-gradient(180deg, #101116 0%, var(--ink) 100%);
+    position: relative; z-index: 5;
+  }
+  .masthead .brow {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em;
+    color: var(--bone-dim);
+    border-top: 3px double rgba(224,36,46,.5);
+    border-bottom: 1px solid rgba(224,36,46,.25);
+    padding: 6px 2px;
+  }
+  .brow .mid { color: var(--umb-hi); font-weight: 700; }
+  .brow .rq::after { content: "●"; color: var(--umb); margin-left: 6px; animation: blink 1.4s steps(1) infinite; }
+
+  .mast-main {
+    display: flex; align-items: center; justify-content: center; gap: clamp(14px, 3vw, 26px);
+    padding: 9px 0 2px;
+  }
+  .mast-main .logo { width: clamp(38px, 4.6vw, 52px); height: auto; flex: none; filter: drop-shadow(0 0 14px rgba(224,36,46,.4)); }
+  .mast-title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .mast-title h1 {
+    font-family: var(--serif); font-weight: 900;
+    font-size: clamp(20px, 2.8vw, 32px);
+    letter-spacing: .06em; line-height: 1.15;
+    text-shadow: 0 0 28px rgba(224,36,46,.3);
+  }
+  .mast-title h1 .em { color: var(--umb-hi); }
+  .mast-title h1 .char { display: inline-block; opacity: 0; transform: translateY(.5em); animation: charUp .6s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: var(--d); }
+  @keyframes charUp { to { opacity: 1; transform: none; } }
+  .mast-title .site { display: none; }
+  .byline {
+    font-family: var(--hand);
+    font-size: clamp(14px, 1.4vw, 17px); color: var(--bone-dim);
+    opacity: 0; animation: fadeIn .8s ease .9s forwards;
+  }
+  .byline::before { content: "———"; letter-spacing: -2px; opacity: .45; margin-right: .6em; font-family: var(--mono); font-size: .7em; vertical-align: middle; }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .legend {
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    padding: 7px 2px 8px; margin-top: 7px;
+    border-top: 1px solid rgba(224,36,46,.25);
+    font-size: 12px; color: var(--bone-dim); flex-wrap: wrap;
+  }
+  .legend .keys { display: flex; gap: 22px; flex-wrap: wrap; }
+  .legend .k { display: flex; align-items: center; gap: 7px; }
+  .legend .swatch { width: 9px; height: 9px; transform: rotate(45deg); flex: none; }
+  .legend .k.main .swatch { background: var(--bone); box-shadow: 0 0 8px rgba(233,230,223,.7); }
+  .legend .k.dark .swatch { background: transparent; border: 1.5px solid var(--umb); box-shadow: 0 0 8px rgba(224,36,46,.7); }
+  .legend .k.main b { color: var(--bone); }
+  .legend .k.dark b { color: var(--umb-hi); }
+  .legend .hint { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; opacity: .75; }
+
+  /* ================= 蜂巢（垂直时间树） ================= */
+  .stage {
+    position: relative; z-index: 1;
+    /* 左=无菌区（正史），右=污染区（野史） */
+    background:
+      radial-gradient(60% 34% at 50% 0%, rgba(224,36,46,.07), transparent 70%),
+      linear-gradient(90deg, rgba(233,230,223,.05) 0%, transparent 44%, transparent 56%, rgba(224,36,46,.10) 100%);
+  }
+  .stage::after {
+    content: "";
+    position: absolute; top: 0; bottom: 0; left: 50%; right: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(180deg, transparent 0 3px, rgba(224,36,46,.03) 3px 4px);
+  }
+
+  .track {
+    position: relative;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 22px clamp(12px, 3vw, 30px) 46px;
+  }
+  .track::before {
+    content: "";
+    position: absolute; top: 0; bottom: 0; left: 50%;
+    width: 2px; margin-left: -1px;
+    background: linear-gradient(180deg, transparent, var(--spine) 2%, var(--spine) 98%, transparent);
+    box-shadow: 0 0 18px rgba(224,36,46,.55);
+  }
+
+  /* ---- 发刊词（紧凑横条） ---- */
+  .row.intro { position: relative; z-index: 2; display: flex; justify-content: center; margin-bottom: 14px; }
+  .card-intro {
+    max-width: 780px;
+    border: 1px solid rgba(224,36,46,.35);
+    border-left: 3px solid var(--bone);
+    border-right: 3px solid var(--umb);
+    padding: 9px 16px;
+    background: linear-gradient(120deg, rgba(233,230,223,.06), rgba(10,11,14,.94) 50%, rgba(224,36,46,.1));
+    font-size: 12px; line-height: 1.8; color: var(--bone-dim);
+  }
+  .card-intro .lead { font-family: var(--serif); font-size: 13px; color: var(--bone); letter-spacing: .12em; margin-right: 8px; }
+  .card-intro .lead::before { content: "▌"; color: var(--umb); margin-right: 5px; }
+  .card-intro .up { color: var(--bone); }
+  .card-intro .down { color: var(--umb-hi); }
+  .card-intro .vow { opacity: .85; }
+
+  /* ---- 顶端：记录进行中 ---- */
+  .row.now { position: relative; z-index: 2; text-align: center; padding: 2px 0 20px; }
+  .now .pulse {
+    display: inline-flex; align-items: center; gap: 9px;
+    background: var(--ink);
+    border: 1px solid rgba(224,36,46,.55);
+    padding: 5px 14px;
+    box-shadow: 0 0 20px rgba(224,36,46,.3);
+  }
+  .now .cursor-blink {
+    display: inline-block; width: 8px; height: 17px;
+    background: var(--umb);
+    animation: blink 1.1s steps(1) infinite;
+    box-shadow: 0 0 12px rgba(224,36,46,.8);
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .now .t1 { font-family: var(--serif); font-size: 14px; letter-spacing: .14em; color: var(--bone); }
+  .now .t2 { display: inline-block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .26em; color: var(--umb-hi); margin-left: 12px; vertical-align: 2px; }
+  .now .t2::before { content: "●"; margin-right: 6px; animation: blink 1.4s steps(1) infinite; }
+
+  /* ---- 年份检查站 ---- */
+  .row.year { position: relative; height: 128px; margin: 26px 0 6px; }
+  .year .ghost {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: var(--serif); font-weight: 900; font-size: 128px;
+    color: transparent; -webkit-text-stroke: 1px rgba(233,230,223,.07);
+    letter-spacing: .06em; pointer-events: none; z-index: 0;
+    white-space: nowrap;
+  }
+  .year .plate {
+    position: absolute; top: 50%; left: 50%; z-index: 2;
+    transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    background: var(--ink); padding: 10px 6px;
+  }
+  .year .gate {
+    width: 15px; height: 15px; transform: rotate(45deg);
+    background: var(--ink);
+    border: 2px solid var(--umb);
+    box-shadow: 0 0 16px rgba(224,36,46,.8);
+    animation: breathe 2.6s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { box-shadow: 0 0 10px rgba(224,36,46,.5); }
+    50% { box-shadow: 0 0 22px rgba(224,36,46,1); }
+  }
+  .year .yr {
+    font-family: var(--mono); font-weight: 700; font-size: 24px; letter-spacing: .14em;
+    color: var(--bone); text-shadow: 0 0 14px rgba(224,36,46,.45);
+  }
+  .year .evo-a, .year .evo-b {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    white-space: nowrap; font-size: 10.5px; letter-spacing: .1em;
+    font-family: var(--mono); z-index: 2;
+  }
+  .year .evo-a { right: calc(50% + 64px); color: rgba(233,230,223,.7); text-align: right; }
+  .year .evo-b { left: calc(50% + 64px); color: rgba(255,74,82,.8); }
+
+  /* ---- 事件行：左正史 / 右野史 ---- */
+  .row.ev {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    margin-top: 22px;
+  }
+  .row.ev.tuck { margin-top: -48px; }
+  .row.year + .row.ev { margin-top: 8px; }
+  .cell { display: flex; align-items: center; min-height: 10px; }
+  .cell.l { justify-content: flex-end; }
+  .cell.r { justify-content: flex-start; }
+
+  .row.ev .node {
+    position: absolute; top: 50%; left: 50%; z-index: 2;
+    width: 9px; height: 9px; transform: translate(-50%, -50%) rotate(45deg);
+  }
+  .row.ev.main .node { background: var(--bone); box-shadow: 0 0 10px rgba(233,230,223,.9); }
+  .row.ev.dark .node { background: var(--ink); border: 1.5px solid var(--umb); box-shadow: 0 0 10px rgba(224,36,46,.8); }
+
+  .link { height: 2px; width: var(--len, 60px); flex: none; }
+  .row.ev.main .link { background: linear-gradient(270deg, rgba(233,230,223,.85), rgba(233,230,223,.12)); }
+  .row.ev.dark .link {
+    background: repeating-linear-gradient(90deg, var(--umb) 0 5px, transparent 5px 10px);
+    opacity: .75;
+  }
+
+  /* ---- 卡片 ---- */
+  .card {
+    width: min(400px, 100%); position: relative;
+    padding: 13px 15px 14px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1), box-shadow .3s ease;
+  }
+  .row.ev.main .card { transform: translateX(-34px); }
+  .row.ev.dark .card { transform: translateX(34px); }
+  .card.in { opacity: 1; transform: none; }
+
+  .card .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+  .card .tag { font-size: 10.5px; letter-spacing: .3em; padding: 2px 7px 2px 9px; font-weight: 700; }
+  .card .no { font-family: var(--mono); font-size: 10px; opacity: .55; letter-spacing: .1em; }
+  .card time { display: block; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .16em; margin-bottom: 4px; }
+  .card h3 { font-family: var(--serif); font-size: 16.5px; line-height: 1.4; margin-bottom: 7px; letter-spacing: .02em; }
+  .card p { font-size: 12px; line-height: 1.78; }
+  .card .thumb { margin: 8px 0 2px; border: 1px solid rgba(0,0,0,.2); overflow: hidden; }
+  .card .thumb img { display: block; width: 100%; height: 120px; object-fit: cover; }
+  .card .more { display: inline-block; margin-top: 8px; font-family: var(--mono); font-size: 10px; letter-spacing: .18em; opacity: .6; }
+
+  /* 正史卡：无菌区档案纸 */
+  .card.c-main {
+    background: linear-gradient(175deg, #edeae2 0%, #d9d5c9 100%);
+    color: #1d1e22;
+    border-right: 3px solid var(--umb);
+    box-shadow: 0 14px 34px rgba(0,0,0,.5);
+    text-align: right;
+  }
+  .card.c-main .head { flex-direction: row-reverse; }
+  .card.c-main .tag { background: rgba(224,36,46,.12); color: #a01820; border: 1px solid rgba(224,36,46,.4); }
+  .card.c-main time { color: #a01820; }
+  .card.c-main p { color: #44464c; text-align: justify; }
+  .card.c-main .thumb { border-color: rgba(224,36,46,.25); }
+  .card.c-main:hover { transform: translateY(-4px); box-shadow: 0 22px 44px rgba(0,0,0,.6), 0 0 26px rgba(233,230,223,.15); }
+
+  /* 野史卡：污染区档案 */
+  .card.c-dark {
+    background: linear-gradient(190deg, #180c10 0%, #100a0e 100%);
+    color: #efdada;
+    border: 1px dashed rgba(224,36,46,.6);
+    box-shadow: 0 14px 34px rgba(0,0,0,.55), inset 0 0 46px rgba(224,36,46,.06);
+  }
+  .card.c-dark .tag { background: rgba(224,36,46,.14); color: var(--umb-hi); border: 1px solid rgba(224,36,46,.45); }
+  .card.c-dark time { color: var(--umb-hi); }
+  .card.c-dark h3 { color: #ffd9d4; }
+  .card.c-dark p { color: #c7a8a6; text-align: justify; }
+  .card.c-dark .thumb { border-color: rgba(224,36,46,.35); }
+  .card.c-dark .stamp {
+    position: absolute; top: -11px; right: 10px;
+    font-family: var(--hand); font-size: 15px; color: var(--umb-hi);
+    border: 1.5px solid var(--umb); border-radius: 3px;
+    padding: 0 6px; transform: rotate(7deg);
+    background: rgba(10,11,14,.88);
+    text-shadow: 0 0 8px rgba(224,36,46,.5);
+  }
+  .card.c-dark:hover { transform: translateY(-4px); box-shadow: 0 20px 44px rgba(0,0,0,.7), 0 0 30px rgba(224,36,46,.22); }
+  .card.c-dark:hover h3 { animation: glitch .34s steps(2, jump-none) 2; }
+  @keyframes glitch {
+    0%   { text-shadow: 2px 0 var(--umb), -2px 0 #29d3e2; transform: translateX(0); }
+    34%  { text-shadow: -2px 0 #9b5cff, 2px 0 var(--umb); transform: translateX(1px); }
+    67%  { text-shadow: 2px 0 #29d3e2, -2px 0 #9b5cff; transform: translateX(-1px); }
+    100% { text-shadow: none; transform: none; }
+  }
+
+  /* ---- 末端：毒株原点 ---- */
+  .row.zero { position: relative; z-index: 2; text-align: center; padding: 40px 0 0; }
+  .zero img { width: 34px; height: 34px; filter: drop-shadow(0 0 14px rgba(224,36,46,.7)); animation: breathe 2.6s ease-in-out infinite; }
+  .zero .t1 { font-family: var(--serif); font-size: 16px; letter-spacing: .2em; color: var(--bone); margin-top: 10px; }
+  .zero .t2 { font-family: var(--mono); font-size: 10px; letter-spacing: .24em; color: var(--bone-dim); margin-top: 7px; opacity: .8; }
+
+  /* ---- 加载 / 错误 ---- */
+  .sysmsg { text-align: center; font-family: var(--mono); font-size: 12px; letter-spacing: .2em; color: var(--umb-hi); padding: 60px 20px; }
+
+  /* ---- 进度条 & 浮动控制 ---- */
+  .progress { position: fixed; top: 0; left: 0; height: 2px; width: 0; background: linear-gradient(90deg, var(--bone), var(--umb)); z-index: 60; box-shadow: 0 0 10px rgba(224,36,46,.7); }
+  .jumpers { position: fixed; right: 18px; bottom: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 60; }
+  .jumpers button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    background: rgba(10,11,14,.85); color: var(--bone);
+    border: 1px solid rgba(224,36,46,.5); padding: 7px 12px;
+    cursor: pointer; backdrop-filter: blur(4px); transition: all .25s ease;
+  }
+  .jumpers button:hover { background: rgba(224,36,46,.18); box-shadow: 0 0 14px rgba(224,36,46,.4); }
+
+  .foot-note { position: relative; z-index: 1; text-align: center; font-size: 10.5px; color: var(--bone-dim); opacity: .75; padding: 26px 20px 30px; font-family: var(--mono); letter-spacing: .06em; }
+  .foot-note a { color: var(--umb-hi); text-decoration: none; }
+
+  /* ================= 档案调阅弹层 ================= */
+  .overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(6,7,9,.82); backdrop-filter: blur(5px);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .overlay.open { display: flex; }
+  .dossier {
+    width: min(640px, 100%); max-height: 88vh; overflow-y: auto;
+    position: relative;
+    animation: dossierIn .3s cubic-bezier(.2,.9,.3,1);
+    scrollbar-width: thin;
+  }
+  @keyframes dossierIn { from { opacity: 0; transform: translateY(18px) scale(.97); } }
+  .dossier .bar {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .22em;
+    padding: 8px 14px;
+    background: var(--umb); color: #fff;
+  }
+  .dossier .bar button { background: none; border: none; color: #fff; font-size: 16px; cursor: pointer; line-height: 1; }
+  .dossier .body { padding: 22px 26px 24px; }
+  .dossier.d-main .body { background: #edeae2; color: #1d1e22; }
+  .dossier.d-dark .body { background: #140c10; color: #efdada; border: 1px dashed rgba(224,36,46,.5); border-top: none; }
+  .dossier .meta { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; margin-bottom: 10px; }
+  .dossier.d-main .meta { color: #a01820; }
+  .dossier.d-dark .meta { color: var(--umb-hi); }
+  .dossier .meta .side-tag { font-weight: 700; letter-spacing: .3em; }
+  .dossier h2 { font-family: var(--serif); font-size: 24px; line-height: 1.4; margin-bottom: 12px; }
+  .dossier.d-dark h2 { color: #ffd9d4; }
+  .dossier .pic { margin: 12px 0; border: 1px solid rgba(224,36,46,.3); }
+  .dossier .pic img { display: block; width: 100%; }
+  .dossier .sum { font-size: 13.5px; line-height: 1.9; font-weight: 700; margin-bottom: 12px; }
+  .dossier.d-main .sum { color: #33343a; }
+  .dossier .txt p { font-size: 13px; line-height: 2; margin-bottom: 10px; }
+  .dossier.d-main .txt p { color: #44464c; }
+  .dossier.d-dark .txt p { color: #c7a8a6; }
+  .dossier .foot { margin-top: 14px; padding-top: 10px; border-top: 1px dashed rgba(224,36,46,.35); font-family: var(--mono); font-size: 10px; letter-spacing: .18em; opacity: .6; }
+
+  /* ================= 移动端 ================= */
+  @media (max-width: 860px) {
+    .brow { justify-content: center; }
+    .brow span:not(.mid) { display: none; }
+    .legend { gap: 8px; }
+    .legend .hint { display: none; }
+    .mast-main { gap: 10px; padding: 7px 0 2px; }
+    .mast-title { gap: 8px; }
+
+    .stage { background: linear-gradient(90deg, rgba(233,230,223,.04) 0%, transparent 42%, transparent 58%, rgba(224,36,46,.09) 100%); }
+    .track { padding: 18px 14px 40px; }
+    .track::before { left: 26px; margin-left: 0; }
+
+    .row.intro { justify-content: flex-start; padding-left: 44px; margin-bottom: 12px; }
+    .row.now { text-align: left; padding-left: 44px; }
+    .now .t2 { margin-left: 8px; }
+
+    .row.year { height: 96px; margin: 18px 0 0; }
+    .year .ghost { left: auto; right: 0; transform: translateY(-50%); font-size: 78px; }
+    .year .plate { left: 26px; transform: translate(-50%, -50%) scale(.9); padding: 8px 4px; }
+    .year .plate .yr { font-size: 19px; }
+    .year .evo-a { right: auto; left: 62px; top: calc(50% - 12px); transform: none; }
+    .year .evo-b { left: 62px; top: calc(50% + 8px); transform: none; }
+
+    .row.ev { display: block; padding-left: 58px; margin-top: 16px !important; }
+    .row.ev .node { left: 26px; }
+    .link { position: absolute; left: 34px; top: 50%; margin-top: -1px; width: 18px !important; }
+    .row.ev.main .link { background: linear-gradient(90deg, rgba(233,230,223,.12), rgba(233,230,223,.85)); }
+    .cell { display: block; }
+    .card { width: 100%; }
+    .row.ev.main .card, .row.ev.dark .card { transform: translateY(22px); }
+    .card.in { transform: none; }
+    .card.c-main { text-align: left; border-right: none; border-left: 3px solid var(--umb); }
+    .card.c-main .head { flex-direction: row; }
+
+    .row.zero { text-align: left; padding-left: 44px; }
+
+    .jumpers { flex-direction: row; right: 12px; bottom: 12px; }
+    .dossier .body { padding: 18px 16px 20px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .card { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- ================= 报头 ================= -->
+<header class="masthead">
+  <div class="brow">
+    <span>VOL.001 · 蜂巢档案 HIVE ARCHIVE</span>
+    <span class="mid">UMBRELLA 4365 · CURSOR FRONTLINE CHRONICLE</span>
+    <span class="rq">RED QUEEN ONLINE</span>
+  </div>
+  <div class="mast-main">
+    <img class="logo" src="/logo.svg" alt="UMBRELLA 4365">
+    <div class="mast-title">
+      <h1 id="headline">AI圈<span class="em">一天</span>，人间<span class="em">一年</span></h1>
+      <div class="byline">by · Cursor 战地记者</div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="keys">
+      <span class="k main"><span class="swatch"></span><b>正史</b>・脊柱之左 官方档案</span>
+      <span class="k dark"><span class="swatch"></span><b>野史</b>・脊柱之右 民间情报</span>
+    </div>
+    <span class="hint">时间由新到旧 · 向下回溯历史 · 点击卡片调阅完整档案</span>
+  </div>
+</header>
+
+<!-- ================= 垂直时间树 ================= -->
+<main class="stage" aria-label="Cursor 编年时间树">
+  <div class="track" id="track">
+    <div class="sysmsg" id="sysmsg">ACCESSING HIVE ARCHIVE ...</div>
+  </div>
+</main>
+
+<div class="jumpers">
+  <button id="toTop" title="回到最新">⇡ 战况最新</button>
+  <button id="toBottom" title="回溯起源">⇣ 溯源起点</button>
+</div>
+
+<footer class="foot-note">
+  UMBRELLA 4365 ARCHIVE · 基于公开报道与民间情报整理 · 野史含演绎 仅作记录 不构成立场<br>
+  记者本人是 Cursor 重度用户 · <a href="https://umbrella4365.com">umbrella4365.com</a>
+</footer>
+
+<!-- ================= 档案调阅弹层 ================= -->
+<div class="overlay" id="overlay">
+  <article class="dossier" id="dossier"></article>
+</div>
+
+<script>
+/* ============ 年份阶段观测（生化纪元） ============ */
+const PHASES = {
+  '2022': { a: 'PHASE-0 始祖毒株 · PROGENITOR', b: '暗面无记录' },
+  '2023': { a: 'PHASE-I 初次泄漏 · OUTBREAK',  b: '暗面微弱杂音' },
+  '2024': { a: 'PHASE-II 城市扩散 · SPREAD',   b: '暗面异常增殖' },
+  '2025': { a: 'PHASE-III 全球大流行 · PANDEMIC', b: '变异体横行 · MUTATION' },
+  '2026': { a: 'PHASE-IV 吞并纪元 · ASSIMILATION', b: '暗面信号追踪中…' },
+};
+const phaseOf = y => PHASES[y] || { a: `PHASE-? 观测中 · ${y}`, b: '暗面信号追踪中…' };
+
+const track = document.getElementById('track');
+const LENS = [40, 112, 72];
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const dot = d => String(d || '').replaceAll('-', '.');
+
+let EVENTS = [];
+
+async function boot() {
+  try {
+    const res = await fetch('/api/events');
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    EVENTS = data.events || [];
+    render();
+  } catch (e) {
+    document.getElementById('sysmsg').textContent = 'RED QUEEN OFFLINE · 无法连接档案库（请先运行 node server.js）';
+  }
+}
+
+function render() {
+  track.innerHTML = '';
+
+  /* 发刊词（紧凑版） */
+  track.insertAdjacentHTML('beforeend', `
+    <div class="row intro">
+      <div class="card-intro">
+        <span class="lead">发刊词</span>AI 圈一夜迭代、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up">脊柱之左是台面上的正史</span>，<span class="down">之右是同一时刻的暗面野史</span>——漏洞、羊毛、事故与传闻，多来自民间群聊。<span class="vow">记者不站队、不批判、仅作记录；本人是 Cursor 重度用户，正因热爱，才如实记下它的光与影。</span>
+      </div>
+    </div>
+    <div class="row now">
+      <div class="pulse"><span class="cursor-blink"></span><span class="t1">未完待续 · 记录进行中</span></div>
+      <span class="t2">LIVE · 战地记者在线</span>
+    </div>
+  `);
+
+  /* 按年份分组（接口已按日期倒序返回） */
+  const byYear = new Map();
+  for (const ev of EVENTS) {
+    const y = ev.date.slice(0, 4);
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y).push(ev);
+  }
+
+  const sideCount = { main: 0, dark: 0 };
+  let prevWasEvent = false, prevSide = null;
+
+  for (const [year, list] of byYear) {
+    const ph = phaseOf(year);
+    track.insertAdjacentHTML('beforeend', `
+      <div class="row year">
+        <span class="ghost">${year}</span>
+        <span class="evo-a">${esc(ph.a)}</span>
+        <span class="evo-b">${esc(ph.b)}</span>
+        <div class="plate"><span class="gate"></span><span class="yr">${year}</span></div>
+      </div>
+    `);
+    prevWasEvent = false; prevSide = null;
+
+    for (const ev of list) {
+      const n = sideCount[ev.side]++;
+      const len = LENS[n % LENS.length];
+      const tuck = prevWasEvent && prevSide && prevSide !== ev.side ? ' tuck' : '';
+      const no = (ev.side === 'main' ? 'A-' : 'X-') + String(ev.id).padStart(3, '0');
+      const thumb = ev.image ? `<div class="thumb"><img src="${esc(ev.image)}" alt="" loading="lazy"></div>` : '';
+      const cardHTML = `
+        <article class="card c-${ev.side}" data-id="${ev.id}">
+          ${ev.side === 'dark' ? '<span class="stamp">野史</span>' : ''}
+          <div class="head"><span class="tag">${esc(ev.tag) || '记录'}</span><span class="no">${no}</span></div>
+          <time>${dot(ev.date)}</time>
+          <h3>${esc(ev.title)}</h3>
+          ${thumb}
+          <p>${esc(ev.summary)}</p>
+          <span class="more">调阅档案 »</span>
+        </article>`;
+      track.insertAdjacentHTML('beforeend', `
+        <div class="row ev ${ev.side}${tuck}" style="--len:${len}px">
+          <div class="cell l">${ev.side === 'main' ? cardHTML + '<div class="link"></div>' : ''}</div>
+          <div class="cell r">${ev.side === 'dark' ? '<div class="link"></div>' + cardHTML : ''}</div>
+          <span class="node"></span>
+        </div>
+      `);
+      prevWasEvent = true; prevSide = ev.side;
+    }
+  }
+
+  /* 末端：毒株原点 */
+  track.insertAdjacentHTML('beforeend', `
+    <div class="row zero">
+      <img src="/logo.svg" alt="">
+      <div class="t1">毒 株 原 点</div>
+      <div class="t2">STRAIN ZERO · 一切从这里开始</div>
+    </div>
+  `);
+
+  /* 卡片入场 + 点击调阅 */
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.card').forEach(c => {
+    io.observe(c);
+    c.addEventListener('click', () => openDossier(Number(c.dataset.id)));
+  });
+}
+
+/* ============ 档案调阅 ============ */
+const overlay = document.getElementById('overlay');
+const dossier = document.getElementById('dossier');
+
+function openDossier(id) {
+  const ev = EVENTS.find(e => e.id === id);
+  if (!ev) return;
+  const isMain = ev.side === 'main';
+  const no = (isMain ? 'A-' : 'X-') + String(ev.id).padStart(3, '0');
+  const paras = (ev.detail || '').split(/\n{2,}/).filter(Boolean)
+    .map(p => `<p>${esc(p).replaceAll('\n', '<br>')}</p>`).join('');
+  dossier.className = `dossier ${isMain ? 'd-main' : 'd-dark'}`;
+  dossier.innerHTML = `
+    <div class="bar">
+      <span>ARCHIVE ACCESS · ${no} · CLEARANCE LV.4</span>
+      <button id="closeD" title="关闭">✕</button>
+    </div>
+    <div class="body">
+      <div class="meta">
+        <span class="side-tag">${isMain ? '正史 · 官方档案' : '野史 · 民间情报'}</span>
+        <span>${dot(ev.date)}</span>
+        <span>${esc(ev.tag)}</span>
+      </div>
+      <h2>${esc(ev.title)}</h2>
+      ${ev.image ? `<div class="pic"><img src="${esc(ev.image)}" alt=""></div>` : ''}
+      <div class="sum">${esc(ev.summary)}</div>
+      <div class="txt">${paras || '<p>（暂无详细描述）</p>'}</div>
+      <div class="foot">UMBRELLA 4365 ARCHIVE · 仅作记录 · 不构成立场</div>
+    </div>
+  `;
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('closeD').onclick = closeDossier;
+}
+function closeDossier() {
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+overlay.addEventListener('click', e => { if (e.target === overlay) closeDossier(); });
+window.addEventListener('keydown', e => { if (e.key === 'Escape') closeDossier(); });
+
+/* ============ 滚动进度 & 跳转 ============ */
+const progress = document.getElementById('progress');
+window.addEventListener('scroll', () => {
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  progress.style.width = max > 0 ? (window.scrollY / max * 100) + '%' : '0';
+}, { passive: true });
+document.getElementById('toTop').onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+document.getElementById('toBottom').onclick = () => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+
+/* ============ 报头逐字浮现 ============ */
+const headline = document.getElementById('headline');
+let delay = 0;
+(function split(node) {
+  [...node.childNodes].forEach(child => {
+    if (child.nodeType === 3) {
+      const frag = document.createDocumentFragment();
+      for (const ch of child.textContent) {
+        const s = document.createElement('span');
+        s.className = 'char'; s.textContent = ch;
+        s.style.setProperty('--d', (delay += 55) + 'ms');
+        frag.appendChild(s);
+      }
+      node.replaceChild(frag, child);
+    } else split(child);
+  });
+})(headline);
+
+boot();
+</script>
+</body>
+</html>

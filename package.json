@@ -1,0 +1,15 @@
+{
+  "name": "cursor-warco",
+  "version": "1.0.0",
+  "description": "UMBRELLA 4365 · Cursor 战地纪实 —— 正史/野史双线时间树 + 内容管理后台",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js",
+    "reseed": "node seed.js --force"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "license": "MIT"
+}

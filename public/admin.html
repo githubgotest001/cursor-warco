@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RED QUEEN TERMINAL · UMBRELLA 4365 内容管理</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0a0b0e; --panel: #101218; --line: rgba(224,36,46,.4);
+    --umb: #e0242e; --umb-hi: #ff4a52;
+    --bone: #e9e6df; --dim: #9aa0a8;
+    --mono: "JetBrains Mono", "Consolas", monospace;
+    --sans: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--ink); color: var(--bone); font-family: var(--sans); min-height: 100vh; }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 40; opacity: .5;
+    background: repeating-linear-gradient(180deg, transparent 0 3px, rgba(224,36,46,.02) 3px 4px);
+  }
+
+  .top {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 12px clamp(14px, 3vw, 30px);
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    position: sticky; top: 0; z-index: 30;
+  }
+  .top img { width: 34px; height: 34px; }
+  .top .t { font-family: var(--mono); letter-spacing: .2em; font-size: 13px; color: var(--umb-hi); font-weight: 700; }
+  .top .s { font-size: 11px; color: var(--dim); letter-spacing: .08em; }
+  .top .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  button, .btn {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .1em;
+    background: transparent; color: var(--bone);
+    border: 1px solid var(--line); padding: 7px 14px;
+    cursor: pointer; transition: all .2s ease; text-decoration: none; display: inline-block;
+  }
+  button:hover, .btn:hover { background: rgba(224,36,46,.15); box-shadow: 0 0 12px rgba(224,36,46,.3); }
+  button.primary { background: var(--umb); color: #fff; border-color: var(--umb); font-weight: 700; }
+  button.primary:hover { background: var(--umb-hi); }
+  button.danger { color: var(--umb-hi); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  input, select, textarea {
+    font-family: var(--mono); font-size: 13px;
+    background: #0d0f14; color: var(--bone);
+    border: 1px solid rgba(233,230,223,.18); padding: 8px 10px;
+    outline: none; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--umb); box-shadow: 0 0 8px rgba(224,36,46,.25); }
+  textarea { font-family: var(--sans); line-height: 1.8; resize: vertical; }
+
+  /* ===== 登录闸门 ===== */
+  .gate {
+    position: fixed; inset: 0; z-index: 50;
+    background: var(--ink);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .gate.hidden { display: none; }
+  .gate .box { width: min(400px, 100%); border: 1px solid var(--line); background: var(--panel); padding: 30px 28px; text-align: center; }
+  .gate img { width: 74px; height: 74px; filter: drop-shadow(0 0 16px rgba(224,36,46,.5)); }
+  .gate h1 { font-family: var(--mono); font-size: 15px; letter-spacing: .26em; color: var(--umb-hi); margin: 16px 0 4px; }
+  .gate .sub { font-size: 11px; color: var(--dim); letter-spacing: .1em; margin-bottom: 20px; }
+  .gate input { text-align: center; letter-spacing: .3em; margin-bottom: 12px; }
+  .gate button { width: 100%; }
+  .gate .err { color: var(--umb-hi); font-family: var(--mono); font-size: 11px; letter-spacing: .18em; margin-top: 12px; min-height: 15px; }
+  .gate .quote { margin-top: 18px; font-size: 10.5px; color: var(--dim); opacity: .7; font-family: var(--mono); letter-spacing: .06em; }
+
+  /* ===== 工作区 ===== */
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px clamp(14px, 3vw, 30px) 60px; }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  .toolbar select { width: 150px; }
+  .toolbar input { width: 240px; flex: 1 1 200px; max-width: 340px; }
+  .toolbar .stat { font-family: var(--mono); font-size: 11px; color: var(--dim); letter-spacing: .1em; margin-left: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid rgba(233,230,223,.09); text-align: left; vertical-align: top; }
+  th { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; color: var(--dim); font-weight: 400; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td.mono { font-family: var(--mono); white-space: nowrap; }
+  tr:hover td { background: rgba(224,36,46,.05); }
+  .pill { font-family: var(--mono); font-size: 10.5px; padding: 2px 8px; letter-spacing: .16em; white-space: nowrap; }
+  .pill.main { color: #1d1e22; background: var(--bone); }
+  .pill.dark { color: var(--umb-hi); border: 1px dashed var(--umb); }
+  td .title-cell { font-weight: 700; }
+  td .sum-cell { color: var(--dim); font-size: 12px; margin-top: 3px; line-height: 1.6; }
+  td .ops { display: flex; gap: 6px; }
+  td .ops button { padding: 4px 10px; font-size: 11px; }
+  .has-img { color: var(--umb-hi); font-family: var(--mono); font-size: 10px; letter-spacing: .1em; }
+
+  .empty { text-align: center; color: var(--dim); font-family: var(--mono); font-size: 12px; letter-spacing: .2em; padding: 50px 0; }
+
+  /* ===== 编辑弹层 ===== */
+  .modal {
+    position: fixed; inset: 0; z-index: 45;
+    background: rgba(6,7,9,.85); backdrop-filter: blur(4px);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 30px 16px; overflow-y: auto;
+  }
+  .modal.open { display: flex; }
+  .modal .form {
+    width: min(680px, 100%); background: var(--panel);
+    border: 1px solid var(--line); border-top: 3px solid var(--umb);
+    padding: 24px 26px 26px;
+  }
+  .form h2 { font-family: var(--mono); font-size: 13px; letter-spacing: .24em; color: var(--umb-hi); margin-bottom: 18px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+  .grid .full { grid-column: 1 / -1; }
+  label { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; color: var(--dim); margin-bottom: 5px; }
+  .radio-row { display: flex; gap: 10px; }
+  .radio-row label {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+    border: 1px solid rgba(233,230,223,.18); padding: 9px; cursor: pointer;
+    font-size: 12px; letter-spacing: .2em; margin: 0; color: var(--bone);
+  }
+  .radio-row input { display: none; }
+  .radio-row label:has(input:checked) { border-color: var(--umb); background: rgba(224,36,46,.14); box-shadow: 0 0 10px rgba(224,36,46,.25); }
+  .img-row { display: flex; gap: 10px; align-items: flex-start; }
+  .img-row .col { flex: 1; }
+  .img-prev { width: 120px; height: 78px; border: 1px dashed rgba(233,230,223,.25); display: flex; align-items: center; justify-content: center; overflow: hidden; flex: none; }
+  .img-prev img { width: 100%; height: 100%; object-fit: cover; }
+  .img-prev span { font-size: 10px; color: var(--dim); font-family: var(--mono); }
+  .form .acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .form .msg { font-family: var(--mono); font-size: 11px; color: var(--umb-hi); letter-spacing: .1em; margin-right: auto; align-self: center; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--umb); color: #fff; font-family: var(--mono); font-size: 12px;
+    letter-spacing: .16em; padding: 10px 22px; z-index: 60; transition: transform .3s ease;
+    box-shadow: 0 6px 24px rgba(224,36,46,.4);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 720px) {
+    .grid { grid-template-columns: 1fr; }
+    th:nth-child(4), td:nth-child(4) { display: none; }
+    .toolbar .stat { width: 100%; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== 登录闸门 ===== -->
+<div class="gate" id="gate">
+  <div class="box">
+    <img src="/logo.svg" alt="">
+    <h1>RED QUEEN TERMINAL</h1>
+    <div class="sub">UMBRELLA 4365 · 档案管理终端 · 需要 LV.4 权限</div>
+    <input type="password" id="keyInput" placeholder="ADMIN KEY" autocomplete="current-password">
+    <button class="primary" id="loginBtn">验 证 权 限</button>
+    <div class="err" id="gateErr"></div>
+    <div class="quote">SYSTEM: 保持冷静，如实记录。</div>
+  </div>
+</div>
+
+<!-- ===== 顶栏 ===== -->
+<header class="top">
+  <img src="/logo.svg" alt="">
+  <div>
+    <div class="t">RED QUEEN TERMINAL</div>
+    <div class="s">UMBRELLA 4365 · 正史 / 野史 内容管理</div>
+  </div>
+  <div class="right">
+    <a class="btn" href="/" target="_blank">查看前台 ↗</a>
+    <button id="logoutBtn">注销</button>
+  </div>
+</header>
+
+<!-- ===== 工作区 ===== -->
+<div class="wrap">
+  <div class="toolbar">
+    <select id="fSide">
+      <option value="">全部档案</option>
+      <option value="main">正史 · 官方档案</option>
+      <option value="dark">野史 · 民间情报</option>
+    </select>
+    <input type="search" id="fQ" placeholder="搜索标题 / 摘要 / 详情 / 标签…">
+    <button class="primary" id="newBtn">＋ 新建档案</button>
+    <span class="stat" id="stat"></span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>日期</th><th>类型</th><th>标签</th><th style="width:52%">标题 / 摘要</th><th>操作</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">NO RECORDS · 档案为空</div>
+</div>
+
+<!-- ===== 编辑弹层 ===== -->
+<div class="modal" id="modal">
+  <div class="form">
+    <h2 id="formTitle">NEW RECORD · 新建档案</h2>
+    <div class="grid">
+      <div class="full">
+        <label>档案类型 SIDE</label>
+        <div class="radio-row">
+          <label><input type="radio" name="side" value="main" checked>◆ 正史 · 官方档案</label>
+          <label><input type="radio" name="side" value="dark">◇ 野史 · 民间情报</label>
+        </div>
+      </div>
+      <div>
+        <label>日期 DATE（到日）</label>
+        <input type="date" id="fDate" required>
+      </div>
+      <div>
+        <label>标签 TAG（如：融资 / 羊毛 / 事故）</label>
+        <input type="text" id="fTag" maxlength="8" placeholder="羊毛">
+      </div>
+      <div class="full">
+        <label>标题 TITLE *</label>
+        <input type="text" id="fTitle" maxlength="60" placeholder="一句话事件名">
+      </div>
+      <div class="full">
+        <label>摘要 SUMMARY *（时间轴卡片上显示，建议 80 字内）</label>
+        <textarea id="fSummary" rows="3"></textarea>
+      </div>
+      <div class="full">
+        <label>详细描述 DETAIL（调阅档案时显示，空行分段）</label>
+        <textarea id="fDetail" rows="7"></textarea>
+      </div>
+      <div class="full">
+        <label>图片 IMAGE（上传或直接粘贴 URL）</label>
+        <div class="img-row">
+          <div class="col">
+            <input type="text" id="fImage" placeholder="/uploads/xxx.png 或 https://…">
+            <div style="margin-top:8px; display:flex; gap:8px;">
+              <button id="pickBtn" type="button">选择图片上传</button>
+              <button id="clearImgBtn" type="button">清除</button>
+              <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.gif,.webp,.svg" style="display:none">
+            </div>
+          </div>
+          <div class="img-prev" id="imgPrev"><span>无图片</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="acts">
+      <span class="msg" id="formMsg"></span>
+      <button id="cancelBtn">取消</button>
+      <button class="primary" id="saveBtn">保 存 档 案</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY_STORE = 'umb4365_key';
+let KEY = localStorage.getItem(KEY_STORE) || '';
+let editingId = null;
+let rows = [];
+
+const headers = () => ({ 'Content-Type': 'application/json', 'X-Admin-Key': KEY });
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ===== 登录 ===== */
+async function tryLogin(key) {
+  const res = await fetch('/api/auth/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
+  return res.ok;
+}
+$('loginBtn').onclick = async () => {
+  const key = $('keyInput').value.trim();
+  if (!key) return;
+  if (await tryLogin(key)) {
+    KEY = key;
+    localStorage.setItem(KEY_STORE, key);
+    $('gate').classList.add('hidden');
+    load();
+  } else {
+    $('gateErr').textContent = 'ACCESS DENIED · 密钥无效';
+  }
+};
+$('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+$('logoutBtn').onclick = () => {
+  localStorage.removeItem(KEY_STORE);
+  location.reload();
+};
+
+/* ===== 列表 ===== */
+async function load() {
+  const side = $('fSide').value;
+  const q = $('fQ').value.trim();
+  const params = new URLSearchParams();
+  if (side) params.set('side', side);
+  if (q) params.set('q', q);
+  const res = await fetch('/api/events?' + params);
+  const data = await res.json();
+  rows = data.events || [];
+  const tbody = $('tbody');
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="mono">${r.date}</td>
+      <td><span class="pill ${r.side}">${r.side === 'main' ? '正史' : '野史'}</span></td>
+      <td class="mono">${escapeHtml(r.tag)}</td>
+      <td>
+        <div class="title-cell">${escapeHtml(r.title)} ${r.image ? '<span class="has-img">[图]</span>' : ''}</div>
+        <div class="sum-cell">${escapeHtml(r.summary)}</div>
+      </td>
+      <td>
+        <div class="ops">
+          <button onclick="editRow(${r.id})">编辑</button>
+          <button class="danger" onclick="delRow(${r.id})">删除</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+  $('empty').style.display = rows.length ? 'none' : 'block';
+  const main = rows.filter(r => r.side === 'main').length;
+  $('stat').textContent = `共 ${rows.length} 条 · 正史 ${main} · 野史 ${rows.length - main}`;
+}
+function escapeHtml(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+$('fSide').onchange = load;
+let qTimer;
+$('fQ').oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(load, 300); };
+
+/* ===== 表单 ===== */
+function openForm(row) {
+  editingId = row ? row.id : null;
+  $('formTitle').textContent = row ? `EDIT RECORD · 编辑档案 #${row.id}` : 'NEW RECORD · 新建档案';
+  document.querySelector(`input[name="side"][value="${row ? row.side : 'main'}"]`).checked = true;
+  $('fDate').value = row ? row.date : new Date().toISOString().slice(0, 10);
+  $('fTag').value = row ? row.tag : '';
+  $('fTitle').value = row ? row.title : '';
+  $('fSummary').value = row ? row.summary : '';
+  $('fDetail').value = row ? row.detail : '';
+  $('fImage').value = row ? row.image : '';
+  $('formMsg').textContent = '';
+  updatePreview();
+  $('modal').classList.add('open');
+}
+function closeForm() { $('modal').classList.remove('open'); }
+$('newBtn').onclick = () => openForm(null);
+$('cancelBtn').onclick = closeForm;
+$('modal').addEventListener('click', e => { if (e.target === $('modal')) closeForm(); });
+window.editRow = id => { const r = rows.find(x => x.id === id); if (r) openForm(r); };
+window.delRow = async id => {
+  const r = rows.find(x => x.id === id);
+  if (!confirm(`确认删除档案 #${id}「${r ? r.title : ''}」？此操作不可恢复。`)) return;
+  const res = await fetch('/api/events/' + id, { method: 'DELETE', headers: headers() });
+  if (res.ok) { toast('档案已销毁'); load(); }
+  else toast('删除失败：' + (await res.json()).error);
+};
+
+function updatePreview() {
+  const url = $('fImage').value.trim();
+  $('imgPrev').innerHTML = url ? `<img src="${escapeHtml(url)}" onerror="this.parentNode.innerHTML='<span>加载失败</span>'">` : '<span>无图片</span>';
+}
+$('fImage').oninput = updatePreview;
+$('clearImgBtn').onclick = () => { $('fImage').value = ''; updatePreview(); };
+$('pickBtn').onclick = () => $('fileInput').click();
+$('fileInput').onchange = () => {
+  const file = $('fileInput').files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) return toast('图片不能超过 10MB');
+  const reader = new FileReader();
+  reader.onload = async () => {
+    $('formMsg').textContent = 'UPLOADING…';
+    const res = await fetch('/api/upload', {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ name: file.name, data: reader.result })
+    });
+    const data = await res.json();
+    $('formMsg').textContent = '';
+    if (data.ok) { $('fImage').value = data.url; updatePreview(); toast('图片已上传'); }
+    else toast('上传失败：' + data.error);
+    $('fileInput').value = '';
+  };
+  reader.readAsDataURL(file);
+};
+
+$('saveBtn').onclick = async () => {
+  const body = {
+    side: document.querySelector('input[name="side"]:checked').value,
+    date: $('fDate').value,
+    tag: $('fTag').value.trim(),
+    title: $('fTitle').value.trim(),
+    summary: $('fSummary').value.trim(),
+    detail: $('fDetail').value,
+    image: $('fImage').value.trim(),
+  };
+  if (!body.date || !body.title || !body.summary) {
+    $('formMsg').textContent = '日期 / 标题 / 摘要 为必填';
+    return;
+  }
+  $('saveBtn').disabled = true;
+  const res = await fetch(editingId ? '/api/events/' + editingId : '/api/events', {
+    method: editingId ? 'PUT' : 'POST',
+    headers: headers(),
+    body: JSON.stringify(body)
+  });
+  $('saveBtn').disabled = false;
+  const data = await res.json();
+  if (data.ok) { closeForm(); toast(editingId ? '档案已更新' : '档案已入库'); load(); }
+  else $('formMsg').textContent = data.error || '保存失败';
+};
+
+/* ===== 启动 ===== */
+(async () => {
+  if (KEY && await tryLogin(KEY)) {
+    $('gate').classList.add('hidden');
+    load();
+  } else {
+    localStorage.removeItem(KEY_STORE);
+  }
+})();
+</script>
+</body>
+</html>
