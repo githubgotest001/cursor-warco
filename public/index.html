@@ -4,8 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UMBRELLA 4365 · Cursor 战地纪实</title>
-<meta name="description" content="UMBRELLA 4365：Cursor 战地纪实。一条正史，一条野史，双向时间树记录 AI 编程纪元。仅作记录，不构成立场。">
+<meta name="description" content="UMBRELLA 4365：Cursor 战地纪实。一条正史，一条野史，双向时间树记录 AI 编程纪元与 Cursor 圈的光与影。仅作记录，不构成立场。">
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
+<!-- 社交分享卡片（分享到微信/推特/群聊时的门面） -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="UMBRELLA 4365">
+<meta property="og:title" content="UMBRELLA 4365 · Cursor 战地纪实">
+<meta property="og:description" content="AI圈一天，人间一年。一条正史，一条野史，记录 Cursor 与 AI 编程圈的光与影。">
+<meta property="og:url" content="https://umbrella4365.com/">
+<meta property="og:image" content="https://umbrella4365.com/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="UMBRELLA 4365 · Cursor 战地纪实">
+<meta name="twitter:description" content="AI圈一天，人间一年。正史与野史，记录 Cursor 圈的光与影。">
+<meta name="twitter:image" content="https://umbrella4365.com/og.png">
+<meta name="theme-color" content="#0a0b0e">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=Ma+Shan+Zheng&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -52,9 +64,9 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97'%3E%3Cpath d='M28 0L56 16.17V48.5L28 64.66L0 48.5V16.17L28 0Z M28 64.66V97' fill='none' stroke='rgba(233,230,223,.045)'/%3E%3C/svg%3E");
   }
 
-  /* ================= 报头 ================= */
+  /* ================= 报头（收紧尺寸，给正文让路） ================= */
   .masthead {
-    padding: 14px clamp(16px, 4vw, 48px) 0;
+    padding: 10px clamp(16px, 4vw, 48px) 0;
     border-bottom: 1px solid rgba(224,36,46,.35);
     background: linear-gradient(180deg, #101116 0%, var(--ink) 100%);
     position: relative; z-index: 5;
@@ -71,14 +83,14 @@
   .brow .rq::after { content: "●"; color: var(--umb); margin-left: 6px; animation: blink 1.4s steps(1) infinite; }
 
   .mast-main {
-    display: flex; align-items: center; justify-content: center; gap: clamp(14px, 3vw, 26px);
-    padding: 9px 0 2px;
+    display: flex; align-items: center; justify-content: center; gap: clamp(10px, 2.2vw, 18px);
+    padding: 6px 0 2px;
   }
-  .mast-main .logo { width: clamp(38px, 4.6vw, 52px); height: auto; flex: none; filter: drop-shadow(0 0 14px rgba(224,36,46,.4)); }
-  .mast-title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .mast-main .logo { width: clamp(28px, 3.4vw, 38px); height: auto; flex: none; filter: drop-shadow(0 0 14px rgba(224,36,46,.4)); }
+  .mast-title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .mast-title h1 {
     font-family: var(--serif); font-weight: 900;
-    font-size: clamp(20px, 2.8vw, 32px);
+    font-size: clamp(16px, 2vw, 22px);
     letter-spacing: .06em; line-height: 1.15;
     text-shadow: 0 0 28px rgba(224,36,46,.3);
   }
@@ -88,7 +100,7 @@
   .mast-title .site { display: none; }
   .byline {
     font-family: var(--hand);
-    font-size: clamp(14px, 1.4vw, 17px); color: var(--bone-dim);
+    font-size: clamp(12px, 1.2vw, 14px); color: var(--bone-dim);
     opacity: 0; animation: fadeIn .8s ease .9s forwards;
   }
   .byline::before { content: "———"; letter-spacing: -2px; opacity: .45; margin-right: .6em; font-family: var(--mono); font-size: .7em; vertical-align: middle; }
@@ -110,6 +122,67 @@
   .legend .hint { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; opacity: .75; }
   /* 方位文案：桌面显示"脊柱左右"，移动端切换为"浅色/深色档案" */
   .lr-m { display: none; }
+
+  /* 收录统计 + 筛选 */
+  .legend-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .legend .count { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--bone-dim); }
+  .legend .count b { color: var(--umb-hi); }
+  .filter { display: inline-flex; border: 1px solid rgba(224,36,46,.4); }
+  .filter button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+    background: transparent; color: var(--bone-dim); border: none; border-left: 1px solid rgba(224,36,46,.25);
+    padding: 4px 12px; cursor: pointer; transition: all .2s ease;
+  }
+  .filter button:first-child { border-left: none; }
+  .filter button:hover { color: var(--bone); background: rgba(224,36,46,.1); }
+  .filter button.on { background: var(--umb); color: #fff; font-weight: 700; }
+
+  /* 线索徽标（卡片上） */
+  .card .series-tag {
+    display: inline-flex; align-items: center; gap: 4px; margin: 8px 0 2px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+    padding: 2px 8px; cursor: pointer; border: 1px dashed currentColor; opacity: .82;
+  }
+  .card.c-main .series-tag { color: #a01820; }
+  .card.c-dark .series-tag { color: var(--umb-hi); }
+  .card .series-tag:hover { opacity: 1; box-shadow: 0 0 10px rgba(224,36,46,.3); }
+
+  /* 线索筛选提示条 */
+  .thread-bar {
+    position: relative; z-index: 2; max-width: 700px; margin: 0 auto 10px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    border: 1px dashed var(--umb); background: rgba(224,36,46,.08);
+    padding: 9px 14px; font-family: var(--mono); font-size: 11.5px; color: var(--bone);
+  }
+  .thread-bar b { color: var(--umb-hi); }
+  .thread-bar .win { color: var(--bone-dim); }
+  .thread-bar .x { cursor: pointer; color: var(--umb-hi); border: 1px solid var(--umb); padding: 2px 9px; white-space: nowrap; }
+  .thread-bar .x:hover { background: rgba(224,36,46,.18); }
+
+  /* 详情：线索时间线 */
+  .dossier .thread { margin: 14px 0; padding: 12px 14px; border: 1px dashed rgba(224,36,46,.4); }
+  .dossier .thread .th-hd { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; margin-bottom: 10px; }
+  .dossier.d-main .thread .th-hd { color: #a01820; }
+  .dossier.d-dark .thread .th-hd { color: var(--umb-hi); }
+  .dossier .thread .node2 { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; font-size: 12.5px; line-height: 1.5; }
+  .dossier .thread .node2 .d { font-family: var(--mono); white-space: nowrap; opacity: .65; }
+  .dossier .thread .node2.cur { font-weight: 700; }
+  .dossier.d-main .thread .node2.cur { color: #a01820; }
+  .dossier.d-dark .thread .node2.cur { color: #ffd9d4; }
+  .dossier .thread .node2.cur .d { opacity: 1; }
+  .dossier .thread .win { margin-top: 9px; padding-top: 8px; border-top: 1px dashed rgba(224,36,46,.25); font-family: var(--mono); font-size: 11px; letter-spacing: .04em; }
+  .dossier.d-main .thread .win { color: #a01820; }
+  .dossier.d-dark .thread .win { color: var(--umb-hi); }
+
+  /* 详情：信源 */
+  .dossier .srcline { margin-top: 12px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .02em; word-break: break-all; }
+  .dossier .srcline a { color: inherit; }
+  .dossier.d-main .srcline { color: #a01820; }
+  .dossier.d-dark .srcline { color: var(--umb-hi); }
+
+  /* 详情 bar 按钮组 */
+  .dossier .bar .acts { display: flex; gap: 8px; align-items: center; }
+  .dossier .bar .acts button { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; padding: 0; }
 
   /* ================= 蜂巢（垂直时间树） ================= */
   .stage {
@@ -310,25 +383,21 @@
     100% { text-shadow: none; transform: none; }
   }
 
-  /* ---- 末端：战地手记 ---- */
-  .row.memo { position: relative; z-index: 2; display: flex; justify-content: center; padding: 46px 0 4px; }
-  .memo .sheet {
-    max-width: 640px;
-    border: 1px solid rgba(224,36,46,.35);
-    border-left: 3px solid var(--bone);
-    border-right: 3px solid var(--umb);
-    padding: 20px 26px 22px;
-    background: linear-gradient(160deg, rgba(233,230,223,.05), rgba(10,11,14,.95) 55%, rgba(224,36,46,.1));
+  /* ---- 战地手记：不占版面，入口藏在发刊词末尾与报头署名，正文走档案调阅弹层 ---- */
+  .card-intro .memo-link {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+    color: var(--umb-hi); opacity: .75; cursor: pointer; white-space: nowrap;
+    border-bottom: 1px dashed rgba(224,36,46,.55); padding-bottom: 1px;
+    transition: all .2s ease;
   }
-  .memo .hd { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; border-bottom: 1px dashed rgba(224,36,46,.3); padding-bottom: 9px; }
-  .memo .hd .zh { font-family: var(--serif); font-size: 17px; letter-spacing: .18em; color: var(--bone); }
-  .memo .hd .zh::before { content: "▌"; color: var(--umb); margin-right: 7px; }
-  .memo .hd .en { font-family: var(--mono); font-size: 9.5px; letter-spacing: .26em; color: var(--umb-hi); opacity: .8; }
-  .memo .lede { font-size: 11.5px; line-height: 1.85; color: var(--bone-dim); font-style: italic; margin-bottom: 12px; opacity: .82; }
-  .memo p { font-size: 13px; line-height: 1.95; color: #d8cfc9; margin-bottom: 11px; }
-  .memo p.punch { color: #ffd9d4; }
-  .memo p.punch em { font-style: normal; color: var(--umb-hi); }
-  .memo .sign { text-align: right; font-family: var(--hand); font-size: 17px; color: var(--bone-dim); margin-top: 14px; opacity: .85; }
+  .card-intro .memo-link:hover { opacity: 1; text-shadow: 0 0 8px rgba(224,36,46,.45); }
+  .byline { cursor: pointer; }
+  .byline:hover { color: var(--bone); }
+  /* 手记弹层内部 */
+  .dossier .lede { font-size: 12.5px; line-height: 1.9; font-style: italic; opacity: .75; margin-bottom: 12px; }
+  .dossier .txt p.punch { color: #ffd9d4; }
+  .dossier .txt p.punch em { font-style: normal; color: var(--umb-hi); }
+  .dossier .sign { text-align: right; font-family: var(--hand); font-size: 17px; color: var(--bone-dim); margin-top: 16px; opacity: .85; }
 
   /* ---- 末端：毒株原点 ---- */
   .row.zero { position: relative; z-index: 2; text-align: center; padding: 40px 0 0; }
@@ -429,8 +498,6 @@
     .card.c-main { text-align: left; border-right: none; border-left: 3px solid var(--umb); }
     .card.c-main .head { flex-direction: row; }
 
-    .row.memo { justify-content: flex-start; padding-left: 44px; }
-    .memo .sheet { padding: 16px 18px 18px; }
     .row.zero { text-align: left; padding-left: 44px; }
 
     .jumpers { flex-direction: row; right: 12px; bottom: 12px; }
@@ -466,7 +533,14 @@
       <span class="k main"><span class="swatch"></span><b>正史</b>・<span class="lr-d">脊柱之左 </span>官方档案</span>
       <span class="k dark"><span class="swatch"></span><b>野史</b>・<span class="lr-d">脊柱之右 </span>民间情报</span>
     </div>
-    <span class="hint">时间由新到旧 · 向下回溯历史 · 点击卡片调阅完整档案</span>
+    <div class="legend-right">
+      <span class="count" id="count"></span>
+      <div class="filter" id="filter">
+        <button data-f="all" class="on">全部</button>
+        <button data-f="main">正史</button>
+        <button data-f="dark">野史</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -509,6 +583,39 @@ const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 const dot = d => String(d || '').replaceAll('-', '.');
 
 let EVENTS = [];
+let currentFilter = 'all';   // all | main | dark
+let currentSeries = null;    // 线索名，非空时只看该线索
+
+const daysBetween = (d1, d2) => Math.round(Math.abs(new Date(d2) - new Date(d1)) / 864e5);
+const matchList = () => EVENTS.filter(ev =>
+  currentSeries ? ev.series === currentSeries
+    : currentFilter === 'main' ? ev.side === 'main'
+    : currentFilter === 'dark' ? ev.side === 'dark'
+    : true
+);
+function updateCount() {
+  const m = EVENTS.filter(e => e.side === 'main').length;
+  const el = document.getElementById('count');
+  if (el) el.innerHTML = `已收录 <b>${EVENTS.length}</b> 条 · 正史 ${m} · 野史 ${EVENTS.length - m}`;
+}
+function syncFilterUI() {
+  document.querySelectorAll('#filter button').forEach(b => b.classList.toggle('on', b.dataset.f === currentFilter && !currentSeries));
+}
+function bindFilter() {
+  document.querySelectorAll('#filter button').forEach(b => {
+    b.onclick = () => { currentFilter = b.dataset.f; currentSeries = null; syncFilterUI(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  });
+}
+function viewSeries(name) { currentSeries = name; currentFilter = 'all'; syncFilterUI(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function bindThread() {
+  const x = document.getElementById('clearThread');
+  if (x) x.onclick = () => { currentSeries = null; syncFilterUI(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+}
+function openFromHash() {
+  if (location.hash === '#memo') { setTimeout(openMemo, 400); return; }
+  const m = location.hash.match(/^#ev-(\d+)$/);
+  if (m && EVENTS.some(e => e.id === Number(m[1]))) setTimeout(() => openDossier(Number(m[1])), 400);
+}
 
 async function boot() {
   try {
@@ -517,6 +624,9 @@ async function boot() {
     const data = await res.json();
     EVENTS = data.events || [];
     render();
+    updateCount();
+    bindFilter();
+    openFromHash();
   } catch (e) {
     document.getElementById('sysmsg').textContent = 'RED QUEEN OFFLINE · 无法连接档案库（请先运行 node server.js）';
   }
@@ -524,23 +634,47 @@ async function boot() {
 
 function render() {
   track.innerHTML = '';
+  const pristine = !currentSeries && currentFilter === 'all';
 
-  /* 发刊词（紧凑版） */
-  track.insertAdjacentHTML('beforeend', `
-    <div class="row intro">
-      <div class="card-intro">
-        <span class="lead">发刊词</span>AI 圈一夜迭代、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、羊毛、事故与传闻，多来自民间群聊。<span class="vow">记者不站队、不批判、仅作记录；本人是 Cursor 重度用户，正因热爱，才如实记下它的光与影。</span>
+  /* 发刊词 + LIVE（仅完整视图显示，保持首屏叙事）；战地手记从发刊词末尾调阅 */
+  if (pristine) {
+    track.insertAdjacentHTML('beforeend', `
+      <div class="row intro">
+        <div class="card-intro">
+          <span class="lead">发刊词</span>AI 圈一夜巨变、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、羊毛、事故与传闻，多来自民间群聊。<span class="vow">记者不站队、不批判、仅作记录；正因热爱，才如实记下它的光与影。</span>　<span class="memo-link" id="memoLink" title="OFF THE RECORD · 记者私话">附 · 战地手记 »</span>
+        </div>
       </div>
-    </div>
-    <div class="row now">
-      <div class="pulse"><span class="cursor-blink"></span><span class="t1">未完待续 · 记录进行中</span></div>
-      <span class="t2">LIVE · 战地记者在线</span>
-    </div>
-  `);
+      <div class="row now">
+        <div class="pulse"><span class="cursor-blink"></span><span class="t1">未完待续 · 记录进行中</span></div>
+        <span class="t2">LIVE · 战地记者在线</span>
+      </div>
+    `);
+    const ml = document.getElementById('memoLink');
+    if (ml) ml.onclick = openMemo;
+  }
 
-  /* 按年份分组（接口已按日期倒序返回） */
+  /* 线索筛选提示条 */
+  if (currentSeries) {
+    const arr = EVENTS.filter(e => e.series === currentSeries).sort((a, b) => a.date < b.date ? -1 : 1);
+    const span = arr.length >= 2 ? daysBetween(arr[0].date, arr[arr.length - 1].date) : 0;
+    track.insertAdjacentHTML('beforeend', `
+      <div class="thread-bar">
+        <span>🔗 事件线索：<b>${esc(currentSeries)}</b> · ${arr.length} 个节点${span ? ` · <span class="win">窗口跨度 ${span} 天</span>` : ''}</span>
+        <span class="x" id="clearThread">✕ 返回全部</span>
+      </div>
+    `);
+  }
+
+  const list = matchList();
+  if (!list.length) {
+    track.insertAdjacentHTML('beforeend', `<div class="sysmsg">此筛选下暂无档案</div>`);
+    bindThread();
+    return;
+  }
+
+  /* 按年份分组（数据已按日期倒序返回） */
   const byYear = new Map();
-  for (const ev of EVENTS) {
+  for (const ev of list) {
     const y = ev.date.slice(0, 4);
     if (!byYear.has(y)) byYear.set(y, []);
     byYear.get(y).push(ev);
@@ -549,7 +683,7 @@ function render() {
   const sideCount = { main: 0, dark: 0 };
   let prevWasEvent = false, prevSide = null;
 
-  for (const [year, list] of byYear) {
+  for (const [year, ylist] of byYear) {
     const ph = phaseOf(year);
     track.insertAdjacentHTML('beforeend', `
       <div class="row year">
@@ -561,12 +695,13 @@ function render() {
     `);
     prevWasEvent = false; prevSide = null;
 
-    for (const ev of list) {
+    for (const ev of ylist) {
       const n = sideCount[ev.side]++;
       const len = LENS[n % LENS.length];
       const tuck = prevWasEvent && prevSide && prevSide !== ev.side ? ' tuck' : '';
       const no = (ev.side === 'main' ? 'A-' : 'X-') + String(ev.id).padStart(3, '0');
       const thumb = ev.image ? `<div class="thumb"><img src="${esc(ev.image)}" alt="" loading="lazy"></div>` : '';
+      const seriesTag = ev.series ? `<span class="series-tag" data-series="${esc(ev.series)}">🔗 ${esc(ev.series)}</span>` : '';
       const cardHTML = `
         <article class="card c-${ev.side}" data-id="${ev.id}">
           ${ev.side === 'dark' ? '<span class="stamp">野史</span>' : ''}
@@ -575,6 +710,7 @@ function render() {
           <h3>${esc(ev.title)}</h3>
           ${thumb}
           <p>${esc(ev.summary)}</p>
+          ${seriesTag}
           <span class="more">调阅档案 »</span>
         </article>`;
       track.insertAdjacentHTML('beforeend', `
@@ -588,38 +724,30 @@ function render() {
     }
   }
 
-  /* 末端前：战地手记（记者私话，与"只记录"的报道立场分开） */
-  track.insertAdjacentHTML('beforeend', `
-    <div class="row memo">
-      <div class="sheet">
-        <div class="hd"><span class="zh">战地手记</span><span class="en">FIELD NOTE · OFF THE RECORD</span></div>
-        <div class="lede">以上皆为记录。容我摘下记者的帽子，说几句私话——</div>
-        <p>高级模型愈强、愈贵，需求也就愈烈；钻漏洞白嫖，于是成了公开的秘密。</p>
-        <p>可漏洞随时会被补上。无论个人还是团队，都被困在一个随时关闭的窗口里赶工——为"用掉"模型而用，动作变形，来不及深思熟虑。</p>
-        <p class="punch">荒诞正在于此：<em>紧绷着调用最强的模型，产出未必胜过从容时用一个普通模型。</em></p>
-        <p>舍本逐末，莫过于此。愿这片环境早日回归正常——真正稀缺的从来不是模型额度，而是从容思考的心力。</p>
-        <div class="sign">—— Cursor 战地记者</div>
+  /* 毒株原点（仅完整视图显示） */
+  if (pristine) {
+    track.insertAdjacentHTML('beforeend', `
+      <div class="row zero">
+        <img src="/logo.svg" alt="">
+        <div class="t1">毒 株 原 点</div>
+        <div class="t2">STRAIN ZERO · 一切从这里开始</div>
       </div>
-    </div>
-  `);
+    `);
+  }
 
-  /* 末端：毒株原点 */
-  track.insertAdjacentHTML('beforeend', `
-    <div class="row zero">
-      <img src="/logo.svg" alt="">
-      <div class="t1">毒 株 原 点</div>
-      <div class="t2">STRAIN ZERO · 一切从这里开始</div>
-    </div>
-  `);
-
-  /* 卡片入场 + 点击调阅 */
+  /* 卡片入场 + 点击调阅 / 线索徽标 */
   const io = new IntersectionObserver(entries => {
     for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
   }, { threshold: 0.12 });
   document.querySelectorAll('.card').forEach(c => {
     io.observe(c);
-    c.addEventListener('click', () => openDossier(Number(c.dataset.id)));
+    c.addEventListener('click', e => {
+      const st = e.target.closest('.series-tag');
+      if (st) { e.stopPropagation(); viewSeries(st.dataset.series); return; }
+      openDossier(Number(c.dataset.id));
+    });
   });
+  bindThread();
 }
 
 /* ============ 档案调阅 ============ */
@@ -633,11 +761,29 @@ function openDossier(id) {
   const no = (isMain ? 'A-' : 'X-') + String(ev.id).padStart(3, '0');
   const paras = (ev.detail || '').split(/\n{2,}/).filter(Boolean)
     .map(p => `<p>${esc(p).replaceAll('\n', '<br>')}</p>`).join('');
+
+  /* 事件线索时间线：串起同一漏洞/羊毛窗口的多个节点，标注窗口跨度 */
+  let threadHtml = '';
+  if (ev.series) {
+    const arr = EVENTS.filter(e => e.series === ev.series).sort((a, b) => a.date < b.date ? -1 : 1);
+    const span = arr.length >= 2 ? daysBetween(arr[0].date, arr[arr.length - 1].date) : 0;
+    threadHtml = `
+      <div class="thread">
+        <div class="th-hd">🔗 事件线索 · ${esc(ev.series)}（${arr.length} 个节点）</div>
+        ${arr.map(e => `<div class="node2 ${e.id === ev.id ? 'cur' : ''}"><span class="d">${dot(e.date)}</span><span>${esc(e.title)}</span></div>`).join('')}
+        ${span ? `<div class="win">◷ 窗口跨度 ${span} 天（${dot(arr[0].date)} → ${dot(arr[arr.length - 1].date)}）</div>` : ''}
+      </div>`;
+  }
+  const srcHtml = ev.source ? `<div class="srcline">信源 SOURCE · <a href="${esc(ev.source)}" target="_blank" rel="noopener">${esc(ev.source)}</a></div>` : '';
+
   dossier.className = `dossier ${isMain ? 'd-main' : 'd-dark'}`;
   dossier.innerHTML = `
     <div class="bar">
       <span>ARCHIVE ACCESS · ${no} · CLEARANCE LV.4</span>
-      <button id="closeD" title="关闭">✕</button>
+      <span class="acts">
+        <button id="shareD" title="复制本条档案链接">⧉ 链接</button>
+        <button id="closeD" title="关闭">✕</button>
+      </span>
     </div>
     <div class="body">
       <div class="meta">
@@ -649,17 +795,70 @@ function openDossier(id) {
       ${ev.image ? `<div class="pic"><img src="${esc(ev.image)}" alt=""></div>` : ''}
       <div class="sum">${esc(ev.summary)}</div>
       <div class="txt">${paras || '<p>（暂无详细描述）</p>'}</div>
+      ${threadHtml}
+      ${srcHtml}
       <div class="foot">UMBRELLA 4365 ARCHIVE · 仅作记录 · 不构成立场</div>
     </div>
   `;
   overlay.classList.add('open');
   document.body.style.overflow = 'hidden';
+  history.replaceState(null, '', '#ev-' + ev.id);
   document.getElementById('closeD').onclick = closeDossier;
+  document.getElementById('shareD').onclick = e => {
+    const btn = e.currentTarget;
+    try { navigator.clipboard.writeText(location.href); } catch {}
+    btn.textContent = '✓ 已复制';
+    setTimeout(() => { btn.textContent = '⧉ 链接'; }, 1500);
+  };
 }
 function closeDossier() {
   overlay.classList.remove('open');
   document.body.style.overflow = '';
+  if (location.hash.indexOf('#ev-') === 0 || location.hash === '#memo') history.replaceState(null, '', location.pathname + location.search);
 }
+
+/* ============ 战地手记：记者私话，按零号档案调阅 ============ */
+function openMemo() {
+  dossier.className = 'dossier d-dark';
+  dossier.innerHTML = `
+    <div class="bar">
+      <span>FIELD NOTE · N-000 · OFF THE RECORD</span>
+      <span class="acts">
+        <button id="shareD" title="复制手记链接">⧉ 链接</button>
+        <button id="closeD" title="关闭">✕</button>
+      </span>
+    </div>
+    <div class="body">
+      <div class="meta">
+        <span class="side-tag">战地手记 · 记者私话</span>
+        <span>不入正册 · 不代表档案立场</span>
+      </div>
+      <h2>光与影之外</h2>
+      <div class="lede">档案之外，容我摘下记者的帽子，说几句私话——</div>
+      <div class="txt">
+        <p>高级模型愈强、愈贵，需求也就愈烈；钻漏洞白嫖，于是成了公开的秘密。</p>
+        <p>可漏洞随时会被补上。无论个人还是团队，都被困在一个随时关闭的窗口里赶工——为「用掉」模型而用，动作变形，来不及深思熟虑。</p>
+        <p class="punch">荒诞正在于此：<em>紧绷着调用最强的模型，产出未必胜过从容时用一个普通模型。</em></p>
+        <p>舍本逐末，莫过于此。愿这片环境早日回归正常——真正稀缺的从来不是模型额度，而是从容思考的心力。</p>
+      </div>
+      <div class="sign">—— Cursor 战地记者</div>
+      <div class="foot">UMBRELLA 4365 · FIELD NOTE · 私话仅代表记者本人</div>
+    </div>
+  `;
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  history.replaceState(null, '', '#memo');
+  document.getElementById('closeD').onclick = closeDossier;
+  document.getElementById('shareD').onclick = e => {
+    const btn = e.currentTarget;
+    try { navigator.clipboard.writeText(location.href); } catch {}
+    btn.textContent = '✓ 已复制';
+    setTimeout(() => { btn.textContent = '⧉ 链接'; }, 1500);
+  };
+}
+/* 报头署名同为手记暗门 */
+document.querySelector('.byline').addEventListener('click', openMemo);
+document.querySelector('.byline').title = '战地手记 · OFF THE RECORD';
 overlay.addEventListener('click', e => { if (e.target === overlay) closeDossier(); });
 window.addEventListener('keydown', e => { if (e.key === 'Escape') closeDossier(); });
 

@@ -92,6 +92,27 @@
   td .ops button { padding: 4px 10px; font-size: 11px; }
   .has-img { color: var(--umb-hi); font-family: var(--mono); font-size: 10px; letter-spacing: .1em; }
 
+  /* 标题栏内的标签 / 线索徽标 */
+  .badge { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; padding: 1px 7px; white-space: nowrap; font-weight: 400; }
+  .badge.b-tag { color: var(--dim); border: 1px solid rgba(233,230,223,.22); }
+  .badge.b-series { color: var(--umb-hi); border: 1px dashed var(--umb); cursor: pointer; }
+  .badge.b-series:hover { background: rgba(224,36,46,.12); }
+
+  /* 可排序列头 */
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--bone); }
+  th.sortable.active { color: var(--umb-hi); }
+  th.sortable .arr { margin-left: 4px; font-size: 9px; }
+
+  /* 分页器 */
+  .pager { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 14px 0 4px; }
+  .pager .info { font-family: var(--mono); font-size: 11px; color: var(--dim); letter-spacing: .08em; margin-right: 4px; }
+  .pager button { padding: 4px 11px; font-size: 11px; }
+  .pager button.cur { background: var(--umb); color: #fff; border-color: var(--umb); font-weight: 700; }
+
+  /* 表单字段说明 */
+  .hint-inline { font-size: 11px; line-height: 1.7; color: var(--dim); margin-top: 6px; opacity: .85; }
+
   .empty { text-align: center; color: var(--dim); font-family: var(--mono); font-size: 12px; letter-spacing: .2em; padding: 50px 0; }
 
   /* ===== 编辑弹层 ===== */
@@ -210,17 +231,30 @@
       <option value="main">正史 · 官方档案</option>
       <option value="dark">野史 · 民间情报</option>
     </select>
-    <input type="search" id="fQ" placeholder="搜索标题 / 摘要 / 详情 / 标签…">
+    <input type="search" id="fQ" placeholder="搜索标题 / 摘要 / 详情 / 标签 / 线索…">
+    <select id="fPageSize" title="每页条数" style="width:auto">
+      <option value="10">每页 10</option>
+      <option value="20" selected>每页 20</option>
+      <option value="50">每页 50</option>
+    </select>
     <button class="primary" id="newBtn">＋ 新建档案</button>
     <span class="stat" id="stat"></span>
   </div>
   <table>
     <thead>
-      <tr><th>日期</th><th>类型</th><th>标签</th><th style="width:52%">标题 / 摘要</th><th>操作</th></tr>
+      <tr>
+        <th class="sortable" data-sort="date">日期<span class="arr"></span></th>
+        <th>类型</th>
+        <th style="width:44%">标题 / 摘要</th>
+        <th class="sortable" data-sort="created_at">创建<span class="arr"></span></th>
+        <th class="sortable" data-sort="updated_at">修改<span class="arr"></span></th>
+        <th>操作</th>
+      </tr>
     </thead>
     <tbody id="tbody"></tbody>
   </table>
   <div class="empty" id="empty" style="display:none">NO RECORDS · 档案为空</div>
+  <div class="pager" id="archivePager"></div>
   </section>
 
   <!-- ===== 访客监控 ===== -->
@@ -249,11 +283,12 @@
     </div>
 
     <div class="box2">
-      <h3>最近访问</h3>
+      <h3>最近访问 <span id="vRecentCount" style="color:var(--dim);font-weight:400"></span></h3>
       <table>
         <thead><tr><th>时间</th><th>路径</th><th>状态</th><th>访客</th><th>客户端</th></tr></thead>
         <tbody id="vRecent"></tbody>
       </table>
+      <div class="pager" id="vRecentPager"></div>
     </div>
   </section>
 </div>
@@ -275,8 +310,8 @@
         <input type="date" id="fDate" required>
       </div>
       <div>
-        <label>标签 TAG（如：融资 / 羊毛 / 事故）</label>
-        <input type="text" id="fTag" maxlength="8" placeholder="羊毛">
+        <label>标签 TAG（下拉选已有，或手输新的）</label>
+        <input type="text" id="fTag" list="tagList" maxlength="8" placeholder="羊毛">
       </div>
       <div class="full">
         <label>标题 TITLE *</label>
@@ -289,6 +324,16 @@
       <div class="full">
         <label>详细描述 DETAIL（调阅档案时显示，空行分段）</label>
         <textarea id="fDetail" rows="7"></textarea>
+      </div>
+      <div class="full">
+        <label>事件线索 SERIES（选填，下拉选已有或手输）</label>
+        <input type="text" id="fSeries" list="seriesList" maxlength="40" placeholder="如：学生认证薅羊毛　/　无限试用重置">
+        <div class="hint-inline">同一漏洞 / 羊毛窗口的多条事件填相同线索名，前台会把它们串成一条时间线（如「8.1 发现 → 8.24 修复」），帮读者判断这个窗口现在还开着没。</div>
+      </div>
+      <div class="full">
+        <label>信源 SOURCE（选填）</label>
+        <input type="text" id="fSource" maxlength="300" placeholder="https://… 原始报道 / 官方公告 / 帖子链接">
+        <div class="hint-inline">原始出处链接，前台「调阅档案」里可点击追溯核实——纪实可信度的根基。</div>
       </div>
       <div class="full">
         <label>图片 IMAGE（上传或直接粘贴 URL）</label>
@@ -313,6 +358,8 @@
   </div>
 </div>
 
+<datalist id="tagList"></datalist>
+<datalist id="seriesList"></datalist>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -321,6 +368,10 @@ const KEY_STORE = 'umb4365_key';
 let KEY = localStorage.getItem(KEY_STORE) || '';
 let editingId = null;
 let rows = [];
+let archivePage = 1, archiveSort = 'date', archiveOrder = 'desc';
+let recentPage = 1;
+const RECENT_SIZE = 30;
+const fmtTs = s => { s = String(s || ''); return s ? s.slice(5, 16) : '—'; };
 
 const headers = () => ({ 'Content-Type': 'application/json', 'X-Admin-Key': KEY });
 
@@ -344,6 +395,7 @@ $('loginBtn').onclick = async () => {
     KEY = key;
     localStorage.setItem(KEY_STORE, key);
     $('gate').classList.add('hidden');
+    loadMeta();
     load();
   } else {
     $('gateErr').textContent = 'ACCESS DENIED · 密钥无效';
@@ -356,41 +408,87 @@ $('logoutBtn').onclick = () => {
 };
 
 /* ===== 列表 ===== */
+function pagerHtml(page, pageSize, total) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  let btns = `<span class="info">共 ${total} 条 · ${page}/${pages}</span>`;
+  if (pages <= 1) return btns;
+  const add = (p, label, cur = false, dis = false) => btns += `<button ${dis ? 'disabled' : ''} class="${cur ? 'cur' : ''}" data-p="${p}">${label}</button>`;
+  add(page - 1, '‹', false, page <= 1);
+  const start = Math.max(1, page - 2), end = Math.min(pages, page + 2);
+  if (start > 1) { add(1, '1'); if (start > 2) btns += '<span class="info">…</span>'; }
+  for (let p = start; p <= end; p++) add(p, String(p), p === page);
+  if (end < pages) { if (end < pages - 1) btns += '<span class="info">…</span>'; add(pages, String(pages)); }
+  add(page + 1, '›', false, page >= pages);
+  return btns;
+}
+
 async function load() {
-  const side = $('fSide').value;
-  const q = $('fQ').value.trim();
   const params = new URLSearchParams();
+  const side = $('fSide').value, q = $('fQ').value.trim();
   if (side) params.set('side', side);
   if (q) params.set('q', q);
-  const res = await fetch('/api/events?' + params);
-  const data = await res.json();
+  params.set('page', archivePage);
+  params.set('pageSize', $('fPageSize').value);
+  params.set('sort', archiveSort);
+  params.set('order', archiveOrder);
+  const data = await (await fetch('/api/events?' + params)).json();
   rows = data.events || [];
-  const tbody = $('tbody');
-  tbody.innerHTML = rows.map(r => `
+  const total = data.total || 0;
+  $('tbody').innerHTML = rows.map(r => `
     <tr>
       <td class="mono">${r.date}</td>
       <td><span class="pill ${r.side}">${r.side === 'main' ? '正史' : '野史'}</span></td>
-      <td class="mono">${escapeHtml(r.tag)}</td>
       <td>
-        <div class="title-cell">${escapeHtml(r.title)} ${r.image ? '<span class="has-img">[图]</span>' : ''}</div>
+        <div class="title-cell">${escapeHtml(r.title)}${r.image ? ' <span class="has-img">[图]</span>' : ''}${r.source ? ' <span class="has-img">[源]</span>' : ''}${r.tag ? ` <span class="badge b-tag">${escapeHtml(r.tag)}</span>` : ''}${r.series ? ` <span class="badge b-series" data-series="${escapeHtml(r.series)}">🔗 ${escapeHtml(r.series)}</span>` : ''}</div>
         <div class="sum-cell">${escapeHtml(r.summary)}</div>
       </td>
-      <td>
-        <div class="ops">
-          <button onclick="editRow(${r.id})">编辑</button>
-          <button class="danger" onclick="delRow(${r.id})">删除</button>
-        </div>
-      </td>
+      <td class="mono" style="color:var(--dim);font-size:11px">${fmtTs(r.created_at)}</td>
+      <td class="mono" style="color:var(--dim);font-size:11px">${fmtTs(r.updated_at)}</td>
+      <td><div class="ops"><button onclick="editRow(${r.id})">编辑</button><button class="danger" onclick="delRow(${r.id})">删除</button></div></td>
     </tr>
   `).join('');
-  $('empty').style.display = rows.length ? 'none' : 'block';
-  const main = rows.filter(r => r.side === 'main').length;
-  $('stat').textContent = `共 ${rows.length} 条 · 正史 ${main} · 野史 ${rows.length - main}`;
+  $('empty').style.display = total ? 'none' : 'block';
+  document.querySelectorAll('th.sortable').forEach(th => {
+    const active = th.dataset.sort === archiveSort;
+    th.classList.toggle('active', active);
+    th.querySelector('.arr').textContent = active ? (archiveOrder === 'asc' ? '▲' : '▼') : '';
+  });
+  const pager = $('archivePager');
+  pager.innerHTML = pagerHtml(archivePage, Number($('fPageSize').value), total);
+  pager.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { archivePage = Number(b.dataset.p); load(); });
+  $('stat').textContent = `共 ${total} 条`;
 }
 function escapeHtml(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-$('fSide').onchange = load;
+$('fSide').onchange = () => { archivePage = 1; load(); };
 let qTimer;
-$('fQ').oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(load, 300); };
+$('fQ').oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(() => { archivePage = 1; load(); }, 300); };
+$('fPageSize').onchange = () => { archivePage = 1; load(); };
+
+// 点击列头切换排序（同列再点切换升降序）
+document.querySelectorAll('th.sortable').forEach(th => {
+  th.onclick = () => {
+    const col = th.dataset.sort;
+    if (archiveSort === col) archiveOrder = archiveOrder === 'asc' ? 'desc' : 'asc';
+    else { archiveSort = col; archiveOrder = 'desc'; }
+    archivePage = 1; load();
+  };
+});
+// 点击线索徽标 → 筛选出该线索的全部事件
+$('tbody').addEventListener('click', e => {
+  const b = e.target.closest('.badge.b-series');
+  if (b) filterSeries(b.dataset.series);
+});
+function filterSeries(name) { $('fQ').value = name; archivePage = 1; load(); toast('筛选线索：' + name); }
+
+// 拉取已用过的标签 / 线索，填充下拉建议
+async function loadMeta() {
+  try {
+    const d = await (await fetch('/api/meta')).json();
+    if (!d.ok) return;
+    $('tagList').innerHTML = (d.tags || []).map(t => `<option value="${escapeHtml(t)}">`).join('');
+    $('seriesList').innerHTML = (d.series || []).map(s => `<option value="${escapeHtml(s.series)}">${s.n} 节点 · ${s.first}→${s.last}</option>`).join('');
+  } catch {}
+}
 
 /* ===== 表单 ===== */
 function openForm(row) {
@@ -403,6 +501,8 @@ function openForm(row) {
   $('fSummary').value = row ? row.summary : '';
   $('fDetail').value = row ? row.detail : '';
   $('fImage').value = row ? row.image : '';
+  $('fSeries').value = row ? (row.series || '') : '';
+  $('fSource').value = row ? (row.source || '') : '';
   $('formMsg').textContent = '';
   updatePreview();
   $('modal').classList.add('open');
@@ -456,6 +556,8 @@ $('saveBtn').onclick = async () => {
     summary: $('fSummary').value.trim(),
     detail: $('fDetail').value,
     image: $('fImage').value.trim(),
+    series: $('fSeries').value.trim(),
+    source: $('fSource').value.trim(),
   };
   if (!body.date || !body.title || !body.summary) {
     $('formMsg').textContent = '日期 / 标题 / 摘要 为必填';
@@ -469,7 +571,7 @@ $('saveBtn').onclick = async () => {
   });
   $('saveBtn').disabled = false;
   const data = await res.json();
-  if (data.ok) { closeForm(); toast(editingId ? '档案已更新' : '档案已入库'); load(); }
+  if (data.ok) { closeForm(); toast(editingId ? '档案已更新' : '档案已入库'); load(); loadMeta(); }
   else $('formMsg').textContent = data.error || '保存失败';
 };
 
@@ -483,8 +585,8 @@ function showTab(name) {
 }
 $('tabArchive').onclick = () => { showTab('archive'); history.replaceState(null, '', location.pathname); };
 $('tabVisits').onclick = () => { showTab('visits'); history.replaceState(null, '', '#visits'); loadStats(); };
-$('vRefresh').onclick = () => loadStats();
-$('vDays').onchange = () => loadStats();
+$('vRefresh').onclick = () => { recentPage = 1; loadStats(); };
+$('vDays').onchange = () => { recentPage = 1; loadStats(); };
 
 /* ===== 访客监控 =====
    UA / Referer / path 全是访问者可控字符串，渲染一律走 escapeHtml，防存储型 XSS */
@@ -502,7 +604,7 @@ function shortUA(ua) {
 }
 
 async function loadStats() {
-  const res = await fetch('/api/stats?days=' + encodeURIComponent($('vDays').value), { headers: headers() });
+  const res = await fetch(`/api/stats?days=${encodeURIComponent($('vDays').value)}&rpage=${recentPage}&rsize=${RECENT_SIZE}`, { headers: headers() });
   const d = await res.json();
   if (!d.ok) return toast('读取失败：' + (d.error || ''));
 
@@ -535,6 +637,10 @@ async function loadStats() {
       <td title="${escapeHtml(r.ua)}">${escapeHtml(shortUA(r.ua))}</td>
     </tr>`).join('') : '<tr><td colspan="5" class="code">暂无数据</td></tr>';
 
+  $('vRecentCount').textContent = d.recentTotal ? `· 共 ${d.recentTotal} 条` : '';
+  const rp = $('vRecentPager');
+  rp.innerHTML = pagerHtml(recentPage, RECENT_SIZE, d.recentTotal || 0);
+  rp.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { recentPage = Number(b.dataset.p); loadStats(); });
   $('vStat').textContent = `IP 仅存哈希 · 日志保留 ${d.keepDays} 天`;
 }
 
@@ -542,6 +648,7 @@ async function loadStats() {
 (async () => {
   if (KEY && await tryLogin(KEY)) {
     $('gate').classList.add('hidden');
+    loadMeta();
     load();
     if (location.hash === '#visits') { showTab('visits'); loadStats(); }
   } else {

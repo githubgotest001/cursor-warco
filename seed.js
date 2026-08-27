@@ -25,6 +25,8 @@ db.exec(`
     summary    TEXT NOT NULL,
     detail     TEXT NOT NULL DEFAULT '',
     image      TEXT NOT NULL DEFAULT '',
+    series     TEXT NOT NULL DEFAULT '',
+    source     TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   );
@@ -144,19 +146,19 @@ const EVENTS = [
     detail: '2025 年 4 月中旬，有开发者发现切换设备会被强制登出，邮件询问客服，得到名为 Sam 的客服回复：「Cursor 的订阅设计就是单设备使用，这是核心安全机制。」消息传开，Reddit 爆发退订潮。\n\n真相随后揭晓：根本没有这条政策——Sam 是个 AI 客服，政策是它幻觉出来的；登出则是一个会话管理 bug。联创 Michael Truell 亲自上 Hacker News 道歉退款。一家卖 AI 的公司，被自家 AI 客服背刺，堪称行为艺术。'
   },
   {
-    side: 'dark', date: '2025-04-03', tag: '羊毛',
+    side: 'dark', date: '2025-04-03', tag: '羊毛', series: '无限续杯攻防',
     title: '「无限续杯」工具爆火 GitHub',
     summary: 'cursor-free-vip 类工具流传：重置机器码 + 临时邮箱注册新号，试用无限续。仓库星标数以万计，教程传遍各大群。',
     detail: '2025 年上半年，以 cursor-free-vip 为代表的「试用重置」工具在 GitHub 爆火：一键重置 machineId 等设备指纹、配合临时邮箱与接码平台无限注册新号，Pro 试用无限续杯。相关仓库星标数以万计，中文教程在各大微信群、QQ 群病毒式流传。\n\n工具作者与 Cursor 风控的攻防持续升级：检测加严、指纹维度增加、注册风控收紧——一场典型的猫鼠游戏。本刊仅记录，不提供任何链接。'
   },
   {
-    side: 'dark', date: '2025-05-07', tag: '羊毛',
+    side: 'dark', date: '2025-05-07', tag: '羊毛', series: '学生羊毛攻防',
     title: '学生免费一年官宣，羊毛党闻风而动',
     summary: 'Cursor 宣布学生凭 edu 邮箱免费领一年 Pro（价值 240 美元）。教程当天传遍各大群，edu 邮箱与代验证明码标价。',
     detail: '2025 年 5 月，Cursor 官宣学生优惠：通过学生身份验证即可免费使用一年 Pro，价值约 240 美元。消息落地不足 24 小时，中文互联网的执行力展现得淋漓尽致：领取教程刷屏技术群，电商平台出现「edu 邮箱」「学生认证代过」明码标价的服务，临时教育邮箱一夜脱销。\n\n战地记者按：这是市场对规则的即时定价，本刊仅作记录。'
   },
   {
-    side: 'dark', date: '2025-05-16', tag: '羊毛',
+    side: 'dark', date: '2025-05-16', tag: '羊毛', series: '学生羊毛攻防',
     title: '学生认证大翻车',
     summary: '薅得太狠，验证紧急收紧：大批非目标区域申请被拒、已领资格被取消，中文圈哀鸿遍野，骂声与晒单齐飞。',
     detail: '学生活动上线一周后，滥用规模远超预期，Cursor 紧急收紧验证：SheerID 审核趋严、限制主要面向北美 .edu 域名、一批已通过的资格被复查取消。中文社区一夜之间从「白嫖攻略」切换为「维权控诉」，也有老实验证的真学生被误伤。\n\n一年后官方文档为这场闹剧盖棺定论：「该计划已成为欺诈者的目标。」（见 2026-06-25 档案）'
@@ -186,7 +188,7 @@ const EVENTS = [
     detail: '2025 年夏，本刊记者在多个技术群与二手平台观察到成熟的「拼车」产业链：车头批量注册或收购 Pro 账号，按「车位」出售，月价十余元人民币；更有商家倒卖 API 中转额度。风控扫荡时一封一大片，车友维权无门，车头换个马甲继续发车。\n\n战地记者按：有需求就有市场，有市场就有风控，有风控就有下一代绕过方案。本刊不评判，仅记录这条灰色食物链的生态循环。'
   },
   {
-    side: 'dark', date: '2025-12-25', tag: '羊毛',
+    side: 'dark', date: '2025-12-25', tag: '羊毛', series: '无限续杯攻防',
     title: '圣诞夜，无限续杯时代终结',
     summary: 'Cursor 移除免费试用体系，白嫖工具集体失效。cursor-free-vip 在圣诞节发布「绝版」并停止维护：时代结束了。',
     detail: '2025 年底，Cursor 调整了免费试用体系，靠「重置指纹 + 无限新号」续杯 Pro 试用的玩法基本失效。标志性一幕发生在 12 月 25 日：知名工具 cursor-free-vip 发布最后一个版本并在 README 挂出停更公告——「Cursor 移除了免费试用，本工具已无法按预期工作」。\n\n羊毛党在群里互道节哀，转场寻找下一个目标。2026 年仍有新变种工具零星出现，但大规模白嫖的黄金时代已经落幕。'
@@ -204,7 +206,7 @@ const EVENTS = [
     detail: 'SpaceX 收购官宣当晚，全网玩梗大赛开幕：「Cursor to Mars」「程序员的 Tab 键终于要上太空了」「马斯克：与其催程序员加班，不如把编辑器买下来」。有人把保护伞…不对，把 Cursor 的六边形 logo P 在了猎鹰九号整流罩上。\n\n天文学与计算机科学，首次合并同类项。'
   },
   {
-    side: 'dark', date: '2026-06-25', tag: '羊毛',
+    side: 'dark', date: '2026-06-25', tag: '羊毛', series: '学生羊毛攻防',
     title: '学生通道正式焊死',
     summary: '官方文档盖章：「该计划已成为欺诈者的目标。」免费一年 Pro 停止受理新申请，羊毛党的最后一扇门关闭。',
     detail: '2026 年 6 月 25 日，Cursor 官方帮助文档更新：旧版学生折扣停止接受新申请，原文写道——「该计划已成为欺诈者的目标，也阻碍了 Cursor 惠及全球学生。」已领取者可用到期，此后本科生转为校园活动发放额度，研究生与教育工作者走表单申请。\n\n从 2025 年 5 月官宣到 2026 年 6 月焊死，这场持续十三个月的羊毛攻防战正式落幕。战地记者按：屠龙者未必成为恶龙，但薅羊毛的人确实薅死了羊。'
@@ -225,10 +227,10 @@ if (force) {
 }
 
 const insert = db.prepare(
-  `INSERT INTO events (side, date, tag, title, summary, detail, image) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  `INSERT INTO events (side, date, tag, title, summary, detail, image, series, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 for (const e of EVENTS) {
-  insert.run(e.side, e.date, e.tag, e.title, e.summary, e.detail, e.image || '');
+  insert.run(e.side, e.date, e.tag, e.title, e.summary, e.detail, e.image || '', e.series || '', e.source || '');
 }
 
 const main = EVENTS.filter(e => e.side === 'main').length;

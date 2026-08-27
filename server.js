@@ -74,6 +74,8 @@ db.exec(`
     summary    TEXT NOT NULL,
     detail     TEXT NOT NULL DEFAULT '',
     image      TEXT NOT NULL DEFAULT '',
+    series     TEXT NOT NULL DEFAULT '',
+    source     TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   );
@@ -328,10 +330,23 @@ async function handleAPI(req, res, url) {
     const referers = db.prepare(
       `SELECT referer, COUNT(*) AS n FROM visits WHERE referer <> '' GROUP BY referer ORDER BY n DESC LIMIT 10`
     ).all();
+    const rSize = Math.min(Math.max(Number(url.searchParams.get('rsize')) || 30, 1), 100);
+    const rPage = Math.max(Number(url.searchParams.get('rpage')) || 1, 1);
+    const recentTotal = db.prepare(`SELECT COUNT(*) AS c FROM visits`).get().c;
     const recent = db.prepare(
-      `SELECT ts, path, status, ip_hash, ua, referer FROM visits ORDER BY id DESC LIMIT 60`
+      `SELECT ts, path, status, ip_hash, ua, referer FROM visits ORDER BY id DESC LIMIT ? OFFSET ?`
+    ).all(rSize, (rPage - 1) * rSize);
+    return sendJSON(res, 200, { ok: true, today, total, daily, topPaths, scans, referers, recent, recentTotal, rPage, rSize, keepDays: LOG_KEEP_DAYS });
+  }
+
+  /* 已用过的标签与事件线索（供后台下拉、前台线索概览）——公开只读 */
+  if (url.pathname === '/api/meta' && req.method === 'GET') {
+    const tags = db.prepare(`SELECT DISTINCT tag FROM events WHERE tag <> '' ORDER BY tag`).all().map(r => r.tag);
+    const series = db.prepare(
+      `SELECT series, COUNT(*) AS n, MIN(date) AS first, MAX(date) AS last
+       FROM events WHERE series <> '' GROUP BY series ORDER BY last DESC`
     ).all();
-    return sendJSON(res, 200, { ok: true, today, total, daily, topPaths, scans, referers, recent, keepDays: LOG_KEEP_DAYS });
+    return sendJSON(res, 200, { ok: true, tags, series });
   }
 
   /* 事件集合 */
@@ -339,17 +354,33 @@ async function handleAPI(req, res, url) {
     if (req.method === 'GET') {
       const side = url.searchParams.get('side');
       const q = (url.searchParams.get('q') || '').trim();
-      let sql = 'SELECT * FROM events';
+      const series = (url.searchParams.get('series') || '').trim();
       const cond = [], args = [];
       if (side === 'main' || side === 'dark') { cond.push('side = ?'); args.push(side); }
+      if (series) { cond.push('series = ?'); args.push(series); }
       if (q) {
-        cond.push('(title LIKE ? OR summary LIKE ? OR detail LIKE ? OR tag LIKE ?)');
-        const like = `%${q}%`; args.push(like, like, like, like);
+        cond.push('(title LIKE ? OR summary LIKE ? OR detail LIKE ? OR tag LIKE ? OR series LIKE ?)');
+        const like = `%${q}%`; args.push(like, like, like, like, like);
       }
-      if (cond.length) sql += ' WHERE ' + cond.join(' AND ');
-      sql += ' ORDER BY date DESC, id DESC';
-      const rows = db.prepare(sql).all(...args);
-      return sendJSON(res, 200, { ok: true, events: rows.map(rowToEvent) });
+      const where = cond.length ? ' WHERE ' + cond.join(' AND ') : '';
+
+      const SORTS = { date: 'date', created_at: 'created_at', updated_at: 'updated_at', id: 'id', title: 'title' };
+      const sortCol = SORTS[url.searchParams.get('sort')] || 'date';
+      const order = (url.searchParams.get('order') || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+      const orderBy = ` ORDER BY ${sortCol} ${order}, id ${order}`;
+
+      const total = db.prepare(`SELECT COUNT(*) AS c FROM events${where}`).get(...args).c;
+
+      // 传了 page 才分页（后台档案管理用）；不传则返回全部（前台完整时间轴用）
+      const pageRaw = Number(url.searchParams.get('page'));
+      if (Number.isInteger(pageRaw) && pageRaw >= 1) {
+        const pageSize = Math.min(Math.max(Number(url.searchParams.get('pageSize')) || 20, 1), 100);
+        const rows = db.prepare(`SELECT * FROM events${where}${orderBy} LIMIT ? OFFSET ?`)
+          .all(...args, pageSize, (pageRaw - 1) * pageSize);
+        return sendJSON(res, 200, { ok: true, events: rows.map(rowToEvent), total, page: pageRaw, pageSize });
+      }
+      const rows = db.prepare(`SELECT * FROM events${where}${orderBy}`).all(...args);
+      return sendJSON(res, 200, { ok: true, events: rows.map(rowToEvent), total });
     }
     if (req.method === 'POST') {
       if (!requireAuth(req, res)) return;
@@ -357,9 +388,10 @@ async function handleAPI(req, res, url) {
       const errors = validateEvent(b);
       if (errors.length) return sendJSON(res, 400, { ok: false, error: errors.join('；') });
       const info = db.prepare(
-        `INSERT INTO events (side, date, tag, title, summary, detail, image) VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO events (side, date, tag, title, summary, detail, image, series, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(b.side, b.date, String(b.tag || '').trim(), String(b.title).trim(),
-            String(b.summary).trim(), String(b.detail || '').trim(), String(b.image || '').trim());
+            String(b.summary).trim(), String(b.detail || '').trim(), String(b.image || '').trim(),
+            String(b.series || '').trim(), String(b.source || '').trim());
       const row = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
       return sendJSON(res, 201, { ok: true, event: rowToEvent(row) });
     }
@@ -381,10 +413,11 @@ async function handleAPI(req, res, url) {
       const errors = validateEvent(merged);
       if (errors.length) return sendJSON(res, 400, { ok: false, error: errors.join('；') });
       db.prepare(
-        `UPDATE events SET side=?, date=?, tag=?, title=?, summary=?, detail=?, image=?,
+        `UPDATE events SET side=?, date=?, tag=?, title=?, summary=?, detail=?, image=?, series=?, source=?,
          updated_at=datetime('now','localtime') WHERE id=?`
       ).run(merged.side, merged.date, String(merged.tag || '').trim(), String(merged.title).trim(),
-            String(merged.summary).trim(), String(merged.detail || '').trim(), String(merged.image || '').trim(), id);
+            String(merged.summary).trim(), String(merged.detail || '').trim(), String(merged.image || '').trim(),
+            String(merged.series || '').trim(), String(merged.source || '').trim(), id);
       const updated = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
       return sendJSON(res, 200, { ok: true, event: rowToEvent(updated) });
     }
@@ -423,22 +456,33 @@ function send404(res) {
 }
 
 function serveStatic(req, res, url) {
-  let p = decodeURIComponent(url.pathname);
+  let p;
+  try { p = decodeURIComponent(url.pathname); }
+  catch { res.writeHead(400); return res.end('bad request'); }
   if (p === '/') p = '/index.html';
 
   /* 管理后台：仅隐藏路径可达；/admin 与 /admin.html 一律 404，不暴露真实入口 */
   if (p === `/${ADMIN_PATH}` || p === `/${ADMIN_PATH}/`) {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'X-Robots-Tag': 'noindex, nofollow' });
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-cache, must-revalidate',
+      'X-Robots-Tag': 'noindex, nofollow',
+    });
     return fs.createReadStream(path.join(PUBLIC_DIR, 'admin.html')).pipe(res);
   }
   if (/^\/admin(\.html)?\/?$/i.test(p)) return send404(res);
 
   const file = path.normalize(path.join(PUBLIC_DIR, p));
-  if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end('forbidden'); }
+  if (!file.startsWith(PUBLIC_DIR + path.sep)) { res.writeHead(403); return res.end('forbidden'); }
   if (path.basename(file).toLowerCase() === 'admin.html') return send404(res);
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) return send404(res);
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' });
+    const ext = path.extname(file).toLowerCase();
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      // HTML 不缓存，保证改代码 / 部署新版后浏览器立刻拿到新页面；图片等静态资源可缓存
+      'Cache-Control': ext === '.html' ? 'no-cache, must-revalidate' : 'public, max-age=3600',
+    });
     fs.createReadStream(file).pipe(res);
   });
 }
