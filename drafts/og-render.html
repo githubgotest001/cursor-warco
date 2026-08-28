@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>og 1200x630</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0a0b0e;
+    --umb: #e0242e;
+    --umb-hi: #ff4a52;
+    --bone: #e9e6df;
+    --bone-dim: #9aa0a8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    position: relative;
+    background:
+      radial-gradient(55% 65% at 88% 8%, rgba(224,36,46,.22), transparent 70%),
+      radial-gradient(40% 50% at 6% 0%, rgba(224,36,46,.10), transparent 70%),
+      var(--ink);
+    color: var(--bone);
+    font-family: "Noto Sans SC", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* 蜂巢纹理 */
+  body::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='146'%3E%3Cpath d='M42 0L84 24.25V72.75L42 97L0 72.75V24.25L42 0Z M42 97V146' fill='none' stroke='rgba(233,230,223,.05)' stroke-width='1.5'/%3E%3C/svg%3E");
+  }
+  .wrap {
+    position: relative; z-index: 1;
+    height: 100%;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 88px 0 46px;
+  }
+  /* 顶部刊眉：红线 + 英文刊名 */
+  .brow {
+    display: flex; align-items: center; gap: 26px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 21px; font-weight: 700; letter-spacing: .32em;
+    white-space: nowrap;
+  }
+  .brow::before, .brow::after {
+    content: ""; width: 168px; height: 3px;
+    background: var(--umb);
+  }
+  .brow .r { color: var(--umb-hi); }
+  .brow .w { color: var(--bone); }
+  /* 中部：伞标 + 大字 */
+  .hero {
+    display: flex; align-items: center; gap: 54px;
+    margin-top: 58px;
+  }
+  .hero img {
+    width: 158px; height: 158px;
+    filter: drop-shadow(0 0 30px rgba(224,36,46,.55));
+  }
+  .slogan {
+    font-family: "Noto Serif SC", serif; font-weight: 900;
+    font-size: 96px; line-height: 1.22; letter-spacing: .04em;
+    color: var(--bone);
+    text-shadow: 0 0 40px rgba(224,36,46,.25);
+  }
+  .slogan .em { color: #e8323c; text-shadow: 0 0 34px rgba(224,36,46,.5); }
+  /* 副题 */
+  .sub {
+    margin-top: 44px;
+    font-family: "Noto Serif SC", serif; font-weight: 600;
+    font-size: 34px; letter-spacing: .5em; text-indent: .5em;
+    color: var(--bone);
+  }
+  .byline {
+    margin-top: 22px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 19px; letter-spacing: .2em; color: var(--bone-dim);
+  }
+  .byline b { color: var(--bone); font-weight: 700; }
+  /* 底部图例 */
+  .legend {
+    margin-top: auto;
+    display: flex; align-items: baseline; gap: 18px;
+    font-size: 19px; letter-spacing: .06em;
+  }
+  .legend .dia { font-size: 16px; position: relative; top: -1px; }
+  .legend .main .dia, .legend .main b { color: var(--bone); }
+  .legend .dark .dia, .legend .dark b { color: var(--umb-hi); }
+  .legend b { font-weight: 700; margin: 0 12px 0 8px; }
+  .legend .dim { color: var(--bone-dim); }
+  .legend .site {
+    margin-left: 26px;
+    font-family: "JetBrains Mono", monospace; font-weight: 700;
+    font-size: 19px; letter-spacing: .12em; color: var(--umb-hi);
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brow"><span><span class="r">UMBRELLA&nbsp;4365</span>&nbsp;<span class="w">CURSOR&nbsp;FRONTLINE&nbsp;CHRONICLE</span></span></div>
+    <div class="hero">
+      <img src="../public/logo.svg" alt="">
+      <div class="slogan">AI<span class="em">一日</span><br>人间<span class="em">一年</span></div>
+    </div>
+    <div class="sub">Cursor 战地纪实</div>
+    <div class="byline">FILED BY · <b>CURSOR WARCO</b> ｜ 战地记者</div>
+    <div class="legend">
+      <span class="main"><span class="dia">◆</span><b>一条正史</b><span class="dim">台面之上</span></span>
+      <span class="dark"><span class="dia">◇</span><b>一条野史</b><span class="dim">同一时刻的暗面</span></span>
+      <span class="site">umbrella4365.com</span>
+    </div>
+  </div>
+</body>
+</html>

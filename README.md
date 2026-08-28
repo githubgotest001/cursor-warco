@@ -1,6 +1,6 @@
 # UMBRELLA 4365 · Cursor 战地纪实
 
-> AI圈一天，人间一年 —— by Cursor 战地记者
+> AI一日，人间一年 —— by Cursor Warco · 战地记者
 >
 > 一条正史（官方档案），一条野史（民间情报），沿一条时间脊柱由新到旧记录 Cursor 的光与影。
 > 仅作记录，不构成立场。域名：[umbrella4365.com](https://umbrella4365.com)

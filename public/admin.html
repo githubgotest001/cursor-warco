@@ -439,7 +439,7 @@ async function load() {
       <td class="mono">${r.date}</td>
       <td><span class="pill ${r.side}">${r.side === 'main' ? '正史' : '野史'}</span></td>
       <td>
-        <div class="title-cell">${escapeHtml(r.title)}${r.image ? ' <span class="has-img">[图]</span>' : ''}${r.source ? ' <span class="has-img">[源]</span>' : ''}${r.tag ? ` <span class="badge b-tag">${escapeHtml(r.tag)}</span>` : ''}${r.series ? ` <span class="badge b-series" data-series="${escapeHtml(r.series)}">🔗 ${escapeHtml(r.series)}</span>` : ''}</div>
+        <div class="title-cell">${escapeHtml(r.title)}${r.image ? ' <span class="has-img">[图]</span>' : ''}${r.source ? ' <span class="has-img">[源]</span>' : ''}${r.tag ? ` <span class="badge b-tag">${escapeHtml(r.tag)}</span>` : ''}${r.series ? ` <span class="badge b-series" data-series="${escapeHtml(r.series)}">◈ ${escapeHtml(r.series)}</span>` : ''}</div>
         <div class="sum-cell">${escapeHtml(r.summary)}</div>
       </td>
       <td class="mono" style="color:var(--dim);font-size:11px">${fmtTs(r.created_at)}</td>

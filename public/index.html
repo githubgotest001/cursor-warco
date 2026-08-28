@@ -5,25 +5,25 @@
 <script>document.documentElement.classList.add('js');/* 入场动画只在 JS 可用时启用，保证爬虫/无 JS 环境内容可见 */</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UMBRELLA 4365 · Cursor 战地纪实</title>
-<meta name="description" content="UMBRELLA 4365：Cursor 战地纪实。一条正史，一条野史，双向时间树记录 AI 编程纪元与 Cursor 圈的光与影。仅作记录，不构成立场。">
+<meta name="description" content="UMBRELLA 4365：Cursor 战地纪实。一条正史，一条野史，双向时间树记录 AI 编程纪元与 Cursor 的光与影。仅作记录，不构成立场。">
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
 <!-- 社交分享卡片（分享到微信/推特/群聊时的门面） -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="UMBRELLA 4365">
 <meta property="og:title" content="UMBRELLA 4365 · Cursor 战地纪实">
-<meta property="og:description" content="AI圈一天，人间一年。一条正史，一条野史，记录 Cursor 与 AI 编程圈的光与影。">
+<meta property="og:description" content="AI一日，人间一年。一条正史，一条野史，记录 Cursor 与 AI 编程圈的光与影。">
 <meta property="og:url" content="https://umbrella4365.com/">
 <meta property="og:image" content="https://umbrella4365.com/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="UMBRELLA 4365 · Cursor 战地纪实">
-<meta name="twitter:description" content="AI圈一天，人间一年。正史与野史，记录 Cursor 圈的光与影。">
+<meta name="twitter:description" content="AI一日，人间一年。正史与野史，记录 Cursor 与 AI 编程圈的光与影。">
 <meta name="twitter:image" content="https://umbrella4365.com/og.png">
 <meta name="theme-color" content="#0a0b0e">
-<meta name="author" content="Cursor 战地记者">
+<meta name="author" content="Cursor Warco · 战地记者">
 <meta property="og:locale" content="zh_CN">
 <link rel="canonical" href="https://umbrella4365.com/">
 <link rel="alternate" type="application/rss+xml" title="UMBRELLA 4365 · 档案更新" href="/feed.xml">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"UMBRELLA 4365 · Cursor 战地纪实","alternateName":["UMBRELLA 4365","Cursor 战地纪实"],"url":"https://umbrella4365.com/","description":"一条正史，一条野史，双向时间树记录 AI 编程纪元与 Cursor 圈的光与影。仅作记录，不构成立场。","inLanguage":"zh-CN"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"UMBRELLA 4365 · Cursor 战地纪实","alternateName":["UMBRELLA 4365","Cursor 战地纪实"],"url":"https://umbrella4365.com/","description":"一条正史，一条野史，双向时间树记录 AI 编程纪元与 Cursor 的光与影。仅作记录，不构成立场。","inLanguage":"zh-CN"}</script>
 <!--SSR:HEAD-->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -108,11 +108,12 @@
   @keyframes charUp { to { opacity: 1; transform: none; } }
   .mast-title .site { display: none; }
   .byline {
-    font-family: var(--hand);
-    font-size: clamp(12px, 1.2vw, 14px); color: var(--bone-dim);
+    font-family: var(--mono);
+    font-size: clamp(10px, 1vw, 11.5px); letter-spacing: .14em; color: var(--bone-dim);
     opacity: 0; animation: fadeIn .8s ease .9s forwards;
   }
-  .byline::before { content: "———"; letter-spacing: -2px; opacity: .45; margin-right: .6em; font-family: var(--mono); font-size: .7em; vertical-align: middle; }
+  .byline b { font-weight: 700; color: var(--bone); }
+  .byline::before { content: "———"; letter-spacing: -2px; opacity: .45; margin-right: .6em; font-size: .7em; vertical-align: middle; }
   @keyframes fadeIn { to { opacity: 1; } }
 
   .legend {
@@ -405,11 +406,14 @@
   .card-intro .memo-link:hover { opacity: 1; text-shadow: 0 0 8px rgba(224,36,46,.45); }
   .byline { cursor: pointer; }
   .byline:hover { color: var(--bone); }
+  .byline:hover b { color: var(--umb-hi); text-shadow: 0 0 8px rgba(224,36,46,.45); }
   /* 手记弹层内部 */
   .dossier .lede { font-size: 12.5px; line-height: 1.9; font-style: italic; opacity: .75; margin-bottom: 12px; }
   .dossier .txt p.punch { color: #ffd9d4; }
   .dossier .txt p.punch em { font-style: normal; color: var(--umb-hi); }
-  .dossier .sign { text-align: right; font-family: var(--hand); font-size: 17px; color: var(--bone-dim); margin-top: 16px; opacity: .85; }
+  .dossier .sign { text-align: right; margin-top: 18px; }
+  .dossier .sign .autograph { display: block; font-family: var(--hand); font-size: 22px; color: #ffd9d4; opacity: .9; transform: rotate(-2deg); }
+  .dossier .sign .printed { display: block; margin-top: 5px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .22em; color: var(--bone-dim); opacity: .8; }
 
   /* ---- 末端：毒株原点 ---- */
   .row.zero { position: relative; z-index: 2; text-align: center; padding: 40px 0 0; }
@@ -535,8 +539,8 @@
   <div class="mast-main">
     <img class="logo" src="/logo.svg" alt="UMBRELLA 4365">
     <div class="mast-title">
-      <h1 id="headline"><span class="sr-only">UMBRELLA 4365 · Cursor 战地纪实：</span>AI圈<span class="em">一天</span>，人间<span class="em">一年</span></h1>
-      <div class="byline">by · Cursor 战地记者</div>
+      <h1 id="headline"><span class="sr-only">UMBRELLA 4365 · Cursor 战地纪实：</span>AI<span class="em">一日</span>，人间<span class="em">一年</span></h1>
+      <div class="byline">FILED BY · <b>CURSOR WARCO</b> ｜ 战地记者</div>
     </div>
   </div>
   <div class="legend">
@@ -641,7 +645,8 @@ async function boot() {
     bindFilter();
     openFromHash();
   } catch (e) {
-    track.innerHTML = '<div class="sysmsg">RED QUEEN OFFLINE · 无法连接档案库（请先运行 node server.js）</div>';
+    console.error('档案库连接失败（本地开发请先运行 node server.js）', e);
+    track.innerHTML = '<div class="sysmsg">RED QUEEN OFFLINE · 档案库连接中断</div>';
   }
 }
 
@@ -654,7 +659,7 @@ function render() {
     track.insertAdjacentHTML('beforeend', `
       <div class="row intro">
         <div class="card-intro">
-          <span class="lead">发刊词</span>AI 圈一夜巨变、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、套利、事故与传闻，多采自封闭频道与场外信源。<span class="vow">记者不站队、不批判、仅作记录；正因热爱，才如实记下它的光与影。</span>　<span class="memo-link" id="memoLink" title="OFF THE RECORD · 记者私话">附 · 战地手记 »</span>
+          <span class="lead">发刊词</span>大模型纪元，一夜巨变、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、套利、事故与传闻，多采自封闭频道与场外信源。<span class="vow">记者不站队、不批判、仅作记录；正因热爱，才如实记下它的光与影。</span>　<span class="memo-link" id="memoLink" title="OFF THE RECORD · 记者私话">附 · 战地手记 »</span>
         </div>
       </div>
       <div class="row now">
@@ -670,7 +675,7 @@ function render() {
     const span = arr.length >= 2 ? daysBetween(arr[0].date, arr[arr.length - 1].date) : 0;
     track.insertAdjacentHTML('beforeend', `
       <div class="thread-bar">
-        <span>🔗 事件线索：<b>${esc(currentSeries)}</b> · ${arr.length} 个节点${span ? ` · <span class="win">窗口跨度 ${span} 天</span>` : ''}</span>
+        <span>◈ 事件线索：<b>${esc(currentSeries)}</b> · ${arr.length} 个节点${span ? ` · <span class="win">窗口跨度 ${span} 天</span>` : ''}</span>
         <span class="x" id="clearThread">✕ 返回全部</span>
       </div>
     `);
@@ -678,7 +683,7 @@ function render() {
 
   const list = matchList();
   if (!list.length) {
-    track.insertAdjacentHTML('beforeend', `<div class="sysmsg">此筛选下暂无档案</div>`);
+    track.insertAdjacentHTML('beforeend', `<div class="sysmsg">该检索条件下无档案记录</div>`);
     bindThread();
     return;
   }
@@ -712,7 +717,7 @@ function render() {
       const tuck = prevWasEvent && prevSide && prevSide !== ev.side ? ' tuck' : '';
       const no = (ev.side === 'main' ? 'A-' : 'X-') + String(ev.id).padStart(3, '0');
       const thumb = ev.image ? `<div class="thumb"><img src="${esc(ev.image)}" alt="${esc(ev.title)}" loading="lazy" decoding="async"></div>` : '';
-      const seriesTag = ev.series ? `<span class="series-tag" data-series="${esc(ev.series)}">🔗 ${esc(ev.series)}</span>` : '';
+      const seriesTag = ev.series ? `<span class="series-tag" data-series="${esc(ev.series)}">◈ ${esc(ev.series)}</span>` : '';
       const cardHTML = `
         <article class="card c-${ev.side}" data-id="${ev.id}">
           ${ev.side === 'dark' ? '<span class="stamp">野史</span>' : ''}
@@ -791,7 +796,7 @@ function openDossier(id) {
     const span = arr.length >= 2 ? daysBetween(arr[0].date, arr[arr.length - 1].date) : 0;
     threadHtml = `
       <div class="thread">
-        <div class="th-hd">🔗 事件线索 · ${esc(ev.series)}（${arr.length} 个节点）</div>
+        <div class="th-hd">◈ 事件线索 · ${esc(ev.series)}（${arr.length} 个节点）</div>
         ${arr.map(e => e.id === ev.id
           ? `<div class="node2 cur"><span class="d">${dot(e.date)}</span><span>${esc(e.title)}（本条）</span></div>`
           : `<div class="node2"><span class="d">${dot(e.date)}</span><a href="/ev/${e.id}" data-jump="${e.id}" title="调阅该档案">${esc(e.title)} »</a></div>`).join('')}
@@ -867,12 +872,12 @@ function openMemo() {
       <h2>光与影之外</h2>
       <div class="lede">档案之外，容我摘下记者的帽子，说几句私话——</div>
       <div class="txt">
-        <p>高级模型愈强、愈贵，需求也就愈烈；钻漏洞白嫖，于是成了公开的秘密。</p>
+        <p>高级模型愈强、愈贵，需求也就愈烈；钻漏洞「白嫖」，于是成了公开的秘密。</p>
         <p>可漏洞随时会被补上。无论个人还是团队，都被困在一个随时关闭的窗口里赶工——为「用掉」模型而用，动作变形，来不及深思熟虑。</p>
         <p class="punch">荒诞正在于此：<em>紧绷着调用最强的模型，产出未必胜过从容时用一个普通模型。</em></p>
         <p>舍本逐末，莫过于此。愿这片环境早日回归正常——真正稀缺的从来不是模型额度，而是从容思考的心力。</p>
       </div>
-      <div class="sign">—— Cursor 战地记者</div>
+      <div class="sign"><span class="autograph">Cursor Warco</span><span class="printed">战地记者 · WAR CORRESPONDENT</span></div>
       <div class="foot">UMBRELLA 4365 · FIELD NOTE · 私话仅代表记者本人</div>
     </div>
   `;
