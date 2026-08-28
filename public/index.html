@@ -175,6 +175,9 @@
   .dossier.d-dark .thread .th-hd { color: var(--umb-hi); }
   .dossier .thread .node2 { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; font-size: 12.5px; line-height: 1.5; }
   .dossier .thread .node2 .d { font-family: var(--mono); white-space: nowrap; opacity: .65; }
+  .dossier .thread .node2 a { color: inherit; text-decoration: none; border-bottom: 1px dashed currentColor; cursor: pointer; }
+  .dossier.d-main .thread .node2 a:hover { color: #a01820; border-bottom-style: solid; }
+  .dossier.d-dark .thread .node2 a:hover { color: var(--umb-hi); border-bottom-style: solid; }
   .dossier .thread .node2.cur { font-weight: 700; }
   .dossier.d-main .thread .node2.cur { color: #a01820; }
   .dossier.d-dark .thread .node2.cur { color: #ffd9d4; }
@@ -539,7 +542,7 @@
   <div class="legend">
     <div class="keys">
       <span class="k main"><span class="swatch"></span><b>正史</b>・<span class="lr-d">脊柱之左 </span>官方档案</span>
-      <span class="k dark"><span class="swatch"></span><b>野史</b>・<span class="lr-d">脊柱之右 </span>民间情报</span>
+      <span class="k dark"><span class="swatch"></span><b>野史</b>・<span class="lr-d">脊柱之右 </span>场外情报</span>
     </div>
     <div class="legend-right">
       <span class="count" id="count"></span>
@@ -563,7 +566,7 @@
 </div>
 
 <footer class="foot-note">
-  UMBRELLA 4365 ARCHIVE · 基于公开报道与民间情报整理 · 野史含演绎 仅作记录 不构成立场<br>
+  UMBRELLA 4365 ARCHIVE · 基于公开报道与场外情报整理 · 野史含演绎 仅作记录 不构成立场<br>
   记者本人是 Cursor 重度用户 · <a href="https://umbrella4365.com">umbrella4365.com</a> · <a href="/feed.xml">RSS</a> · <a href="/llms.txt">llms.txt</a>
 </footer>
 
@@ -651,7 +654,7 @@ function render() {
     track.insertAdjacentHTML('beforeend', `
       <div class="row intro">
         <div class="card-intro">
-          <span class="lead">发刊词</span>AI 圈一夜巨变、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、羊毛、事故与传闻，多来自民间群聊。<span class="vow">记者不站队、不批判、仅作记录；正因热爱，才如实记下它的光与影。</span>　<span class="memo-link" id="memoLink" title="OFF THE RECORD · 记者私话">附 · 战地手记 »</span>
+          <span class="lead">发刊词</span>AI 圈一夜巨变、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、套利、事故与传闻，多采自封闭频道与场外信源。<span class="vow">记者不站队、不批判、仅作记录；正因热爱，才如实记下它的光与影。</span>　<span class="memo-link" id="memoLink" title="OFF THE RECORD · 记者私话">附 · 战地手记 »</span>
         </div>
       </div>
       <div class="row now">
@@ -781,7 +784,7 @@ function openDossier(id) {
   const paras = (ev.detail || '').split(/\n{2,}/).filter(Boolean)
     .map(p => `<p>${esc(p).replaceAll('\n', '<br>')}</p>`).join('');
 
-  /* 事件线索时间线：串起同一漏洞/羊毛窗口的多个节点，标注窗口跨度 */
+  /* 事件线索时间线：串起同一漏洞/套利窗口的多个节点，标注窗口跨度 */
   let threadHtml = '';
   if (ev.series) {
     const arr = EVENTS.filter(e => e.series === ev.series).sort((a, b) => a.date < b.date ? -1 : 1);
@@ -789,7 +792,9 @@ function openDossier(id) {
     threadHtml = `
       <div class="thread">
         <div class="th-hd">🔗 事件线索 · ${esc(ev.series)}（${arr.length} 个节点）</div>
-        ${arr.map(e => `<div class="node2 ${e.id === ev.id ? 'cur' : ''}"><span class="d">${dot(e.date)}</span><span>${esc(e.title)}</span></div>`).join('')}
+        ${arr.map(e => e.id === ev.id
+          ? `<div class="node2 cur"><span class="d">${dot(e.date)}</span><span>${esc(e.title)}（本条）</span></div>`
+          : `<div class="node2"><span class="d">${dot(e.date)}</span><a href="/ev/${e.id}" data-jump="${e.id}" title="调阅该档案">${esc(e.title)} »</a></div>`).join('')}
         ${span ? `<div class="win">◷ 窗口跨度 ${span} 天（${dot(arr[0].date)} → ${dot(arr[arr.length - 1].date)}）</div>` : ''}
       </div>`;
   }
@@ -806,7 +811,7 @@ function openDossier(id) {
     </div>
     <div class="body">
       <div class="meta">
-        <span class="side-tag">${isMain ? '正史 · 官方档案' : '野史 · 民间情报'}</span>
+        <span class="side-tag">${isMain ? '正史 · 官方档案' : '野史 · 场外情报'}</span>
         <span>${dot(ev.date)}</span>
         <span>${esc(ev.tag)}</span>
       </div>
@@ -830,6 +835,12 @@ function openDossier(id) {
     btn.textContent = '✓ 已复制';
     setTimeout(() => { btn.textContent = '⧉ 链接'; }, 1500);
   };
+  /* 线索节点站内跳转（Ctrl/Cmd/Shift 点击保留新标签页打开独立档案页的能力） */
+  dossier.querySelectorAll('.thread a[data-jump]').forEach(a => a.addEventListener('click', e => {
+    if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+    e.preventDefault();
+    openDossier(Number(a.dataset.jump));
+  }));
 }
 function closeDossier() {
   overlay.classList.remove('open');

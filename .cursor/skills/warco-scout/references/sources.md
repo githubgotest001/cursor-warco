@@ -30,10 +30,10 @@
 ## L2 · 社区一手（野史的富矿）
 
 - **Hacker News**（news.ycombinator.com）——冷眼、锐评、创始人现身；用 `hn.algolia.com` 按日期检索。
-- **r/cursor**（reddit.com/r/cursor）——用户情绪、翻车现场、羊毛动向。
+- **r/cursor**（reddit.com/r/cursor）——用户情绪、翻车现场、套利动向。
 - **X**——爆料、泄露（Vega 泄露即出自 X 用户 Lumina）、高管发言；注意保存原帖时间戳。
 - **Cursor Forum 用户区**——Bug Reports / Discussions 分类是「众怒」「破防」类档案的原产地。
-- 中文渠道（群聊 / 即刻 / V2EX / linux.do）——羊毛与拼车类事件的第一现场，通常无链接可引，写「本刊观察」。
+- 中文渠道（群聊 / 即刻 / V2EX / linux.do）——套利与拼车类事件的第一现场，通常无链接可引，写「本刊观察」；入档叙述时统一称「封闭频道」。
 
 ## L3 · 安全研究（漏洞档案专线）
 
@@ -67,7 +67,7 @@ site:forum.cursor.com announcements <月份> <年份>
 发布:      Cursor launch announcement <功能猜想> <年份>
 故障:      site:status.cursor.com 或 Cursor outage incident <月份> <年份>
 漏洞:      Cursor vulnerability CVE <年份>
-羊毛/社区: Cursor reddit trick free usage <月份> <年份>
+套利/社区: Cursor reddit trick free usage <月份> <年份>
 人事:      Cursor co-founder leaves / joins <年份>
 ```
 

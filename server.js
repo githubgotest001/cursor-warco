@@ -336,7 +336,7 @@ const isoTs = t => String(t || '').replace(' ', 'T');
 
 const SITE_NAME = 'UMBRELLA 4365 · Cursor 战地纪实';
 const SITE_DESC = 'AI圈一天，人间一年。一条正史，一条野史，双向时间树记录 Cursor 与 AI 编程圈的光与影。仅作记录，不构成立场。';
-const SITE_INTRO = 'UMBRELLA 4365（umbrella4365.com）是一个中文时间轴档案站，以「战地纪实」风格记录 AI 代码编辑器 Cursor（Anysphere 公司出品）及 AI 编程圈的重要事件。档案分两线：「正史」收录融资、发布、并购等有公开信源的报道；「野史」收录漏洞、羊毛、事故、社区传闻等民间情报（含演绎成分）。仅作记录，不构成立场。';
+const SITE_INTRO = 'UMBRELLA 4365（umbrella4365.com）是一个中文时间轴档案站，以「战地纪实」风格记录 AI 代码编辑器 Cursor（Anysphere 公司出品）及 AI 编程圈的重要事件。档案分两线：「正史」收录融资、发布、并购等有公开信源的报道；「野史」收录漏洞、套利、事故等场外情报（采自封闭频道与未具名信源，含演绎成分）。仅作记录，不构成立场。';
 
 const allEvents = () => db.prepare('SELECT * FROM events ORDER BY date DESC, id DESC').all();
 
@@ -391,7 +391,7 @@ function ssrTrackHTML(events) {
   let html = `
       <div class="row intro">
         <div class="card-intro">
-          <span class="lead">发刊词</span>AI 圈一夜巨变、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、羊毛、事故与传闻，多来自民间群聊。<span class="vow">记者不站队、不批判、仅作记录；正因热爱，才如实记下它的光与影。</span>　<span class="memo-link" id="memoLink" title="OFF THE RECORD · 记者私话">附 · 战地手记 »</span>
+          <span class="lead">发刊词</span>AI 圈一夜巨变、一周洗牌。本刊以 Cursor 为坐标，由新到旧铺开两条战线：<span class="up"><span class="lr-d">脊柱之左，</span><span class="lr-m">浅色档案，</span>是台面上的正史</span>；<span class="down"><span class="lr-d">脊柱之右，</span><span class="lr-m">深色档案，</span>是同一时刻的暗面野史</span>——漏洞、套利、事故与传闻，多采自封闭频道与场外信源。<span class="vow">记者不站队、不批判、仅作记录；正因热爱，才如实记下它的光与影。</span>　<span class="memo-link" id="memoLink" title="OFF THE RECORD · 记者私话">附 · 战地手记 »</span>
         </div>
       </div>
       <div class="row now">
@@ -506,7 +506,7 @@ function eventPageHTML(ev, events) {
         <div class="th-hd">🔗 事件线索 · ${escHtml(ev.series)}（${arr.length} 个节点）</div>
         ${arr.map(e => e.id === ev.id
           ? `<div class="node2 cur"><span class="d">${dotDate(e.date)}</span><span>${escHtml(e.title)}（本条）</span></div>`
-          : `<div class="node2"><span class="d">${dotDate(e.date)}</span><a href="/ev/${e.id}">${escHtml(e.title)}</a></div>`).join('')}
+          : `<div class="node2"><span class="d">${dotDate(e.date)}</span><a href="/ev/${e.id}" title="调阅该档案">${escHtml(e.title)} »</a></div>`).join('')}
         ${span ? `<div class="win">◷ 窗口跨度 ${span} 天（${dotDate(arr[0].date)} → ${dotDate(arr[arr.length - 1].date)}）</div>` : ''}
       </section>`;
   }
@@ -597,7 +597,9 @@ function eventPageHTML(ev, events) {
   .d-dark .thread .th-hd, .d-dark .thread .win { color:var(--umb-hi); }
   .thread .node2 { display:flex; gap:10px; align-items:baseline; padding:4px 0; font-size:12.5px; line-height:1.5; }
   .thread .node2 .d { font-family:var(--mono); white-space:nowrap; opacity:.65; }
-  .thread .node2 a { color:inherit; }
+  .thread .node2 a { color:inherit; text-decoration:none; border-bottom:1px dashed currentColor; }
+  .d-main .thread .node2 a:hover { color:#a01820; border-bottom-style:solid; }
+  .d-dark .thread .node2 a:hover { color:var(--umb-hi); border-bottom-style:solid; }
   .thread .node2.cur { font-weight:700; }
   .d-main .thread .node2.cur { color:#a01820; }
   .d-dark .thread .node2.cur { color:#ffd9d4; }
@@ -607,6 +609,12 @@ function eventPageHTML(ev, events) {
   .d-main .srcline { color:#a01820; }
   .d-dark .srcline { color:var(--umb-hi); }
   .foot { margin-top:14px; padding-top:10px; border-top:1px dashed rgba(224,36,46,.35); font-family:var(--mono); font-size:10px; letter-spacing:.18em; opacity:.6; }
+  .backcta { display:block; margin-top:18px; padding:16px 18px; text-align:center; text-decoration:none;
+    background:var(--umb); color:#fff; border:1px solid rgba(255,255,255,.25);
+    box-shadow:0 0 20px rgba(224,36,46,.4); transition:background .2s, box-shadow .2s; }
+  .backcta b { display:block; font-family:var(--serif); font-size:17px; letter-spacing:.14em; }
+  .backcta span { display:block; margin-top:7px; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; opacity:.85; }
+  .backcta:hover { background:#f0333d; box-shadow:0 0 30px rgba(224,36,46,.65); }
   .pager { display:flex; justify-content:space-between; gap:12px; margin-top:16px; font-size:12px; }
   .pager a { color:var(--bone-dim); text-decoration:none; border:1px solid rgba(224,36,46,.35); padding:8px 12px; max-width:48%; }
   .pager a:hover { color:var(--bone); background:rgba(224,36,46,.12); }
@@ -626,7 +634,7 @@ function eventPageHTML(ev, events) {
       <div class="bar"><span>ARCHIVE ACCESS · ${no} · CLEARANCE LV.4</span><a href="/#ev-${ev.id}">⇱ 在时间树中定位</a></div>
       <div class="body">
         <div class="meta">
-          <span class="side-tag">${isMain ? '正史 · 官方档案' : '野史 · 民间情报'}</span>
+          <span class="side-tag">${isMain ? '正史 · 官方档案' : '野史 · 场外情报'}</span>
           <time datetime="${escHtml(ev.date)}">${dotDate(ev.date)}</time>
           <span>${escHtml(ev.tag)}</span>
         </div>
@@ -639,13 +647,17 @@ function eventPageHTML(ev, events) {
         <div class="foot">UMBRELLA 4365 ARCHIVE · ${sideName}档案 · 仅作记录 · 不构成立场</div>
       </div>
     </article>
+    <a class="backcta" href="/">
+      <b>⇱ 返回完整时间树</b>
+      <span>UMBRELLA 4365 · 正史 ${events.filter(e => e.side === 'main').length} 条 × 野史 ${events.filter(e => e.side === 'dark').length} 条 · 双线对照阅读</span>
+    </a>
     <nav class="pager">
       ${newer ? `<a href="/ev/${newer.id}"><b>« 较新档案</b>${escHtml(clip(newer.title, 20))}</a>` : '<span></span>'}
       ${older ? `<a href="/ev/${older.id}" style="text-align:right"><b>较旧档案 »</b>${escHtml(clip(older.title, 20))}</a>` : '<span></span>'}
     </nav>
   </main>
   <footer class="sitefoot">
-    基于公开报道与民间情报整理 · 野史含演绎 仅作记录 不构成立场<br>
+    基于公开报道与场外情报整理 · 野史含演绎 仅作记录 不构成立场<br>
     <a href="/">⇱ 返回完整时间树</a> · <a href="/feed.xml">RSS</a> · <a href="${SITE_URL}">umbrella4365.com</a>
   </footer>
 </div>
@@ -728,7 +740,7 @@ function buildLlms() {
 
 ${main.map(line).join('\n')}
 
-## 野史档案（民间情报 · 含演绎）
+## 野史档案（场外情报 · 含演绎）
 
 ${dark.map(line).join('\n')}
 

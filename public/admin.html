@@ -229,7 +229,7 @@
     <select id="fSide">
       <option value="">全部档案</option>
       <option value="main">正史 · 官方档案</option>
-      <option value="dark">野史 · 民间情报</option>
+      <option value="dark">野史 · 场外情报</option>
     </select>
     <input type="search" id="fQ" placeholder="搜索标题 / 摘要 / 详情 / 标签 / 线索…">
     <select id="fPageSize" title="每页条数" style="width:auto">
@@ -302,7 +302,7 @@
         <label>档案类型 SIDE</label>
         <div class="radio-row">
           <label><input type="radio" name="side" value="main" checked>◆ 正史 · 官方档案</label>
-          <label><input type="radio" name="side" value="dark">◇ 野史 · 民间情报</label>
+          <label><input type="radio" name="side" value="dark">◇ 野史 · 场外情报</label>
         </div>
       </div>
       <div>
@@ -311,7 +311,7 @@
       </div>
       <div>
         <label>标签 TAG（下拉选已有，或手输新的）</label>
-        <input type="text" id="fTag" list="tagList" maxlength="8" placeholder="羊毛">
+        <input type="text" id="fTag" list="tagList" maxlength="8" placeholder="套利">
       </div>
       <div class="full">
         <label>标题 TITLE *</label>
@@ -327,8 +327,8 @@
       </div>
       <div class="full">
         <label>事件线索 SERIES（选填，下拉选已有或手输）</label>
-        <input type="text" id="fSeries" list="seriesList" maxlength="40" placeholder="如：学生认证薅羊毛　/　无限试用重置">
-        <div class="hint-inline">同一漏洞 / 羊毛窗口的多条事件填相同线索名，前台会把它们串成一条时间线（如「8.1 发现 → 8.24 修复」），帮读者判断这个窗口现在还开着没。</div>
+        <input type="text" id="fSeries" list="seriesList" maxlength="40" placeholder="如：临期锁额　/　Team 席位差">
+        <div class="hint-inline">同一漏洞 / 套利窗口的多条事件填相同线索名，前台会把它们串成一条时间线（如「8.1 发现 → 8.24 修复」），帮读者判断这个窗口现在还开着没。</div>
       </div>
       <div class="full">
         <label>信源 SOURCE（选填）</label>
