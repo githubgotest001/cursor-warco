@@ -4,16 +4,18 @@
 >
 > 一条正史（官方档案），一条野史（民间情报），沿一条时间脊柱由新到旧记录 Cursor 的光与影。
 > 仅作记录，不构成立场。域名：[umbrella4365.com](https://umbrella4365.com)
+>
+> 本文档只讲技术。网站的世界观设定、文风调性、后台使用与运营纪律见 [PROJECT_BIBLE.md](PROJECT_BIBLE.md)（项目设定集）。
 
 ## 技术栈
 
 零 npm 依赖：`node:http` + `node:sqlite`（需要 **Node.js ≥ 22.13**）。
 
-## 快速开始
+## 快速开始（本地运行）
 
 ```bash
-node seed.js      # 建库并灌入初始档案（已有数据时自动跳过；--force 清空重灌）
-node server.js    # 启动服务，默认端口 4365
+node seed.js      # 首次建库并灌入初始档案（已有数据时自动跳过）
+node server.js    # 启动服务，默认端口 4365；Ctrl+C 停止
 ```
 
 - 前台（时间树）：http://localhost:4365/
@@ -32,6 +34,17 @@ node server.js    # 启动服务，默认端口 4365
 | `SITE_URL` | 站点对外地址，生成 canonical / sitemap / RSS 的绝对链接 | `https://umbrella4365.com` |
 
 内置防爆破：同一 IP 15 分钟内密钥错 5 次封禁 15 分钟（登录与全部写接口共用计数）。
+
+### 本地重建数据（全删全增）
+
+```bash
+node seed.js --force    # 按 seed.js 快照清空重灌（等效：sqlite3 data/chronicle.db ".read drafts/full-rewrite-<日期>.sql"）
+node server.js          # 重建后必须重启服务
+```
+
+> **重要**：首页 SSR、`/ev/:id`、sitemap、RSS 的缓存只在走后台 API 写入时自动失效。
+> 用 `seed.js --force` 或 SQL **直接改库**，正在运行的服务不会感知——必须重启
+> （本地 Ctrl+C 后重跑 `node server.js`；线上 `sudo systemctl restart umbrella4365`）。
 
 ## 部署
 
@@ -105,7 +118,7 @@ node server.js    # 启动服务，默认端口 4365
 
 ```
 server.js          零依赖服务端（静态资源 + REST API + 图片上传 + 密钥鉴权 + 访问记录）
-seed.js            建库 + 初始档案（正史 13 条 / 野史 16 条，含「无限续杯攻防」「学生羊毛攻防」两条事件线索）
+seed.js            建库 + 初始档案快照（2026-08-29：正史 51 / 野史 38 共 89 条、10 条事件线索；线上以 data/chronicle.db 为准）
 data/chronicle.db  SQLite 数据库（运行时生成，已 gitignore）
 public/
   index.html       前台：垂直双线时间树（最新在上 · 左正史 · 右野史）
