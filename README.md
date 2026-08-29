@@ -32,6 +32,10 @@ node server.js    # 启动服务，默认端口 4365；Ctrl+C 停止
 | `ADMIN_PATH` | 后台隐藏入口路径（不含 `/`） | 自动生成随机值，存 `data/config.json` |
 | `TRUST_PROXY` | 置 `1` 表示在 Nginx 等反代之后（取 X-Forwarded-For 作为客户端 IP） | 关 |
 | `SITE_URL` | 站点对外地址，生成 canonical / sitemap / RSS 的绝对链接 | `https://umbrella4365.com` |
+| `BAIDU_PUSH_TOKEN` | 百度主动推送 token；设置后档案增删改会实时把受影响 URL 推给百度 | 关 |
+| `BAIDU_SITE_VERIFY` | 百度站长验证码（首页输出验证 meta） | 关 |
+| `GOOGLE_SITE_VERIFY` | Google Search Console 验证码（首页输出验证 meta） | 关 |
+| `BING_SITE_VERIFY` | Bing 站长验证码（首页输出验证 meta） | 关 |
 
 内置防爆破：同一 IP 15 分钟内密钥错 5 次封禁 15 分钟（登录与全部写接口共用计数）。
 
@@ -62,20 +66,29 @@ node server.js          # 重建后必须重启服务
 
 ## SEO / GEO
 
-面向搜索引擎与 AI 爬虫（GPTBot / ClaudeBot / PerplexityBot 等）做了服务端直出与机器可读索引：
+面向搜索引擎与 AI 爬虫（GPTBot / ClaudeBot / PerplexityBot 等）做了服务端直出与机器可读索引
+（站外增长的行动清单另见 [GROWTH.md](GROWTH.md)）：
 
 - **首页 SSR**：`/` 由服务端直出完整时间树 HTML，并内联档案数据（`window.__EVENTS__`），
   不执行 JS 的爬虫也能读到全文；浏览器端脚本检测到直出内容后只做交互接线（hydration），
   不重复渲染。入场动画通过 `.js` 类门控——无 JS 环境下内容直接可见，不构成隐藏文本。
+  canonical / og:url / 站长验证 meta / WebSite JSON-LD 由服务端按 `SITE_URL` 注入。
 - **独立档案页**：每条档案有可索引的 `/ev/<id>` 页面，含专属 title / description / canonical /
-  Open Graph 卡片 / Article JSON-LD（日期、图片、信源 `isBasedOn`），并带较新/较旧翻页与
-  事件线索内链，方便爬虫沿内链遍历全部档案。
-- **机器可读索引**：`/robots.txt`（含 Sitemap 声明、放行全部爬虫、屏蔽 `/api/`）、
-  `/sitemap.xml`（全部页面 + lastmod）、`/feed.xml`（RSS 2.0）、
-  `/llms.txt` 与 `/llms-full.txt`（LLM 友好的 Markdown 目录 / 全文，GEO 常规做法）。
-- **结构化数据**：首页 WebSite + ItemList，档案页 Article。
-- **传输层**：文本响应 gzip + ETag/304；`/api/*` 带 `X-Robots-Tag: noindex` 防 JSON 被当作
-  重复内容收录。
+  Open Graph 卡片 / Article + BreadcrumbList JSON-LD（日期、图片、信源 `isBasedOn`），并带
+  较新/较旧翻页、事件线索内链与线索聚合页链接，方便爬虫沿内链遍历全部档案。
+- **聚合着陆页**：文学化的档案标题拦不住搜索词，聚合页用搜索者的语言承接检索意图——
+  `/s/<slug>` 事件线索页（如 `/s/funding` 承接「cursor 融资历史」、`/s/spacex` 承接
+  「spacex 收购 cursor」；slug 与导语配置在 `server.js` 的 `SERIES_PAGES`，未配置的新线索
+  回退中文 URL）、`/y/<year>` 年份大事记页、`/about` 关于本站（查证纪律，E-E-A-T 信号 +
+  Organization JSON-LD）。全部带 CollectionPage/ItemList JSON-LD，首页页脚有索引导航入口。
+- **机器可读索引**：`/robots.txt`（含 Sitemap 声明、放行全部爬虫与 `/api/events`、屏蔽其余
+  `/api/`）、`/sitemap.xml`（首页 + 聚合页 + 全部档案页，带 lastmod）、`/feed.xml`（RSS 2.0）、
+  `/llms.txt` 与 `/llms-full.txt`（LLM 友好的 Markdown 目录 / 全文，含英文站点简介与线索页目录）。
+- **百度主动推送**：配置 `BAIDU_PUSH_TOKEN` 后，档案增删改自动把受影响的 URL（档案页、首页、
+  所属线索页与年份页）实时推送百度，境内收录缩短到分钟级。
+- **传输层**：文本响应 brotli/gzip + ETag/304；字体子集自托管（`public/fonts/`，已移除
+  Google Fonts 外链，中文走系统字体栈）；`/api/*` 带 `X-Robots-Tag: noindex` 防 JSON 被当作
+  重复内容收录（`/api/events` 允许抓取但不进索引，供 AI 爬虫读取）。
 - 以上动态产物全部内存缓存，档案增删改时自动失效重建；站点地址由环境变量 `SITE_URL` 控制。
 
 ## 数据模型（events）
@@ -117,13 +130,17 @@ node server.js          # 重建后必须重启服务
 ## 目录结构
 
 ```
-server.js          零依赖服务端（静态资源 + REST API + 图片上传 + 密钥鉴权 + 访问记录）
+server.js          零依赖服务端（静态资源 + REST API + SSR/SEO + 聚合页 + 百度推送 + 鉴权 + 访问记录）
 seed.js            建库 + 初始档案快照（2026-08-29：正史 51 / 野史 38 共 89 条、10 条事件线索；线上以 data/chronicle.db 为准）
+GROWTH.md          增长作战手册：站长平台接入、社区分发、外链与复盘（站外动作清单）
 data/chronicle.db  SQLite 数据库（运行时生成，已 gitignore）
 public/
   index.html       前台：垂直双线时间树（最新在上 · 左正史 · 右野史）
   admin.html       后台：RED QUEEN 终端（档案管理 + 访客监控）
   logo.svg         站标：保护伞红白伞面 × Cursor 六边形 × 中央光标
+  favicon.ico      收藏夹图标（32/16px，重新生成流程见 drafts/icon-render.html 头部注释）
+  apple-touch-icon.png  iOS 主屏图标（180px）
+  fonts/           自托管字体子集（JetBrains Mono latin 可变字重 + 手写体印章字符，共 34KB）
   uploads/         后台上传的图片
 ```
 

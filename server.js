@@ -10,6 +10,10 @@
  *                持久化在 data/config.json 并打印在启动日志。/admin 恒为 404。
  *   TRUST_PROXY  置 1 表示运行在反向代理（Nginx 等）之后，取 X-Forwarded-For 作为客户端 IP
  *   SITE_URL     站点对外地址（生成 canonical / sitemap / RSS 的绝对链接），默认 https://umbrella4365.com
+ *   BAIDU_PUSH_TOKEN    百度主动推送 token（搜索资源平台 → 普通收录 → API 推送）；设置后档案增删改实时推送百度
+ *   BAIDU_SITE_VERIFY   百度站长验证码（首页输出 <meta name="baidu-site-verification">）
+ *   GOOGLE_SITE_VERIFY  Google Search Console 验证码（首页输出 <meta name="google-site-verification">）
+ *   BING_SITE_VERIFY    Bing 站长验证码（首页输出 <meta name="msvalidate.01">）
  */
 const http = require('node:http');
 const fs = require('node:fs');
@@ -110,28 +114,40 @@ const MIME = {
   '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.json': 'application/json; charset=utf-8',
+  '.woff2': 'font/woff2',
 };
 const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
 const COMPRESSIBLE_EXT = new Set(['.html', '.js', '.css', '.svg', '.json', '.xml', '.txt']);
 
-/* 文本响应统一出口：>1KB 且客户端支持时 gzip，缩短首字节到可读内容的时间（Core Web Vitals） */
-function wantsGzip(req) { return /\bgzip\b/i.test(String((req && req.headers['accept-encoding']) || '')); }
+/* 文本响应统一出口：>1KB 且客户端支持时压缩，brotli 优先（同内容比 gzip 再省 15–20%），
+   缩短首字节到可读内容的时间（Core Web Vitals） */
+function pickEncoding(req) {
+  const ae = String((req && req.headers['accept-encoding']) || '');
+  if (/\bbr\b/i.test(ae)) return 'br';
+  if (/\bgzip\b/i.test(ae)) return 'gzip';
+  return '';
+}
+/* 动态内容用中档质量：压缩率已优于 gzip-6，速度不拖响应 */
+const brOpts = size => ({ params: {
+  [zlib.constants.BROTLI_PARAM_QUALITY]: 5,
+  ...(size ? { [zlib.constants.BROTLI_PARAM_SIZE_HINT]: size } : {}),
+} });
 
 function sendBody(res, code, headers, body) {
   const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
   headers = { Vary: 'Accept-Encoding', ...headers };
-  if (buf.length > 1024 && wantsGzip(res.req)) {
-    zlib.gzip(buf, { level: 6 }, (err, gz) => {
-      if (!err && gz && gz.length < buf.length) {
-        res.writeHead(code, { ...headers, 'Content-Encoding': 'gzip' });
-        res.end(gz);
-      } else {
-        res.writeHead(code, headers);
-        res.end(buf);
-      }
-    });
-    return;
-  }
+  const enc = buf.length > 1024 ? pickEncoding(res.req) : '';
+  const done = name => (err, out) => {
+    if (!err && out && out.length < buf.length) {
+      res.writeHead(code, { ...headers, 'Content-Encoding': name });
+      res.end(out);
+    } else {
+      res.writeHead(code, headers);
+      res.end(buf);
+    }
+  };
+  if (enc === 'br') return zlib.brotliCompress(buf, brOpts(buf.length), done('br'));
+  if (enc === 'gzip') return zlib.gzip(buf, { level: 6 }, done('gzip'));
   res.writeHead(code, headers);
   res.end(buf);
 }
@@ -337,6 +353,8 @@ const isoTs = t => String(t || '').replace(' ', 'T');
 const SITE_NAME = 'UMBRELLA 4365 · Cursor 战地纪实';
 const SITE_DESC = 'AI一日，人间一年。一条正史，一条野史，双向时间树记录 Cursor 与 AI 编程圈的光与影。仅作记录，不构成立场。';
 const SITE_INTRO = 'UMBRELLA 4365（umbrella4365.com）是一个中文时间轴档案站，以「战地纪实」风格记录 AI 代码编辑器 Cursor（Anysphere 公司出品）及 AI 编程圈的重要事件。档案分两线：「正史」收录融资、发布、并购等有公开信源的报道；「野史」收录漏洞、套利、事故等场外情报（采自封闭频道与未具名信源，含演绎成分）。仅作记录，不构成立场。';
+/* 英文站点简介只出现在机器可读层（llms.txt），供英文语境的 AI 检索理解本站，不做英文页面 */
+const SITE_INTRO_EN = 'UMBRELLA 4365 (umbrella4365.com) is a Chinese-language timeline archive chronicling Cursor (the AI code editor by Anysphere) and the AI coding scene, written in a war-correspondence style. Events are filed on two tracks: the Main Chronicle (正史) covers funding rounds, releases and acquisitions backed by public sources; the Shadow Chronicle (野史) covers exploits, arbitrage plays and incidents reported from off-the-record channels, with stylized narration. Records only; no stance taken.';
 
 const allEvents = () => db.prepare('SELECT * FROM events ORDER BY date DESC, id DESC').all();
 
@@ -443,7 +461,25 @@ function ssrTrackHTML(events) {
   return html;
 }
 
+/* 站长平台验证 meta（拿到验证码后填环境变量即生效，只需出现在首页） */
+function verifyMetaHTML() {
+  return [
+    process.env.BAIDU_SITE_VERIFY ? `<meta name="baidu-site-verification" content="${escHtml(process.env.BAIDU_SITE_VERIFY)}">` : '',
+    process.env.GOOGLE_SITE_VERIFY ? `<meta name="google-site-verification" content="${escHtml(process.env.GOOGLE_SITE_VERIFY)}">` : '',
+    process.env.BING_SITE_VERIFY ? `<meta name="msvalidate.01" content="${escHtml(process.env.BING_SITE_VERIFY)}">` : '',
+  ].filter(Boolean).join('\n');
+}
+
 function homeHeadHTML(events) {
+  const website = ldjson({
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: SITE_NAME,
+    alternateName: ['UMBRELLA 4365', 'Cursor 战地纪实', 'Cursor 大事记', 'Cursor 编年史', 'Cursor 时间线'],
+    url: `${SITE_URL}/`,
+    description: SITE_DESC,
+    inLanguage: 'zh-CN',
+  });
   const itemList = ldjson({
     '@context': 'https://schema.org',
     '@type': 'ItemList',
@@ -456,7 +492,19 @@ function homeHeadHTML(events) {
       name: `${e.title}（${e.date}）`,
     })),
   });
-  return `<script>window.__EVENTS__=${ldjson(events)};</script>\n<script type="application/ld+json">${itemList}</script>`;
+  return [
+    `<link rel="canonical" href="${SITE_URL}/">`,
+    `<meta property="og:url" content="${SITE_URL}/">`,
+    `<meta property="og:image" content="${SITE_URL}/og.png">`,
+    `<meta property="og:image:width" content="1200">`,
+    `<meta property="og:image:height" content="630">`,
+    `<meta property="og:image:alt" content="UMBRELLA 4365 · Cursor 战地纪实">`,
+    `<meta name="twitter:image" content="${SITE_URL}/og.png">`,
+    verifyMetaHTML(),
+    `<script type="application/ld+json">${website}</script>`,
+    `<script>window.__EVENTS__=${ldjson(events)};</script>`,
+    `<script type="application/ld+json">${itemList}</script>`,
+  ].filter(Boolean).join('\n');
 }
 
 const INDEX_PATH = path.join(PUBLIC_DIR, 'index.html');
@@ -470,13 +518,21 @@ function indexTemplate() {
   return indexTpl.text;
 }
 
+/* 首页页脚的档案索引导航：给聚合页提供固定的站内发现入口（在 #track 之外，不受客户端筛选重绘影响） */
+function footNavHTML() {
+  const s = allSeriesRows().map(r => `<a href="${seriesPath(r.series)}">${escHtml(r.series)}</a>`).join(' · ');
+  const y = allYearRows().map(r => `<a href="/y/${r.y}">${r.y}</a>`).join(' · ');
+  return `<nav class="foot-nav" aria-label="档案索引">事件线索：${s}<br>年度大事记：${y} · <a href="/about">关于本站</a></nav>`;
+}
+
 function serveHome(req, res) {
   indexTemplate(); // 模板文件变更时先失效缓存
   const doc = seoDoc('home', () => {
     const events = allEvents();
     return indexTemplate()
       .replace('<!--SSR:HEAD-->', homeHeadHTML(events))
-      .replace('<!--SSR:TRACK-->', ssrTrackHTML(events));
+      .replace('<!--SSR:TRACK-->', ssrTrackHTML(events))
+      .replace('<!--SSR:FOOT-->', footNavHTML());
   });
   sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
 }
@@ -503,11 +559,11 @@ function eventPageHTML(ev, events) {
     const span = arr.length >= 2 ? Math.round(Math.abs(new Date(arr[arr.length - 1].date) - new Date(arr[0].date)) / 864e5) : 0;
     seriesHtml = `
       <section class="thread">
-        <div class="th-hd">◈ 事件线索 · ${escHtml(ev.series)}（${arr.length} 个节点）</div>
+        <div class="th-hd">◈ 事件线索 · <a href="${seriesPath(ev.series)}" title="查看该线索的聚合页">${escHtml(ev.series)}</a>（${arr.length} 个节点）</div>
         ${arr.map(e => e.id === ev.id
           ? `<div class="node2 cur"><span class="d">${dotDate(e.date)}</span><span>${escHtml(e.title)}（本条）</span></div>`
           : `<div class="node2"><span class="d">${dotDate(e.date)}</span><a href="/ev/${e.id}" title="调阅该档案">${escHtml(e.title)} »</a></div>`).join('')}
-        ${span ? `<div class="win">◷ 窗口跨度 ${span} 天（${dotDate(arr[0].date)} → ${dotDate(arr[arr.length - 1].date)}）</div>` : ''}
+        ${span ? `<div class="win">◷ 窗口跨度 ${span} 天（${dotDate(arr[0].date)} → ${dotDate(arr[arr.length - 1].date)}）· <a href="${seriesPath(ev.series)}">线索专页 »</a></div>` : ''}
       </section>`;
   }
   const srcHtml = ev.source ? `<div class="srcline">信源 SOURCE · <a href="${escHtml(ev.source)}" target="_blank" rel="noopener">${escHtml(ev.source)}</a></div>` : '';
@@ -528,6 +584,24 @@ function eventPageHTML(ev, events) {
     publisher: { '@type': 'Organization', name: 'UMBRELLA 4365', url: `${SITE_URL}/`, logo: { '@type': 'ImageObject', url: `${SITE_URL}/og.png` } },
     ...(ev.source ? { isBasedOn: ev.source } : {}),
   });
+  const crumb = ldjson(ev.series
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'UMBRELLA 4365 · 时间树', item: `${SITE_URL}/` },
+          { '@type': 'ListItem', position: 2, name: `事件线索 · ${ev.series}`, item: SITE_URL + seriesPath(ev.series) },
+          { '@type': 'ListItem', position: 3, name: ev.title, item: url },
+        ],
+      }
+    : {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'UMBRELLA 4365 · 时间树', item: `${SITE_URL}/` },
+          { '@type': 'ListItem', position: 2, name: ev.title, item: url },
+        ],
+      });
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -538,6 +612,8 @@ function eventPageHTML(ev, events) {
 <meta name="description" content="${escHtml(desc)}">
 <link rel="canonical" href="${url}">
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="theme-color" content="#0a0b0e">
 <meta name="author" content="Cursor Warco · 战地记者">
 <meta property="og:type" content="article">
@@ -547,7 +623,9 @@ function eventPageHTML(ev, events) {
 <meta property="og:description" content="${escHtml(desc)}">
 <meta property="og:url" content="${url}">
 <meta property="og:image" content="${escHtml(ogImg)}">
-<meta property="article:published_time" content="${escHtml(ev.date)}">
+${ev.image ? '' : `<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+`}<meta property="article:published_time" content="${escHtml(ev.date)}">
 <meta property="article:modified_time" content="${escHtml(isoTs(ev.updated_at))}">
 <meta property="article:section" content="${escHtml(ev.tag || sideName)}">
 <meta name="twitter:card" content="summary_large_image">
@@ -556,12 +634,13 @@ function eventPageHTML(ev, events) {
 <meta name="twitter:image" content="${escHtml(ogImg)}">
 <link rel="alternate" type="application/rss+xml" title="UMBRELLA 4365 · 档案更新" href="/feed.xml">
 <script type="application/ld+json">${ld}</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">${crumb}</script>
 <style>
+  @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800; font-display:swap;
+    src:local("JetBrains Mono"), url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
   :root { --ink:#0a0b0e; --umb:#e0242e; --umb-hi:#ff4a52; --bone:#e9e6df; --bone-dim:#9aa0a8;
-    --serif:"Noto Serif SC","STSong",serif; --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; --mono:"JetBrains Mono","Consolas",monospace; }
+    --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif; --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; --mono:"JetBrains Mono","Consolas",monospace; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--ink); color:var(--bone); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
   .wrap { max-width:680px; margin:0 auto; padding:14px clamp(14px,4vw,28px) 36px; }
@@ -593,6 +672,7 @@ function eventPageHTML(ev, events) {
   .d-dark .txt p { color:#c7a8a6; }
   .thread { margin:14px 0; padding:12px 14px; border:1px dashed rgba(224,36,46,.4); }
   .thread .th-hd { font-family:var(--mono); font-size:11px; letter-spacing:.14em; margin-bottom:10px; }
+  .thread .th-hd a, .thread .win a { color:inherit; }
   .d-main .thread .th-hd, .d-main .thread .win { color:#a01820; }
   .d-dark .thread .th-hd, .d-dark .thread .win { color:var(--umb-hi); }
   .thread .node2 { display:flex; gap:10px; align-items:baseline; padding:4px 0; font-size:12.5px; line-height:1.5; }
@@ -639,7 +719,7 @@ function eventPageHTML(ev, events) {
           <span>${escHtml(ev.tag)}</span>
         </div>
         <h1>${escHtml(ev.title)}</h1>
-        ${ev.image ? `<div class="pic"><img src="${escHtml(ev.image)}" alt="${escHtml(ev.title)}"></div>` : ''}
+        ${ev.image ? `<div class="pic"><img src="${escHtml(ev.image)}" alt="${escHtml(ev.title)}" decoding="async"></div>` : ''}
         <p class="sum">${escHtml(ev.summary)}</p>
         <div class="txt">${paras}</div>
         ${seriesHtml}
@@ -667,23 +747,452 @@ function eventPageHTML(ev, events) {
 
 function serveEvent(req, res, id) {
   const row = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
-  if (!row) {
-    return sendBody(res, 404, { 'Content-Type': 'text/html; charset=utf-8', 'X-Robots-Tag': 'noindex' },
-      '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>404 · 档案不存在</title><meta name="robots" content="noindex"></head>' +
-      '<body style="background:#0a0b0e;color:#e9e6df;font-family:Consolas,monospace;text-align:center;padding:80px 20px"><p>404 · 档案不存在或已销毁</p><p style="margin-top:14px"><a href="/" style="color:#ff4a52">⇱ 返回时间树</a></p></body></html>');
-  }
+  if (!row) return serveNotFound(res, '档案不存在或已销毁');
   const doc = seoDoc(`ev:${id}`, () => eventPageHTML(row, allEvents()));
   sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
 }
 
+/* ==================================================================
+   聚合着陆页：事件线索 /s/:slug · 年份大事记 /y/:year · 关于本站 /about
+   档案标题是文学化的，拦不住「cursor 融资」「spacex 收购 cursor」这类
+   检索词；聚合页用搜索者的语言做 title/H1/导语，把检索意图接进站内。
+   ================================================================== */
+
+/* 现役线索的 slug 与搜索友好文案；未配置的新线索自动回退中文 URL（encodeURIComponent） */
+const SERIES_PAGES = {
+  '融资阶梯': {
+    slug: 'funding',
+    title: 'Cursor 融资历史全记录：从种子轮到 D 轮的金额与估值',
+    h1: 'Cursor 融资历史全记录',
+    lead: '从 OpenAI 领投的 800 万美元种子轮，到 NVIDIA 入局的 23 亿美元 D 轮，再到 ARR（年经常性收入）破 20 亿美元——Anysphere（Cursor 母公司）反复改写硅谷融资史的刻度。本线索按时间收录 Cursor 各轮融资的金额、估值与投资方。',
+  },
+  '模型军备': {
+    slug: 'model-arms',
+    title: 'Cursor 模型大战编年史：Claude、GPT、Grok 的军备竞赛',
+    h1: 'Cursor 模型大战编年史',
+    lead: 'Cursor 是大模型厂商的前线阵地：Claude 3.5 改写默认项，GPT-5 免费进驻一周，Grok 匿名入场，Fable 5 断层登顶。本线索记录各家旗舰模型在 Cursor 里的每一次进场、登顶、降价与换防。',
+  },
+  '自研模型线': {
+    slug: 'composer',
+    title: 'Cursor 自研模型 Composer 发展全记录',
+    h1: 'Cursor 自研模型 Composer 全记录',
+    lead: '从 Tab 补全改用在线强化学习，到 Cursor 2.0 亮相的自研模型 Composer，再到场外对底座来源的溯源——本线索记录 Cursor 从模型集成商走向模型厂商的全过程，正史发布与野史情报同列。',
+  },
+  '火箭并购案': {
+    slug: 'spacex',
+    title: 'SpaceX 600 亿美元收购 Cursor 全过程时间线',
+    h1: 'SpaceX 收购 Cursor 全过程',
+    lead: 'SpaceX 以 600 亿美元全股票收购 Anysphere（Cursor 母公司），是 AI 编程纪元至今最大的一笔并购。本线索按时间收录从联姻选择权、SpaceX 上市、Grok 联合训练，到收购签约与交割完成的全部档案。',
+  },
+  'AI 失控档案': {
+    slug: 'ai-incidents',
+    title: 'Cursor AI 失控事故档案：拒写代码、幻觉客服与删库事件',
+    h1: 'Cursor AI 失控事故档案',
+    lead: '拒写代码并劝用户自学的生成单元、编造政策的客服 AI「Sam」、触发跨厂商警报的删库事件——本线索收录与 Cursor 相关的 AI 失控与事故记录。核心事件均真实存在，语气按野史文体呈现。',
+  },
+  '定价攻防': {
+    slug: 'pricing',
+    title: 'Cursor 定价变更全记录：计费风波与 Auto 攻防',
+    h1: 'Cursor 定价变更全记录',
+    lead: '500 次请求改 20 美元额度的计费风波，Cursor Router 发布次日的「语义变更」众怒——本线索记录 Cursor 定价体系的每一次调整，以及场外的每一次反弹。',
+  },
+  '供给线': {
+    slug: 'supply',
+    title: 'Cursor 模型供应线：上游厂商的结盟与断供',
+    h1: 'Cursor 模型供应线',
+    lead: '模型供应商对 Cursor 的进与退：Anthropic 包下 Colossus 1 把 Claude 限额翻倍，OpenAI 发出断供通牒。本线索追踪 Cursor 上游供给的松紧。',
+  },
+  '临期锁额': {
+    slug: 'quota-lock',
+    title: '「临期锁额」套利窗口：从检出到灭活 · Cursor 野史',
+    h1: '「临期锁额」套利窗口全记录',
+    lead: '订阅临期锁定额度、计数器不走字的套利玩法，自场外检出，到官方补上缺口、计数器重新走字。本线索完整记录该套利窗口从检出到灭活的生命周期。',
+  },
+  'Team 席位差': {
+    slug: 'team-seats',
+    title: '「Team 席位差」套利窗口：从检出到灭活 · Cursor 野史',
+    h1: '「Team 席位差」套利窗口全记录',
+    lead: '40 美元 Team 席位拉满五个 5x 额度的套利玩法，从场外检出到账单追上席位、官方灭活。本线索完整记录该套利窗口的生命周期。',
+  },
+  '假焚诀': {
+    slug: 'fake-burn',
+    title: '「假焚诀」套利窗口：从检出到灭活 · Cursor 野史',
+    h1: '「假焚诀」套利窗口全记录',
+    lead: '把贵价模型的消耗记在 Auto 名下的「假焚诀」，从场外检出到官方两本账合一。本线索完整记录该套利窗口从检出到灭活的全过程。',
+  },
+};
+const seriesBySlug = new Map(Object.entries(SERIES_PAGES).map(([name, c]) => [c.slug, name]));
+const seriesPath = name => `/s/${(SERIES_PAGES[name] && SERIES_PAGES[name].slug) || encodeURIComponent(name)}`;
+
+const daysSpan = arr => arr.length >= 2
+  ? Math.round(Math.abs(new Date(arr[arr.length - 1].date) - new Date(arr[0].date)) / 864e5) : 0;
+
+const allSeriesRows = () => db.prepare(
+  `SELECT series, COUNT(*) AS n, MIN(date) AS first, MAX(date) AS last
+   FROM events WHERE series <> '' GROUP BY series ORDER BY last DESC`
+).all();
+const allYearRows = () => db.prepare(
+  `SELECT substr(date, 1, 4) AS y, COUNT(*) AS n FROM events GROUP BY y ORDER BY y DESC`
+).all();
+
+/* 面包屑 JSON-LD：首页 > 当前页 */
+const breadcrumbLD = (name, url) => ({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'UMBRELLA 4365 · 时间树', item: `${SITE_URL}/` },
+    { '@type': 'ListItem', position: 2, name, item: url },
+  ],
+});
+
+/* 列表页共用外壳（线索页 / 年份页 / 关于本站共用一套 head 与视觉） */
+function listPageHTML({ url, pageTitle, desc, kicker, h1, lead, metaHtml, bodyHtml, ldBlocks }) {
+  const ldHtml = (ldBlocks || []).map(o => `<script type="application/ld+json">${ldjson(o)}</script>`).join('\n');
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escHtml(pageTitle)} · UMBRELLA 4365</title>
+<meta name="description" content="${escHtml(desc)}">
+<link rel="canonical" href="${url}">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#0a0b0e">
+<meta name="author" content="Cursor Warco · 战地记者">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="UMBRELLA 4365">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:title" content="${escHtml(pageTitle)}">
+<meta property="og:description" content="${escHtml(desc)}">
+<meta property="og:url" content="${url}">
+<meta property="og:image" content="${SITE_URL}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escHtml(pageTitle)}">
+<meta name="twitter:description" content="${escHtml(desc)}">
+<meta name="twitter:image" content="${SITE_URL}/og.png">
+<link rel="alternate" type="application/rss+xml" title="UMBRELLA 4365 · 档案更新" href="/feed.xml">
+${ldHtml}
+<style>
+  @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800; font-display:swap;
+    src:local("JetBrains Mono"), url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  :root { --ink:#0a0b0e; --umb:#e0242e; --umb-hi:#ff4a52; --bone:#e9e6df; --bone-dim:#9aa0a8;
+    --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif; --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; --mono:"JetBrains Mono","Consolas",monospace; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--ink); color:var(--bone); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:720px; margin:0 auto; padding:14px clamp(14px,4vw,28px) 36px; }
+  .mast { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0 12px; border-bottom:1px solid rgba(224,36,46,.35); }
+  .brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--bone); }
+  .brand img { width:26px; height:auto; filter:drop-shadow(0 0 10px rgba(224,36,46,.4)); }
+  .brand b { font-family:var(--serif); font-size:15px; letter-spacing:.06em; }
+  .brand .em { color:var(--umb-hi); }
+  .mast .no { font-family:var(--mono); font-size:10px; letter-spacing:.18em; color:var(--bone-dim); text-align:right; }
+  .lede { margin:22px 0 6px; }
+  .lede h1 { font-family:var(--serif); font-size:clamp(20px,4vw,26px); line-height:1.45; letter-spacing:.02em; }
+  .lede .lead { margin-top:12px; font-size:13px; line-height:2; color:var(--bone-dim); text-align:justify; }
+  .lede .stat { margin-top:12px; font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:var(--umb-hi); }
+  .list { margin-top:18px; }
+  .item { display:block; text-decoration:none; color:inherit; padding:13px 15px 14px; margin-bottom:14px; transition:transform .2s ease, box-shadow .2s ease; }
+  .item.i-main { background:linear-gradient(175deg,#edeae2 0%,#d9d5c9 100%); color:#1d1e22; border-right:3px solid var(--umb); box-shadow:0 10px 26px rgba(0,0,0,.5); }
+  .item.i-dark { background:linear-gradient(190deg,#180c10 0%,#100a0e 100%); color:#efdada; border:1px dashed rgba(224,36,46,.6); box-shadow:0 10px 26px rgba(0,0,0,.55), inset 0 0 40px rgba(224,36,46,.06); }
+  .item:hover { transform:translateY(-3px); }
+  .item .ihead { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; font-family:var(--mono); font-size:11px; letter-spacing:.1em; margin-bottom:6px; }
+  .item.i-main .ihead { color:#a01820; }
+  .item.i-dark .ihead { color:var(--umb-hi); }
+  .item .side { font-weight:700; letter-spacing:.3em; }
+  .item .it { font-family:var(--serif); font-size:16px; line-height:1.45; }
+  .item.i-dark .it { color:#ffd9d4; }
+  .item .is { margin-top:6px; font-size:12px; line-height:1.8; text-align:justify; }
+  .item.i-main .is { color:#44464c; }
+  .item.i-dark .is { color:#c7a8a6; }
+  .txtcard { padding:18px 20px; margin-bottom:14px; background:linear-gradient(175deg,#edeae2 0%,#d9d5c9 100%); color:#1d1e22; border-right:3px solid var(--umb); box-shadow:0 10px 26px rgba(0,0,0,.5); }
+  .txtcard h2 { font-family:var(--serif); font-size:16px; margin-bottom:8px; color:#a01820; }
+  .txtcard p { font-size:12.5px; line-height:2; color:#44464c; text-align:justify; margin-bottom:8px; }
+  .txtcard p:last-child { margin-bottom:0; }
+  .txtcard a { color:#a01820; }
+  .othernav { margin:26px 0 0; padding:14px 16px; border:1px dashed rgba(224,36,46,.4); }
+  .othernav .oh { font-family:var(--mono); font-size:11px; letter-spacing:.14em; color:var(--umb-hi); margin-bottom:10px; }
+  .othernav .links { font-size:12.5px; line-height:2.2; }
+  .othernav a { color:var(--bone-dim); text-decoration:none; border-bottom:1px dashed rgba(224,36,46,.4); white-space:nowrap; }
+  .othernav a:hover { color:var(--umb-hi); }
+  .othernav .sep { color:rgba(233,230,223,.25); margin:0 7px; }
+  .backcta { display:block; margin-top:20px; padding:16px 18px; text-align:center; text-decoration:none;
+    background:var(--umb); color:#fff; border:1px solid rgba(255,255,255,.25); box-shadow:0 0 20px rgba(224,36,46,.4); transition:background .2s, box-shadow .2s; }
+  .backcta b { display:block; font-family:var(--serif); font-size:17px; letter-spacing:.14em; }
+  .backcta span { display:block; margin-top:7px; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; opacity:.85; }
+  .backcta:hover { background:#f0333d; box-shadow:0 0 30px rgba(224,36,46,.65); }
+  .sitefoot { text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--bone-dim); opacity:.75; padding:22px 0 6px; line-height:2; }
+  .sitefoot a { color:var(--umb-hi); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <a class="brand" href="/"><img src="/logo.svg" alt="UMBRELLA 4365"><b>UMBRELLA 4365 <span class="em">· Cursor 战地纪实</span></b></a>
+    <span class="no">${kicker}</span>
+  </header>
+  <main>
+    <div class="lede">
+      <h1>${escHtml(h1)}</h1>
+      ${lead ? `<p class="lead">${escHtml(lead)}</p>` : ''}
+      ${metaHtml || ''}
+    </div>
+    ${bodyHtml}
+    <a class="backcta" href="/">
+      <b>⇱ 返回完整时间树</b>
+      <span>UMBRELLA 4365 · 双线对照 · 由新到旧 · 全部档案</span>
+    </a>
+  </main>
+  <footer class="sitefoot">
+    基于公开报道与场外情报整理 · 野史含演绎 仅作记录 不构成立场<br>
+    <a href="/">⇱ 返回完整时间树</a> · <a href="/about">关于本站</a> · <a href="/feed.xml">RSS</a> · <a href="${SITE_URL}">umbrella4365.com</a>
+  </footer>
+</div>
+</body>
+</html>`;
+}
+
+/* 列表条目（线索页 / 年份页共用），链到档案独立页 */
+const listItemHTML = e => `
+      <a class="item i-${e.side}" href="/ev/${e.id}">
+        <div class="ihead"><time datetime="${escHtml(e.date)}">${dotDate(e.date)}</time><span class="side">${e.side === 'main' ? '正史' : '野史'}</span>${e.tag ? `<span>${escHtml(e.tag)}</span>` : ''}</div>
+        <div class="it">${escHtml(e.title)}</div>
+        <p class="is">${escHtml(e.summary)}</p>
+      </a>`;
+
+/* 「其他线索 / 其他年份」交叉导航，让聚合页互相可达 */
+function crossNavHTML(excludeSeries, excludeYear) {
+  const s = allSeriesRows().filter(r => r.series !== excludeSeries)
+    .map(r => `<a href="${seriesPath(r.series)}">${escHtml(r.series)}（${r.n}）</a>`).join('<span class="sep">·</span>');
+  const y = allYearRows().filter(r => r.y !== excludeYear)
+    .map(r => `<a href="/y/${r.y}">${r.y} 年大事记（${r.n}）</a>`).join('<span class="sep">·</span>');
+  return `
+    <nav class="othernav" aria-label="更多档案索引">
+      <div class="oh">◈ 更多事件线索</div>
+      <div class="links">${s}</div>
+      <div class="oh" style="margin-top:12px">◈ 年度大事记</div>
+      <div class="links">${y}</div>
+    </nav>`;
+}
+
+/* ---- 事件线索聚合页 /s/:slug ---- */
+function seriesPageHTML(name, arr) {
+  const cfg = SERIES_PAGES[name] || {};
+  const url = `${SITE_URL}${seriesPath(name)}`;
+  const pageTitle = cfg.title || `事件线索 · ${name} · Cursor 战地纪实`;
+  const h1 = cfg.h1 || `事件线索 · ${name}`;
+  const nMain = arr.filter(e => e.side === 'main').length;
+  const span = daysSpan(arr);
+  const desc = clip(cfg.lead || `事件线索「${name}」的全部档案：${arr.map(e => e.title).join('；')}`, 150);
+  const metaHtml = `<div class="stat">◈ 事件线索 · ${escHtml(name)} · ${arr.length} 个节点（正史 ${nMain} · 野史 ${arr.length - nMain}）${span ? ` · 窗口跨度 ${span} 天` : ''} · 由旧到新</div>`;
+
+  const collection = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: pageTitle,
+    description: desc,
+    url,
+    inLanguage: 'zh-CN',
+    isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: `${SITE_URL}/` },
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: arr.length,
+      itemListElement: arr.map((e, i) => ({
+        '@type': 'ListItem', position: i + 1, url: `${SITE_URL}/ev/${e.id}`, name: `${e.title}（${e.date}）`,
+      })),
+    },
+  };
+
+  return listPageHTML({
+    url, pageTitle, desc,
+    kicker: `SERIES FILE · ${arr.length} NODES`,
+    h1, lead: cfg.lead || '',
+    metaHtml,
+    bodyHtml: `<div class="list">${arr.map(listItemHTML).join('')}</div>${crossNavHTML(name, null)}`,
+    ldBlocks: [collection, breadcrumbLD(`事件线索 · ${name}`, url)],
+  });
+}
+
+function serveSeries(req, res, rawSlug) {
+  let name = seriesBySlug.get(rawSlug);
+  if (!name) {
+    let decoded = '';
+    try { decoded = decodeURIComponent(rawSlug); } catch {}
+    if (decoded && SERIES_PAGES[decoded]) {
+      /* 有正式 slug 的线索被用中文路径访问 → 301 归一，保证 canonical 唯一 */
+      res.writeHead(301, { Location: seriesPath(decoded) });
+      return res.end();
+    }
+    name = decoded;
+  }
+  const arr = name
+    ? db.prepare('SELECT * FROM events WHERE series = ? ORDER BY date ASC, id ASC').all(name)
+    : [];
+  if (!arr.length) return serveNotFound(res, '线索不存在或暂无档案');
+  const doc = seoDoc(`s:${seriesPath(name)}`, () => seriesPageHTML(name, arr));
+  sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
+}
+
+/* ---- 年份大事记页 /y/:year ---- */
+function yearPageHTML(year, arr) {
+  const url = `${SITE_URL}/y/${year}`;
+  const nMain = arr.filter(e => e.side === 'main').length;
+  const ph = ssrPhase(year);
+  const pageTitle = `${year} 年 Cursor 大事记：AI 编程编年史（全 ${arr.length} 条档案）`;
+  const desc = clip(`${year} 年 Cursor 与 AI 编程圈大事记：${arr.filter(e => e.side === 'main').slice(0, 6).map(e => e.title).join('；')}……正史 ${nMain} 条、野史 ${arr.length - nMain} 条，按时间排列。`, 150);
+  const lead = `「${ph.a}」——本页按时间顺序收录 ${year} 年与 Cursor 及 AI 编程圈相关的全部档案：正史（融资、发布、并购）与野史（漏洞、套利、事故）双线并列。`;
+  const metaHtml = `<div class="stat">◈ ${year} 年度检查站 · ${arr.length} 条档案（正史 ${nMain} · 野史 ${arr.length - nMain}）· 由旧到新</div>`;
+
+  const collection = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: pageTitle,
+    description: desc,
+    url,
+    inLanguage: 'zh-CN',
+    isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: `${SITE_URL}/` },
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: arr.length,
+      itemListElement: arr.map((e, i) => ({
+        '@type': 'ListItem', position: i + 1, url: `${SITE_URL}/ev/${e.id}`, name: `${e.title}（${e.date}）`,
+      })),
+    },
+  };
+
+  return listPageHTML({
+    url, pageTitle, desc,
+    kicker: `YEAR GATE · ${year}`,
+    h1: `${year} 年 Cursor 大事记`,
+    lead,
+    metaHtml,
+    bodyHtml: `<div class="list">${arr.map(listItemHTML).join('')}</div>${crossNavHTML(null, year)}`,
+    ldBlocks: [collection, breadcrumbLD(`${year} 年 Cursor 大事记`, url)],
+  });
+}
+
+function serveYear(req, res, year) {
+  const arr = db.prepare(`SELECT * FROM events WHERE date LIKE ? ORDER BY date ASC, id ASC`).all(`${year}-%`);
+  if (!arr.length) return serveNotFound(res, '该年份暂无档案');
+  const doc = seoDoc(`y:${year}`, () => yearPageHTML(year, arr));
+  sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
+}
+
+/* ---- 关于本站 /about：站点身份与查证纪律（E-E-A-T 信号页） ---- */
+function aboutPageHTML() {
+  const url = `${SITE_URL}/about`;
+  const pageTitle = '关于本站：UMBRELLA 4365 是什么 · Cursor 战地纪实';
+  const desc = 'UMBRELLA 4365 是一个记录 Cursor 与 AI 编程圈的中文时间轴档案站：正史收录有公开信源的融资、发布与并购，野史收录场外的漏洞、套利与事故。本页说明双线体例、查证纪律与订阅方式。';
+
+  const about = {
+    '@context': 'https://schema.org',
+    '@type': 'AboutPage',
+    name: pageTitle,
+    url,
+    description: desc,
+    inLanguage: 'zh-CN',
+    mainEntity: {
+      '@type': 'Organization',
+      name: 'UMBRELLA 4365',
+      alternateName: ['Cursor 战地纪实', 'Cursor 大事记', 'umbrella4365'],
+      url: `${SITE_URL}/`,
+      logo: `${SITE_URL}/logo.svg`,
+      description: SITE_INTRO,
+      foundingDate: '2026-08-27',
+      founder: { '@type': 'Person', name: 'Cursor Warco', alternateName: '战地记者' },
+    },
+  };
+
+  const bodyHtml = `
+    <div class="list">
+      <div class="txtcard">
+        <h2>本站是什么</h2>
+        <p>UMBRELLA 4365（umbrella4365.com）是一个中文时间轴档案站，以「战地纪实」的体例记录 AI 代码编辑器 Cursor（Anysphere 公司出品）及 AI 编程圈的重要事件。站训「AI一日，人间一年」——大模型纪元的行情以天为单位翻篇，本站把这些日子一条一条钉进时间树。</p>
+      </div>
+      <div class="txtcard">
+        <h2>双线体例：正史与野史</h2>
+        <p>时间树分两线。「正史」收录台面之上的官方大事记——融资、发布、并购、故障通报，全部来自可公开核验的报道与公告；「野史」收录同一时刻的暗面——漏洞、套利、事故与传闻，多采自封闭频道与场外信源，含演绎成分，不构成立场。</p>
+        <p>同一事件的官方发布与场外玩法常在同日各立一条，两种档案的温差即是本站的叙事。</p>
+      </div>
+      <div class="txtcard">
+        <h2>查证纪律</h2>
+        <p>正史档案的日期、金额、轮次、估值与版本号均经查证；查不到确切数字时按「约」「据公开报道」模糊化处理，不编造精确数字。</p>
+        <p>野史档案的核心事件必须真实存在（信源可以是论坛、社区或截图），演绎只作用于语气，不虚构事件；线报越劲爆，越需要交叉验证后才立档。</p>
+        <p>每条档案页尽可能附一条最硬的信源链接（SOURCE），供读者自行核验。记录者立场：不站队、不批判、仅作记录。</p>
+      </div>
+      <div class="txtcard">
+        <h2>记录者</h2>
+        <p>署名 Cursor Warco（Warco 是 War Correspondent「战地记者」的行话缩写）。记者本人是 Cursor 重度用户——正因热爱，才如实记下它的光与影。私人观点只出现在「战地手记」一处，不混入档案正文。</p>
+      </div>
+      <div class="txtcard">
+        <h2>订阅与机器可读</h2>
+        <p>更新订阅：<a href="/feed.xml">RSS（/feed.xml）</a>。AI / LLM 检索索引：<a href="/llms.txt">/llms.txt（目录）</a>与 <a href="/llms-full.txt">/llms-full.txt（全文）</a>。全部档案亦可通过 <a href="/api/events">/api/events</a> 以 JSON 读取。</p>
+        <p>事件线索聚合页与年度大事记入口见本页下方与首页页脚。</p>
+      </div>
+    </div>
+    ${crossNavHTML(null, null)}`;
+
+  return listPageHTML({
+    url, pageTitle, desc,
+    kicker: 'VISITOR BRIEFING',
+    h1: '关于本站 · 档案馆访客须知',
+    lead: '',
+    metaHtml: `<div class="stat">UMBRELLA 4365 · CURSOR FRONTLINE CHRONICLE · EST. 2026-08-27</div>`,
+    bodyHtml,
+    ldBlocks: [about, breadcrumbLD('关于本站', url)],
+  });
+}
+
+function serveAbout(req, res) {
+  const doc = seoDoc('about', aboutPageHTML);
+  sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
+}
+
+function serveNotFound(res, msg) {
+  sendBody(res, 404, { 'Content-Type': 'text/html; charset=utf-8', 'X-Robots-Tag': 'noindex' },
+    '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>404 · 档案不存在</title><meta name="robots" content="noindex"></head>' +
+    `<body style="background:#0a0b0e;color:#e9e6df;font-family:Consolas,monospace;text-align:center;padding:80px 20px"><p>404 · ${escHtml(msg || '档案不存在或已销毁')}</p><p style="margin-top:14px"><a href="/" style="color:#ff4a52">⇱ 返回时间树</a></p></body></html>`);
+}
+
+/* ============ 百度主动推送 ============
+   境内已备案站点的收录加速器：档案增删改时把受影响的 URL 实时推给百度，
+   新档案从「发布」到「可被百度检索」缩短到分钟级。
+   开关：环境变量 BAIDU_PUSH_TOKEN（百度搜索资源平台 → 普通收录 → API 推送的 token），
+   未设置时静默跳过；推送异步进行，失败只记日志，不影响主流程。 */
+const BAIDU_PUSH_TOKEN = process.env.BAIDU_PUSH_TOKEN || '';
+function baiduPush(urls) {
+  if (!BAIDU_PUSH_TOKEN || !urls.length) return;
+  const api = `http://data.zz.baidu.com/urls?site=${encodeURIComponent(SITE_URL)}&token=${BAIDU_PUSH_TOKEN}`;
+  fetch(api, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: urls.join('\n') })
+    .then(r => r.json())
+    .then(j => console.log(`[百度推送] ${urls.length} 条 · 成功 ${j.success ?? 0} · 当日剩余配额 ${j.remain ?? '?'}`))
+    .catch(e => console.warn(`[百度推送] 失败（不影响主流程）：${e.message}`));
+}
+/* 一条档案发生增改时，受影响的页面：档案页本身、首页、所属线索页、所属年份页 */
+function baiduPushEvent(row) {
+  baiduPush([
+    `${SITE_URL}/ev/${row.id}`,
+    `${SITE_URL}/`,
+    ...(row.series ? [SITE_URL + seriesPath(row.series)] : []),
+    `${SITE_URL}/y/${row.date.slice(0, 4)}`,
+  ]);
+}
+
 /* ---- robots / sitemap / RSS / llms.txt ---- */
 function buildRobots() {
+  /* /api/events 是 llms.txt 推荐给 AI 爬虫的 JSON 数据源，显式 Allow 放行（更长路径规则优先）；
+     其响应仍带 X-Robots-Tag: noindex——允许抓取读取，但不进搜索索引，避免与 SSR 页面构成重复内容 */
   return `# ${SITE_NAME} · ${SITE_URL}
 # 搜索引擎与 AI/LLM 爬虫（GPTBot、ClaudeBot、PerplexityBot、Google-Extended、Bytespider 等）均欢迎抓取
 # 机器可读索引：${SITE_URL}/llms.txt（目录）与 ${SITE_URL}/llms-full.txt（全文）
 
 User-agent: *
 Allow: /
+Allow: /api/events
 Disallow: /api/
 
 Sitemap: ${SITE_URL}/sitemap.xml
@@ -695,6 +1204,9 @@ function buildSitemap() {
   const latest = events.reduce((m, e) => (e.updated_at > m ? e.updated_at : m), '').slice(0, 10);
   const urls = [
     `  <url><loc>${SITE_URL}/</loc>${latest ? `<lastmod>${latest}</lastmod>` : ''}<changefreq>daily</changefreq><priority>1.0</priority></url>`,
+    `  <url><loc>${SITE_URL}/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>`,
+    ...allSeriesRows().map(r => `  <url><loc>${escHtml(SITE_URL + seriesPath(r.series))}</loc><lastmod>${r.last}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`),
+    ...allYearRows().map(r => `  <url><loc>${SITE_URL}/y/${r.y}</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`),
     ...events.map(e => `  <url><loc>${SITE_URL}/ev/${e.id}</loc><lastmod>${String(e.updated_at).slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
@@ -730,11 +1242,26 @@ function buildLlms() {
   const line = e => `- [${e.date} ${e.title}](${SITE_URL}/ev/${e.id})：${clip(e.summary, 100)}`;
   const main = events.filter(e => e.side === 'main');
   const dark = events.filter(e => e.side === 'dark');
+  const seriesLines = allSeriesRows().map(r => {
+    const cfg = SERIES_PAGES[r.series] || {};
+    return `- [${cfg.title || `事件线索 · ${r.series}`}](${SITE_URL}${seriesPath(r.series)})：${r.series} · ${r.n} 个节点（${r.first} → ${r.last}）`;
+  }).join('\n');
+  const yearLines = allYearRows().map(r => `- [${r.y} 年 Cursor 大事记](${SITE_URL}/y/${r.y})：${r.n} 条档案`).join('\n');
   return `# ${SITE_NAME}
 
 > ${SITE_INTRO}
 
+> English: ${SITE_INTRO_EN}
+
 已收录 ${events.length} 条档案（正史 ${main.length} · 野史 ${dark.length}），按日期倒序。每条档案的独立页面含日期、标签、摘要、详情、事件线索与信源链接。全文合集见 [llms-full.txt](${SITE_URL}/llms-full.txt)。
+
+## 事件线索（专题聚合页）
+
+${seriesLines}
+
+## 年度大事记
+
+${yearLines}
 
 ## 正史档案（官方 · 公开报道）
 
@@ -747,6 +1274,7 @@ ${dark.map(line).join('\n')}
 ## 订阅与数据
 
 - [完整时间树](${SITE_URL}/)
+- [关于本站与查证纪律](${SITE_URL}/about)
 - [RSS 订阅](${SITE_URL}/feed.xml)
 - [全部档案 JSON](${SITE_URL}/api/events)
 - [网站地图](${SITE_URL}/sitemap.xml)
@@ -769,6 +1297,8 @@ function buildLlmsFull() {
 
 > ${SITE_INTRO}
 
+> English: ${SITE_INTRO_EN}
+
 ${events.map(block).join('\n\n---\n\n')}
 `;
 }
@@ -782,6 +1312,23 @@ function handleSEO(req, res, url) {
   if (m) {
     if (p.endsWith('/')) { res.writeHead(301, { Location: `/ev/${m[1]}` }); res.end(); return true; }
     serveEvent(req, res, Number(m[1]));
+    return true;
+  }
+  const ms = p.match(/^\/s\/([^/]+?)\/?$/);
+  if (ms) {
+    if (p.endsWith('/')) { res.writeHead(301, { Location: `/s/${ms[1]}` }); res.end(); return true; }
+    serveSeries(req, res, ms[1]);
+    return true;
+  }
+  const my = p.match(/^\/y\/(\d{4})\/?$/);
+  if (my) {
+    if (p.endsWith('/')) { res.writeHead(301, { Location: `/y/${my[1]}` }); res.end(); return true; }
+    serveYear(req, res, my[1]);
+    return true;
+  }
+  if (p === '/about' || p === '/about/') {
+    if (p.endsWith('/')) { res.writeHead(301, { Location: '/about' }); res.end(); return true; }
+    serveAbout(req, res);
     return true;
   }
   if (p === '/robots.txt') { sendDoc(req, res, seoDoc('robots', buildRobots), 'text/plain; charset=utf-8', 'public, max-age=600'); return true; }
@@ -893,6 +1440,7 @@ async function handleAPI(req, res, url) {
             String(b.series || '').trim(), String(b.source || '').trim());
       const row = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
       seoCache.clear();
+      baiduPushEvent(row);
       return sendJSON(res, 201, { ok: true, event: rowToEvent(row) });
     }
   }
@@ -920,6 +1468,7 @@ async function handleAPI(req, res, url) {
             String(merged.series || '').trim(), String(merged.source || '').trim(), id);
       const updated = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
       seoCache.clear();
+      baiduPushEvent(updated);
       return sendJSON(res, 200, { ok: true, event: rowToEvent(updated) });
     }
 
@@ -927,6 +1476,8 @@ async function handleAPI(req, res, url) {
       if (!requireAuth(req, res)) return;
       db.prepare('DELETE FROM events WHERE id = ?').run(id);
       seoCache.clear();
+      /* 删除后档案页已 404，只推被删档案影响到的列表页 */
+      baiduPush([`${SITE_URL}/`, ...(row.series ? [SITE_URL + seriesPath(row.series)] : []), `${SITE_URL}/y/${row.date.slice(0, 4)}`]);
       return sendJSON(res, 200, { ok: true });
     }
   }
@@ -982,14 +1533,24 @@ function serveStatic(req, res, url) {
     const ext = path.extname(file).toLowerCase();
     const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      // HTML 不缓存，保证改代码 / 部署新版后浏览器立刻拿到新页面；图片等静态资源可缓存
-      'Cache-Control': ext === '.html' ? 'no-cache, must-revalidate' : 'public, max-age=3600',
+      // HTML 不缓存，保证改代码 / 部署新版后浏览器立刻拿到新页面；图片等静态资源可缓存；
+      // 字体子集内容永不变（要换就换文件名），给长缓存
+      'Cache-Control': ext === '.html' ? 'no-cache, must-revalidate'
+        : ext === '.woff2' ? 'public, max-age=31536000, immutable'
+        : 'public, max-age=3600',
     };
     if (COMPRESSIBLE_EXT.has(ext)) {
       headers.Vary = 'Accept-Encoding';
-      if (st.size > 1024 && wantsGzip(req)) {
-        res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip' });
-        return fs.createReadStream(file).pipe(zlib.createGzip({ level: 6 })).pipe(res);
+      if (st.size > 1024) {
+        const enc = pickEncoding(req);
+        if (enc === 'br') {
+          res.writeHead(200, { ...headers, 'Content-Encoding': 'br' });
+          return fs.createReadStream(file).pipe(zlib.createBrotliCompress(brOpts(st.size))).pipe(res);
+        }
+        if (enc === 'gzip') {
+          res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip' });
+          return fs.createReadStream(file).pipe(zlib.createGzip({ level: 6 })).pipe(res);
+        }
       }
     }
     res.writeHead(200, headers);
@@ -1018,5 +1579,6 @@ server.listen(PORT, () => {
   console.log(`  管理密钥 ${ADMIN_KEY === 'redqueen-4365' ? 'redqueen-4365（默认值，部署公网前务必用环境变量 ADMIN_KEY 修改）' : '（来自环境变量）'}`);
   console.log(`  防爆破   同 IP 密钥错 ${FAIL_MAX} 次封禁 ${BLOCK_MS / 60000} 分钟${TRUST_PROXY ? ' · 反代模式(X-Forwarded-For)' : ''}`);
   console.log(`  访问记录 IP 仅存哈希 · 保留 ${LOG_KEEP_DAYS} 天 · 上限 ${LOG_MAX_ROWS} 行 · 后台「访客监控」查看`);
-  console.log(`  SEO/GEO  首页 SSR + /ev/:id 档案页 · /robots.txt /sitemap.xml /feed.xml /llms.txt · 站点地址 ${SITE_URL}`);
+  console.log(`  SEO/GEO  首页 SSR + /ev/:id + /s/:slug 线索页 + /y/:year 年份页 + /about · robots/sitemap/RSS/llms.txt · 站点地址 ${SITE_URL}`);
+  console.log(`  百度推送 ${BAIDU_PUSH_TOKEN ? '已启用（档案增删改实时推送）' : '未启用（设置 BAIDU_PUSH_TOKEN 后开启）'}`);
 });

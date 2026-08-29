@@ -4,31 +4,40 @@
 <meta charset="UTF-8">
 <script>document.documentElement.classList.add('js');/* 入场动画只在 JS 可用时启用，保证爬虫/无 JS 环境内容可见 */</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UMBRELLA 4365 · Cursor 战地纪实</title>
-<meta name="description" content="UMBRELLA 4365：Cursor 战地纪实。一条正史，一条野史，双向时间树记录 AI 编程纪元与 Cursor 的光与影。仅作记录，不构成立场。">
+<title>UMBRELLA 4365 · Cursor 战地纪实——Cursor 大事记 / AI 编程编年史</title>
+<meta name="description" content="Cursor 大事记与 AI 编程编年史：一条正史（融资、发布、并购），一条野史（漏洞、套利、事故），双向时间树完整记录 Cursor 从创立至今的每一个关键节点。仅作记录，不构成立场。">
 <link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <!-- 社交分享卡片（分享到微信/推特/群聊时的门面） -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="UMBRELLA 4365">
 <meta property="og:title" content="UMBRELLA 4365 · Cursor 战地纪实">
 <meta property="og:description" content="AI一日，人间一年。一条正史，一条野史，记录 Cursor 与 AI 编程圈的光与影。">
-<meta property="og:url" content="https://umbrella4365.com/">
-<meta property="og:image" content="https://umbrella4365.com/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="UMBRELLA 4365 · Cursor 战地纪实">
 <meta name="twitter:description" content="AI一日，人间一年。正史与野史，记录 Cursor 与 AI 编程圈的光与影。">
-<meta name="twitter:image" content="https://umbrella4365.com/og.png">
 <meta name="theme-color" content="#0a0b0e">
 <meta name="author" content="Cursor Warco · 战地记者">
 <meta property="og:locale" content="zh_CN">
-<link rel="canonical" href="https://umbrella4365.com/">
 <link rel="alternate" type="application/rss+xml" title="UMBRELLA 4365 · 档案更新" href="/feed.xml">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"UMBRELLA 4365 · Cursor 战地纪实","alternateName":["UMBRELLA 4365","Cursor 战地纪实"],"url":"https://umbrella4365.com/","description":"一条正史，一条野史，双向时间树记录 AI 编程纪元与 Cursor 的光与影。仅作记录，不构成立场。","inLanguage":"zh-CN"}</script>
+<!-- canonical / og:url / og:image / 站长验证 / WebSite JSON-LD 由服务端按 SITE_URL 注入（见 server.js homeHeadHTML） -->
 <!--SSR:HEAD-->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=Ma+Shan+Zheng&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
+  /* 字体自托管（境内可达，无渲染阻塞）：mono 取 latin 可变字重子集，手写体只含「野史」印章与签名字符；
+     中文正文/标题直接走系统字体栈（本机装有 Noto 系列的用户自动优先） */
+  @font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal; font-weight: 100 800; font-display: swap;
+    src: local("JetBrains Mono"), url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: "Ma Shan Zheng";
+    font-style: normal; font-weight: 400; font-display: swap;
+    src: local("Ma Shan Zheng"), url("/fonts/mashanzheng-stamp.woff2") format("woff2");
+    unicode-range: U+43, U+57, U+61, U+63, U+6F, U+72-73, U+75, U+53F2, U+91CE;
+  }
   :root {
     --ink:      #0a0b0e;   /* 蜂巢夜幕 */
     --ink-soft: #12141a;
@@ -39,7 +48,7 @@
     --bone-dim: #9aa0a8;
     --steel:    #58606e;
     --spine:    rgba(224, 36, 46, .6);
-    --serif: "Noto Serif SC", "STSong", serif;
+    --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif;
     --sans:  "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
     --hand:  "Ma Shan Zheng", "KaiTi", cursive;
     --mono:  "JetBrains Mono", "Consolas", monospace;
@@ -172,6 +181,7 @@
   /* 详情：线索时间线 */
   .dossier .thread { margin: 14px 0; padding: 12px 14px; border: 1px dashed rgba(224,36,46,.4); }
   .dossier .thread .th-hd { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; margin-bottom: 10px; }
+  .dossier .thread .th-hd a { color: inherit; }
   .dossier.d-main .thread .th-hd { color: #a01820; }
   .dossier.d-dark .thread .th-hd { color: var(--umb-hi); }
   .dossier .thread .node2 { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; font-size: 12.5px; line-height: 1.5; }
@@ -437,6 +447,9 @@
 
   .foot-note { position: relative; z-index: 1; text-align: center; font-size: 10.5px; color: var(--bone-dim); opacity: .75; padding: 26px 20px 30px; font-family: var(--mono); letter-spacing: .06em; }
   .foot-note a { color: var(--umb-hi); text-decoration: none; }
+  .foot-note .foot-nav { margin-bottom: 12px; line-height: 2.2; }
+  .foot-note .foot-nav a { color: var(--bone-dim); border-bottom: 1px dashed rgba(224,36,46,.4); }
+  .foot-note .foot-nav a:hover { color: var(--umb-hi); }
 
   /* ================= 档案调阅弹层 ================= */
   .overlay {
@@ -570,8 +583,9 @@
 </div>
 
 <footer class="foot-note">
+  <!--SSR:FOOT-->
   UMBRELLA 4365 ARCHIVE · 基于公开报道与场外情报整理 · 野史含演绎 仅作记录 不构成立场<br>
-  记者本人是 Cursor 重度用户 · <a href="https://umbrella4365.com">umbrella4365.com</a> · <a href="/feed.xml">RSS</a> · <a href="/llms.txt">llms.txt</a>
+  记者本人是 Cursor 重度用户 · <a href="/about">关于本站</a> · <a href="https://umbrella4365.com">umbrella4365.com</a> · <a href="/feed.xml">RSS</a> · <a href="/llms.txt">llms.txt</a>
 </footer>
 
 <!-- ================= 档案调阅弹层 ================= -->
@@ -796,7 +810,7 @@ function openDossier(id) {
     const span = arr.length >= 2 ? daysBetween(arr[0].date, arr[arr.length - 1].date) : 0;
     threadHtml = `
       <div class="thread">
-        <div class="th-hd">◈ 事件线索 · ${esc(ev.series)}（${arr.length} 个节点）</div>
+        <div class="th-hd">◈ 事件线索 · ${esc(ev.series)}（${arr.length} 个节点）· <a href="/s/${encodeURIComponent(ev.series)}" title="查看该线索的聚合页">线索专页 »</a></div>
         ${arr.map(e => e.id === ev.id
           ? `<div class="node2 cur"><span class="d">${dot(e.date)}</span><span>${esc(e.title)}（本条）</span></div>`
           : `<div class="node2"><span class="d">${dot(e.date)}</span><a href="/ev/${e.id}" data-jump="${e.id}" title="调阅该档案">${esc(e.title)} »</a></div>`).join('')}
@@ -821,7 +835,7 @@ function openDossier(id) {
         <span>${esc(ev.tag)}</span>
       </div>
       <h2>${esc(ev.title)}</h2>
-      ${ev.image ? `<div class="pic"><img src="${esc(ev.image)}" alt=""></div>` : ''}
+      ${ev.image ? `<div class="pic"><img src="${esc(ev.image)}" alt="${esc(ev.title)}" decoding="async"></div>` : ''}
       <div class="sum">${esc(ev.summary)}</div>
       <div class="txt">${paras || '<p>（暂无详细描述）</p>'}</div>
       ${threadHtml}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>icon render · 按窗口尺寸自适应</title>
+<!--
+  favicon / apple-touch-icon 渲染源（做法同 og-render.html：本地渲染后导出位图）。
+  logo 直接内联（与 public/logo.svg 同源），避免 headless 截图时图片未加载完的竞态。
+  用 headless Chrome/Edge 按不同窗口尺寸各截一张：
+    chrome --headless=new --screenshot=public/apple-touch-icon.png --window-size=180,180 file:///.../icon-render.html
+    chrome --headless=new --screenshot=drafts/favicon-32.png      --window-size=32,32   file:///.../icon-render.html
+    chrome --headless=new --screenshot=drafts/favicon-16.png      --window-size=16,16   file:///.../icon-render.html
+  然后 node drafts/make-favicon.js 把 32/16 两张打包成 public/favicon.ico（PNG-in-ICO）。
+-->
+<style>
+  html, body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; background: #0a0b0e; }
+  body { display: flex; align-items: center; justify-content: center; }
+  svg { width: 82vmin; height: 82vmin; display: block; }
+</style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.6"/>
+    </filter>
+  </defs>
+  <polygon points="60,6 106.77,33 106.77,87 60,114 13.23,87 13.23,33"
+           fill="none" stroke="#e0242e" stroke-width="5" opacity=".3" filter="url(#glow)"/>
+  <g stroke="#e9e6df" stroke-width="1.4" opacity=".22">
+    <line x1="60" y1="60" x2="60" y2="6"/>
+    <line x1="60" y1="60" x2="13.23" y2="87"/>
+    <line x1="60" y1="60" x2="106.77" y2="87"/>
+  </g>
+  <g stroke="#0a0b0e" stroke-width=".8" stroke-linejoin="round">
+    <path d="M60,60 L44.69,23.04 Q60,27 75.31,23.04 Z" fill="#e0242e"/>
+    <path d="M60,60 L75.31,23.04 Q83.33,36.67 96.96,44.69 Z" fill="#e9e6df"/>
+    <path d="M60,60 L96.96,44.69 Q93,60 96.96,75.31 Z" fill="#e0242e"/>
+    <path d="M60,60 L96.96,75.31 Q83.33,83.33 75.31,96.96 Z" fill="#e9e6df"/>
+    <path d="M60,60 L75.31,96.96 Q60,93 44.69,96.96 Z" fill="#e0242e"/>
+    <path d="M60,60 L44.69,96.96 Q36.67,83.33 23.04,75.31 Z" fill="#e9e6df"/>
+    <path d="M60,60 L23.04,75.31 Q27,60 23.04,44.69 Z" fill="#e0242e"/>
+    <path d="M60,60 L23.04,44.69 Q36.67,36.67 44.69,23.04 Z" fill="#e9e6df"/>
+  </g>
+  <polygon points="60,6 106.77,33 106.77,87 60,114 13.23,87 13.23,33"
+           fill="none" stroke="#e9e6df" stroke-width="2.4"/>
+  <circle cx="60" cy="60" r="7.5" fill="#0a0b0e"/>
+  <rect x="56.5" y="51" width="7" height="18" rx="1.2" fill="#fff" opacity=".55" filter="url(#glow)"/>
+  <rect x="57.2" y="51.8" width="5.6" height="16.4" rx="1" fill="#f4f2ec"/>
+</svg>
+</body>
+</html>

@@ -420,18 +420,16 @@ echo "— 错误密钥拒绝 —";      curl -s -o /dev/null -w "%{http_code}\n"
 内置防爆破策略：同一 IP 15 分钟内密钥错误 5 次，封禁 15 分钟（登录接口与全部写接口共用）。
 重启服务会清空封禁状态（内存态）。
 
-## 11. 提交 sitemap 到搜索引擎（一次性网页操作）
+## 11. 搜索引擎接入与增长（移交 GROWTH.md）
 
-服务器侧的 SEO/GEO 已全部就位：首页 SSR、`/ev/:id` 档案页、robots.txt、sitemap.xml、RSS、
-llms.txt 内置在代码里（见 README「SEO / GEO」），www→裸域 301 已随 5.3 的 Nginx 配置一步到位，
-第 9 步的验收命令也已覆盖全部 SEO 端点。剩下唯一无法用命令完成的事，是到各家控制台提交 sitemap
-（提交一次即可，之后爬虫会自己按 sitemap 的 lastmod 回访）：
+服务器侧的 SEO/GEO 已全部就位：首页 SSR、`/ev/:id` 档案页、`/s/:slug` 线索聚合页、`/y/:year`
+年份大事记、`/about`、robots.txt、sitemap.xml、RSS、llms.txt、百度主动推送内置在代码里
+（见 README「SEO / GEO」），www→裸域 301 已随 5.3 的 Nginx 配置一步到位，第 9 步的验收命令
+也已覆盖全部 SEO 端点。
 
-| 平台 | 入口 | 动作 |
-| --- | --- | --- |
-| Google Search Console | search.google.com/search-console | 验证域名后提交 `https://umbrella4365.com/sitemap.xml` |
-| Bing Webmaster Tools | bing.com/webmasters | 可直接从 GSC 导入；覆盖 Bing/DuckDuckGo/ChatGPT 搜索 |
-| 百度搜索资源平台 | ziyuan.baidu.com | 验证站点后提交 sitemap（大陆流量主要来源） |
+剩下的人工动作——站长平台验证与 sitemap 提交（含 `BAIDU_SITE_VERIFY` / `BAIDU_PUSH_TOKEN` /
+`GOOGLE_SITE_VERIFY` / `BING_SITE_VERIFY` 四个环境变量的获取与配置）、社区分发、外链建设与
+复盘节奏，全部收录在 **[GROWTH.md](GROWTH.md)（增长作战手册）**，按其第 0 节的时序执行。
 
 ## 附录 A · Docker 部署（可选路线）
 

@@ -16,6 +16,7 @@
 | `PROJECT_BIBLE.md`（本文档） | 设定、风格、调性、固定文案、后台使用、已定决策与禁忌 |
 | `README.md` | 技术说明书：功能清单、数据模型、API、环境变量、SEO/GEO 实现 |
 | `DEPLOY.md` | 云部署手册：Nginx + HTTPS + systemd + 备份 + 验收清单 |
+| `GROWTH.md` | 增长作战手册：站长平台接入、社区分发、外链建设、目标关键词与复盘节奏 |
 | `.cursor/skills/warco-chronicler/`（含 `references/fields-and-voice.md`） | 档案撰写执行规范：逐字段规则、正史/野史文风范例、术语纪律 |
 | `.cursor/skills/warco-scout/`（含 `references/sources.md`） | 档案侦察执行规范：信源分级清单、查缺/增量两种搜集模式 |
 | `drafts/style-samples-2026-08-28.md` | 文体定稿的决策存档（当年备选方向对比，只读不改） |
@@ -146,12 +147,14 @@ Cursor Warco，战地记者。核心身份感：**是 Cursor 重度用户，正�
 
 | 变量 | 字体 | 用途 |
 | --- | --- | --- |
-| `--serif` | Noto Serif SC（600/900） | 报头标题、卡片标题、弹层标题——「特稿」气质 |
-| `--sans` | Noto Sans SC | 正文 |
-| `--hand` | Ma Shan Zheng（楷体风手写） | 野史印章、战地手记签名——「人手盖章」气质 |
-| `--mono` | JetBrains Mono | 日期、编号、元信息、按钮、全部后台——「终端」气质 |
+| `--serif` | Noto Serif SC → 系统衬线（宋体/Songti SC）回退 | 报头标题、卡片标题、弹层标题——「特稿」气质 |
+| `--sans` | Noto Sans SC → 苹方/雅黑回退 | 正文 |
+| `--hand` | Ma Shan Zheng（楷体风手写，自托管子集） | 野史印章、战地手记签名——「人手盖章」气质 |
+| `--mono` | JetBrains Mono（自托管 latin 子集） | 日期、编号、元信息、按钮、全部后台——「终端」气质 |
 
-Google Fonts 引入；后台只用 sans + mono。
+2026-08-29 起不再引 Google Fonts（境内不可达，阻塞渲染拖垮百度页面体验分）：中文字体直接走
+系统字体栈（本机装有 Noto 系列的用户自动优先）；mono 与手写体的子集 woff2 自托管在
+`public/fonts/`（共 34KB，手写体只含「野史」印章与签名字符）。后台只用 sans + mono。
 
 ### 3.3 纹理与氛围
 
@@ -297,6 +300,7 @@ warco-scout 侦察（查缺 / 增量）
 | 日期 | 事件 |
 | --- | --- |
 | 2026-08-27 | 全栈上线：双线时间树前台 + SQLite 后台 + 部署文档；同日连发：访客监控、战地手记、事件线索与信源体系、后台分页排序、SEO/GEO（SSR + `/ev/:id` + robots/sitemap/RSS/llms.txt） |
+| 2026-08-29 | SEO/GEO 强化：聚合着陆页矩阵（`/s/:slug` 线索页 ×10 + `/y/:year` 年份页 + `/about`，slug 与导语配置在 `server.js` `SERIES_PAGES`）、移除 Google Fonts 改字体子集自托管、首页 head 动态化 + title 补搜索词、百度主动推送钩子与站长验证 meta（环境变量）、brotli、BreadcrumbList、favicon 全家桶（`drafts/icon-render.html` 渲染源）；新增 `GROWTH.md` 增长作战手册 |
 | 2026-08-27 | 种子数据重建为线上快照（53 条） |
 | 2026-08-28 | 种子数据扩至 81 条（补模型军备线与并购前后缺环）；新增 warco-scout 侦察 skill（沉淀信源清单） |
 | 2026-08-28 | **全站文案改版定稿**：正史·杂志特稿体 / 野史·红后终端体，库内档案全量重写（84 条） |
@@ -338,5 +342,7 @@ warco-scout 侦察（查缺 / 增量）
 
 - [ ] 「4365」取名的完整心证未留档（见第 1 节），站长想起来请补。
 - [ ] **线上库全删全增待执行**：`drafts/full-rewrite-2026-08-29.sql`（一次性带上检出/灭活改词 + 新增 5 条，合计 89 条）。服务器上 git pull → 备份库 → `sudo -u umbrella sqlite3 data/chronicle.db ".read drafts/full-rewrite-2026-08-29.sql"` → `systemctl restart umbrella4365`（SQL 文件头有完整注释）。注意全删全增会重排 /ev/:id，旧分享链接会指向新档案。执行后勾掉本项。
+  **⚠ 时序硬约束（2026-08-29 SEO 改造后）**：本项必须在向搜索引擎提交 sitemap / 开百度推送**之前**执行完毕（完整时序见 `GROWTH.md` 第 0 节）；此后档案 id 视为永久 URL，不再全删全增，修订走后台逐条编辑。
+- [ ] **新线索记得配聚合页**：后台录入用了新的 series 名后，把 slug + 搜索友好标题 + 导语补进 `server.js` 的 `SERIES_PAGES`（未配置会回退中文 URL，能用但搜索表现打折）。
 - [ ] `README.md` 目录结构一节中 seed 条数描述曾长期滞后于快照（已于 2026-08-29 修正为 84 条口径）；今后重建 seed 快照时记得顺手更新 README 与本文档第 8 节。
 - [ ] 现役 series 清单（4.4 节）与线索分布（8 节）以线上 DB 为准，本文档记录的是 2026-08-28 快照口径。
