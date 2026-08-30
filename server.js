@@ -948,6 +948,12 @@ const SERIES_PAGES = {
     h1: '「假焚诀」套利窗口全记录',
     lead: '把贵价模型的消耗记在 Auto 名下的「假焚诀」，从场外检出到官方两本账合一。本线索完整记录该套利窗口从检出到灭活的全过程。',
   },
+  '风帆易主': {
+    slug: 'windsurf-saga',
+    title: 'Windsurf 三日易主全过程：OpenAI 告吹、谷歌摘人、Cognition 接盘',
+    h1: 'Windsurf 三日易主全过程',
+    lead: 'OpenAI 以 30 亿美元收购 Windsurf 的协议在 2025 年 7 月告吹，Google 当天以约 24 亿美元反向收编创始团队，三天后 Cognition 收购余部。本线索按时间收录这场 AI 编程战争中最快的一次资产处置。',
+  },
 };
 const seriesBySlug = new Map(Object.entries(SERIES_PAGES).map(([name, c]) => [c.slug, name]));
 const seriesPath = name => `/s/${(SERIES_PAGES[name] && SERIES_PAGES[name].slug) || encodeURIComponent(name)}`;
