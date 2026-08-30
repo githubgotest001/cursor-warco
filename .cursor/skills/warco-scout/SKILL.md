@@ -21,15 +21,18 @@ description: 为 UMBRELLA 4365 / Cursor 战地纪实网站自动搜集并生成�
 
 ## 工作流
 
-### 1. 读库（永远第一步）
+### 1. 刷新镜像并读库（永远第一步）
 
 ```powershell
-node -e "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('data/chronicle.db',{readOnly:true});const rows=db.prepare('SELECT id,side,date,tag,title,series FROM events ORDER BY date ASC').all();for(const r of rows){console.log([r.id,r.side,r.date,r.tag,r.title,r.series].join(' | '))};console.log('TOTAL:',rows.length)"
+node sync.js pull   # 线上 → 本地：档案全量镜像 + 引用图片（线上库才是唯一真源）
+node -e "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('data/chronicle.db',{readOnly:true});const rows=db.prepare('SELECT id,side,date,tag,title,series,front FROM events ORDER BY date ASC').all();for(const r of rows){console.log([r.id,r.side,r.date,r.tag,r.title,r.series,r.front].join(' | '))};console.log('TOTAL:',rows.length)"
 ```
 
-- 库为 WAL 模式，只读打开即可，不要写。
+- **先 `node sync.js pull` 再读**：本地库只是线上库的只读镜像，pull 保证不基于过期数据做判断（离线/pull 失败时才可直接读旧镜像，并向用户说明镜像时间可能滞后）。
+- 库为 WAL 模式，只读打开即可，不要写；**改动回写永远走线上**（后台或 REST API 逐条），不改本地库。
 - 如需看某条 detail（判断某事件是否已被「顺带写过」），单独 SELECT 该条。
-- **`seed.js` 只是快照，不是现状**——一切以 DB 为准。
+- 仓库里没有种子数据（seed.js 已退役）——档案数据只存在于线上库与本地镜像两处。
+- **顺手看哨兵队列**：`data/sentinel-queue.md` 是信源哨兵（`tools/sentinel.js`，定时轮询 L0/L2 信源）攒下的新信号清单。增量侦察先消化队列里未处理的段落（命中的直接进入查证，不用再盲扫），消化完在该段落标一行「（已消化 YYYY-MM-DD）」。队列不存在说明哨兵还没跑过，正常走检索配方。
 
 ### 2. 圈定侦察范围
 
@@ -74,10 +77,12 @@ node -e "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('
 
 ### 7. 写文案 → 交付
 
-- 按 warco-chronicler 的字段规范与文风写（先读它的 references）。
+- 按 warco-chronicler 的字段规范与文风写（先读它的 references）。邻圈事件（Claude Code / Codex / Copilot / Windsurf / 国产工具 / 模型厂商自身的大事）补 `front` 战区代号（可用值见 chronicler 的 fields-and-voice.md；波及 Cursor 用户的事件仍以 Cursor 视角写、front 留空）。
 - 全部草稿写入 `drafts/archive-drafts-YYYY-MM-DD.md`（当天日期），格式见下方模板。
 - 聊天里给一份**摘要清单**（序号 / 正野 / 日期 / 标题 / 一句话 + 最要紧的核查提示），全文不必重复贴。
-- **永远不写库**。录入是用户的动作；用户明确说「帮我录」时才走 `POST /api/events`（见 chronicler skill）。
+- **永远不直接进正册**。录入（发布为正式档案）是用户的动作。两种交付升级（都要用户说了才做）：
+  - 用户说「投到收件箱」→ `POST <线上>/api/drafts`（`X-Admin-Key`，字段同档案 + `verify` 核查要点 + `origin: 'scout'`）——草稿态入库，站长在后台「收件箱」逐条审核发布，这仍属「交草稿」不属「录入」。
+  - 用户说「帮我录」→ `POST /api/events` 直接发布（见 chronicler skill），慎用。
 
 ## 草稿文件格式模板
 

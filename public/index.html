@@ -2,7 +2,6 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="baidu-site-verification" content="codeva-9wYk6OGwkF" />
 <script>document.documentElement.classList.add('js');/* 入场动画只在 JS 可用时启用，保证爬虫/无 JS 环境内容可见 */</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UMBRELLA 4365 · Cursor 战地纪实——Cursor 大事记 / AI 编程编年史</title>
@@ -143,6 +142,20 @@
   /* 方位文案：桌面显示"脊柱左右"，移动端切换为"浅色/深色档案" */
   .lr-m { display: none; }
 
+  /* 情报站导航条：作战室 / 周刊 / 数据页 / 线报 / 支援 */
+  .stationnav {
+    display: flex; gap: 14px; flex-wrap: wrap; align-items: baseline;
+    padding: 6px 2px 8px; border-top: 1px solid rgba(224,36,46,.18);
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+  }
+  .stationnav a {
+    color: var(--bone-dim); text-decoration: none; white-space: nowrap;
+    border-bottom: 1px dashed rgba(224,36,46,.4); padding-bottom: 1px;
+    transition: color .2s ease;
+  }
+  .stationnav a:hover { color: var(--umb-hi); }
+  .stationnav .grow { flex: 1; }
+
   /* 收录统计 + 筛选 */
   .legend-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .legend .count { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--bone-dim); }
@@ -156,6 +169,15 @@
   .filter button:first-child { border-left: none; }
   .filter button:hover { color: var(--bone); background: rgba(224,36,46,.1); }
   .filter button.on { background: var(--umb); color: #fff; font-weight: 700; }
+
+  /* 战区徽标（卡片上，非 Cursor 主战线的档案标注） */
+  .card .front-tag {
+    display: inline-block; margin: -1px 0 5px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .14em;
+    padding: 0 6px; border: 1px solid currentColor; opacity: .72; white-space: nowrap;
+  }
+  .card.c-main .front-tag { color: #a01820; }
+  .card.c-dark .front-tag { color: var(--umb-hi); }
 
   /* 线索徽标（卡片上） */
   .card .series-tag {
@@ -451,6 +473,41 @@
   .foot-note .foot-nav { margin-bottom: 12px; line-height: 2.2; }
   .foot-note .foot-nav a { color: var(--bone-dim); border-bottom: 1px dashed rgba(224,36,46,.4); }
   .foot-note .foot-nav a:hover { color: var(--umb-hi); }
+  .foot-note .foot-sponsor { margin: 4px 0 12px; letter-spacing: .1em; }
+  .foot-note .foot-sponsor a { border-bottom: 1px dashed rgba(224,36,46,.5); }
+
+  /* 线报投递表单（调阅弹层内） */
+  .tip-form { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; }
+  .tip-form textarea, .tip-form input {
+    font-family: var(--sans); font-size: 13px;
+    background: rgba(10,11,14,.6); color: #efdada;
+    border: 1px dashed rgba(224,36,46,.5); padding: 9px 11px; outline: none; width: 100%;
+  }
+  .tip-form textarea:focus, .tip-form input:focus { border-style: solid; border-color: var(--umb); box-shadow: 0 0 10px rgba(224,36,46,.25); }
+  .tip-form textarea { resize: vertical; line-height: 1.8; }
+  .tip-form .tip-send {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .24em;
+    background: var(--umb); color: #fff; border: 1px solid rgba(255,255,255,.25);
+    padding: 10px; cursor: pointer; transition: background .2s ease;
+  }
+  .tip-form .tip-send:hover { background: #f0333d; }
+  .tip-form .tip-msg { font-family: var(--mono); font-size: 11px; color: var(--umb-hi); min-height: 14px; }
+
+  /* 联络与支援（调阅弹层内） */
+  .support-ch .ch { display: flex; gap: 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid rgba(224,36,46,.14); font-size: 12.5px; }
+  .support-ch .ch:last-child { border-bottom: none; }
+  .support-ch .ch .k { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; color: var(--bone-dim); white-space: nowrap; min-width: 64px; }
+  .support-ch .ch a { color: #ffd9d4; text-decoration: none; border-bottom: 1px dashed rgba(224,36,46,.5); word-break: break-all; }
+  .support-ch .ch a:hover { color: var(--umb-hi); }
+  .support-ch .ch b { color: #ffd9d4; }
+  .dossier .donate {
+    display: block; margin-top: 14px; padding: 12px; text-align: center; text-decoration: none;
+    font-family: var(--mono); font-size: 12px; letter-spacing: .18em;
+    background: var(--umb); color: #fff; border: 1px solid rgba(255,255,255,.25);
+    box-shadow: 0 0 16px rgba(224,36,46,.35);
+  }
+  .dossier .donate:hover { background: #f0333d; }
+  .dossier .dim2 { font-size: 12px; color: var(--bone-dim); margin-top: 12px; line-height: 1.9; }
 
   /* ================= 档案调阅弹层 ================= */
   .overlay {
@@ -571,6 +628,16 @@
       </div>
     </div>
   </div>
+  <nav class="stationnav" aria-label="情报站导航">
+    <a href="/warroom">◈ 红后作战室</a>
+    <a href="/w">战报周刊</a>
+    <a href="/d/windows">套利窗口史</a>
+    <a href="/d/versions">版本史</a>
+    <a href="/d/funding">融资史</a>
+    <span class="grow"></span>
+    <a href="#tip" id="tipLink" title="向红后投递线报">☏ 提供线报</a>
+    <a href="#support" id="supportLink" title="订阅渠道与支援方式">⛨ 支援本刊</a>
+  </nav>
 </header>
 
 <!-- ================= 垂直时间树 ================= -->
@@ -604,6 +671,16 @@ const PHASES = {
   '2026': { a: 'PHASE-IV 吞并纪元 · ASSIMILATION', b: '暗面信号追踪中…' },
 };
 const phaseOf = y => PHASES[y] || { a: `PHASE-? 观测中 · ${y}`, b: '暗面信号追踪中…' };
+
+/* 战区名册（与 server.js 的 FRONTS 保持一致；'' = Cursor 主战线不标注） */
+const FRONTS = {
+  'claude-code': 'CLAUDE CODE 战区',
+  'codex': 'CODEX 战区',
+  'copilot': 'COPILOT 战区',
+  'windsurf': 'WINDSURF 战区',
+  'cn-tools': '国产工具战线',
+  'model-labs': '模型厂商战区',
+};
 
 const track = document.getElementById('track');
 const LENS = [40, 112, 72];
@@ -641,6 +718,8 @@ function bindThread() {
 }
 function openFromHash() {
   if (location.hash === '#memo') { setTimeout(openMemo, 400); return; }
+  if (location.hash === '#tip') { setTimeout(openTip, 400); return; }
+  if (location.hash === '#support') { setTimeout(openSupport, 400); return; }
   const m = location.hash.match(/^#ev-(\d+)$/);
   if (m && EVENTS.some(e => e.id === Number(m[1]))) setTimeout(() => openDossier(Number(m[1])), 400);
 }
@@ -733,11 +812,12 @@ function render() {
       const no = (ev.side === 'main' ? 'A-' : 'X-') + String(ev.id).padStart(3, '0');
       const thumb = ev.image ? `<div class="thumb"><img src="${esc(ev.image)}" alt="${esc(ev.title)}" loading="lazy" decoding="async"></div>` : '';
       const seriesTag = ev.series ? `<span class="series-tag" data-series="${esc(ev.series)}">◈ ${esc(ev.series)}</span>` : '';
+      const frontTag = ev.front ? `<span class="front-tag">⌖ ${esc(FRONTS[ev.front] || ev.front)}</span>` : '';
       const cardHTML = `
         <article class="card c-${ev.side}" data-id="${ev.id}">
           ${ev.side === 'dark' ? '<span class="stamp">野史</span>' : ''}
           <div class="head"><span class="tag">${esc(ev.tag) || '记录'}</span><span class="no">${no}</span></div>
-          <time datetime="${esc(ev.date)}">${dot(ev.date)}</time>
+          <time datetime="${esc(ev.date)}">${dot(ev.date)}</time>${frontTag}
           <h3>${esc(ev.title)}</h3>
           ${thumb}
           <p>${esc(ev.summary)}</p>
@@ -833,7 +913,8 @@ function openDossier(id) {
       <div class="meta">
         <span class="side-tag">${isMain ? '正史 · 官方档案' : '野史 · 场外情报'}</span>
         <span>${dot(ev.date)}</span>
-        <span>${esc(ev.tag)}</span>
+        <span>${esc(ev.tag)}</span>${ev.front ? `
+        <span>⌖ ${esc(FRONTS[ev.front] || ev.front)}</span>` : ''}
       </div>
       <h2>${esc(ev.title)}</h2>
       ${ev.image ? `<div class="pic"><img src="${esc(ev.image)}" alt="${esc(ev.title)}" decoding="async"></div>` : ''}
@@ -865,7 +946,7 @@ function openDossier(id) {
 function closeDossier() {
   overlay.classList.remove('open');
   document.body.style.overflow = '';
-  if (location.hash.indexOf('#ev-') === 0 || location.hash === '#memo') history.replaceState(null, '', location.pathname + location.search);
+  if (/^#(ev-|memo$|tip$|support$)/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
 }
 
 /* ============ 战地手记：记者私话，按零号档案调阅 ============ */
@@ -907,6 +988,93 @@ function openMemo() {
     setTimeout(() => { btn.textContent = '⧉ 链接'; }, 1500);
   };
 }
+/* ============ 线报投递：向红后收件箱匿名投稿 ============ */
+function openTip() {
+  dossier.className = 'dossier d-dark';
+  dossier.innerHTML = `
+    <div class="bar">
+      <span>INTEL DROP · 向红后投递线报</span>
+      <span class="acts"><button id="closeD" title="关闭">✕</button></span>
+    </div>
+    <div class="body">
+      <div class="meta"><span class="side-tag">线报投递 · 匿名可投</span><span>不留明文 IP</span></div>
+      <h2>观测到了什么？</h2>
+      <div class="txt"><p>新的套利窗口、故障、变阵、传闻——写清楚「现象 + 时间 + 在哪看到」。线报经交叉查证后立档，查证不过不上墙；留联系方式则采纳后致谢。</p></div>
+      <form class="tip-form" id="tipForm">
+        <textarea id="tipContent" rows="5" maxlength="1000" placeholder="例：8.30 起封闭频道流传一种新玩法，实测……（8–1000 字）" required></textarea>
+        <input id="tipUrl" type="url" maxlength="300" placeholder="相关链接（可选）">
+        <input id="tipContact" type="text" maxlength="120" placeholder="联系方式（可选：TG / 邮箱 / X）">
+        <input id="tipWebsite" type="text" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
+        <button type="submit" class="tip-send">投 递 线 报</button>
+        <span class="tip-msg" id="tipMsg"></span>
+      </form>
+      <div class="foot">UMBRELLA 4365 · INTEL DROP · 仅作记录 · 不构成立场</div>
+    </div>
+  `;
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  history.replaceState(null, '', '#tip');
+  document.getElementById('closeD').onclick = closeDossier;
+  document.getElementById('tipForm').onsubmit = async e => {
+    e.preventDefault();
+    const msg = document.getElementById('tipMsg');
+    msg.textContent = '投递中…';
+    try {
+      const res = await fetch('/api/tips', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: document.getElementById('tipContent').value.trim(),
+          url: document.getElementById('tipUrl').value.trim(),
+          contact: document.getElementById('tipContact').value.trim(),
+          website: document.getElementById('tipWebsite').value,
+        }),
+      });
+      const d = await res.json();
+      msg.textContent = d.ok ? '✓ 已进入红后收件箱 · 感谢线报' : '✕ ' + (d.error || '投递失败');
+      if (d.ok) document.getElementById('tipForm').reset();
+    } catch { msg.textContent = '✕ 网络异常 · 稍后再试'; }
+  };
+}
+
+/* ============ 联络与支援：订阅渠道 + 打赏（后台「系统」页配置，未配置的项自动隐藏） ============ */
+function openSupport() {
+  const L = window.__LINKS__ || {};
+  const chs = [
+    `<div class="ch"><span class="k">RSS</span><a href="/feed.xml">/feed.xml —— 新档案与每周战报合流推送</a></div>`,
+    `<div class="ch"><span class="k">战报周刊</span><a href="/w">/w —— 每周五分钟跟上战况</a></div>`,
+    L.tgUrl ? `<div class="ch"><span class="k">TG 频道</span><a href="${esc(L.tgUrl)}" target="_blank" rel="noopener">${esc(L.tgUrl)}</a></div>` : '',
+    L.xUrl ? `<div class="ch"><span class="k">X / 推特</span><a href="${esc(L.xUrl)}" target="_blank" rel="noopener">${esc(L.xUrl)}</a></div>` : '',
+    L.wechatId ? `<div class="ch"><span class="k">公众号</span><b>${esc(L.wechatId)}</b></div>` : '',
+    L.contactEmail ? `<div class="ch"><span class="k">联络邮箱</span><a href="mailto:${esc(L.contactEmail)}">${esc(L.contactEmail)}</a></div>` : '',
+  ].filter(Boolean).join('');
+  const donate = L.donateUrl
+    ? `<a class="donate" href="${esc(L.donateUrl)}" target="_blank" rel="noopener">⛨ 支援本刊 · 为红后续电 »</a>`
+    : `<p class="dim2">打赏通道筹备中——先把 RSS 订上，让战报找到你；有线报也是最好的支援。</p>`;
+  dossier.className = 'dossier d-dark';
+  dossier.innerHTML = `
+    <div class="bar">
+      <span>SUPPLY LINE · 订阅与支援</span>
+      <span class="acts"><button id="closeD" title="关闭">✕</button></span>
+    </div>
+    <div class="body">
+      <div class="meta"><span class="side-tag">联络与支援</span><span>独立运营 · 无广告绑架</span></div>
+      <h2>跟上战况的所有方式</h2>
+      <div class="support-ch">${chs}</div>
+      ${donate}
+      <div class="foot">UMBRELLA 4365 · SUPPLY LINE · 仅作记录 · 不构成立场</div>
+    </div>
+  `;
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  history.replaceState(null, '', '#support');
+  document.getElementById('closeD').onclick = closeDossier;
+}
+
+const tipLink = document.getElementById('tipLink');
+if (tipLink) tipLink.addEventListener('click', e => { e.preventDefault(); openTip(); });
+const supportLink = document.getElementById('supportLink');
+if (supportLink) supportLink.addEventListener('click', e => { e.preventDefault(); openSupport(); });
+
 /* 报头署名同为手记暗门 */
 document.querySelector('.byline').addEventListener('click', openMemo);
 document.querySelector('.byline').title = '战地手记 · OFF THE RECORD';

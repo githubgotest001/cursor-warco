@@ -17,8 +17,11 @@
 | `README.md` | 技术说明书：功能清单、数据模型、API、环境变量、SEO/GEO 实现 |
 | `DEPLOY.md` | 云部署手册：Nginx + HTTPS + systemd + 备份 + 验收清单 |
 | `GROWTH.md` | 增长作战手册：站长平台接入、社区分发、外链建设、目标关键词与复盘节奏 |
+| `AUTOMATION.md` | 自动化手册：哨兵 / 侦察 / 战报 / 扇出的 agent 编辑部规程与人工闸口 |
 | `.cursor/skills/warco-chronicler/`（含 `references/fields-and-voice.md`） | 档案撰写执行规范：逐字段规则、正史/野史文风范例、术语纪律 |
 | `.cursor/skills/warco-scout/`（含 `references/sources.md`） | 档案侦察执行规范：信源分级清单、查缺/增量两种搜集模式 |
+| `.cursor/skills/warco-dispatch/` | 每周战报汇编规范：战报体、固定结构、期号纪律 |
+| `.cursor/skills/warco-herald/` | 分发文案规范：各渠道口音、不教唆红线、链接纪律 |
 | `drafts/style-samples-2026-08-28.md` | 文体定稿的决策存档（当年备选方向对比，只读不改） |
 
 文体细则以 skill 的 `fields-and-voice.md` 为准，本文档只收录「为什么这么定」和速查摘要。
@@ -191,13 +194,20 @@ Cursor Warco，战地记者。核心身份感：**是 Cursor 重度用户，正�
 
 ### 4.1 数据字段
 
-一条档案 = `side / date / tag / title / summary / detail / image / series / source`（+自动的 `created_at / updated_at`）。逐字段精确规范见 `warco-chronicler/references/fields-and-voice.md`，速记：
+一条档案 = `side / date / tag / title / summary / detail / image / series / source / front`（+自动的 `created_at / updated_at`）。逐字段精确规范见 `warco-chronicler/references/fields-and-voice.md`，速记：
 
 - `date` 记**事件发生/官宣日**，不是写作日；`YYYY-MM-DD`。
 - `title` ≤ 20 字、信息优先（线索列表里只显示日期+标题）。
 - `summary` 一段 60–90 字（时间轴卡片）；`detail` 空行分段（调阅弹层）。
 - `image` 默认留空，**图片永远由站长自备**。
 - `source` 填一条最硬的信源 URL。
+- `front` 战区代号（2026-08-30 起）：**默认空 = Cursor 主战线**；只有主角不是 Cursor 的邻圈档案才填
+  （`claude-code / codex / copilot / windsurf / cn-tools / model-labs`，名册登记在 `server.js` 与
+  `index.html` 的 `FRONTS`）。扩战区纪律：Cursor 是坐标不是被稀释的对象，邻圈只收「改变格局 / 钱 /
+  大批用户体验」量级的事件，宁缺毋滥。
+
+除档案外另有**刊物**（`posts` 表）：`kind=weekly` 每周战报（`/w/期号`，文体与结构见 warco-dispatch skill）、
+`kind=feature` 专题特稿（`/t/slug`，特稿体长文）。刊物走后台「编辑部」管理，draft 态不对外，与档案合流进 RSS。
 
 ### 4.2 文体（2026-08-28 定稿，不再重开讨论）
 
@@ -234,20 +244,22 @@ Cursor Warco，战地记者。核心身份感：**是 Cursor 重度用户，正�
 
 ---
 
-## 5. 内容生产流水线
+## 5. 内容生产流水线（2026-08-30 起为 agent 编辑部形态，详见 AUTOMATION.md）
 
 ```
-warco-scout 侦察（查缺 / 增量）
-   → 交叉查证 → 按 chronicler 规范写草稿 → drafts/archive-drafts-YYYY-MM-DD.md
-   → 站长逐条核对「核查要点」→ 站长自备配图（可选）
-   → 站长录入后台（或明确授权时走 API 代录）
+tools/sentinel.js 哨兵（定时轮询信源，diff 新信号 → data/sentinel-queue.md + TG 提醒）
+   → warco-scout 侦察（消化队列 / 查缺 / 增量 → 交叉查证 → 按 chronicler 规范成稿）
+   → drafts/*.md 或 线上收件箱（POST /api/drafts 草稿态，含「核查要点」）
+   → 【人工闸口】站长在后台「收件箱」逐条审核 → 一键发布为档案（自动触发 SEO 重建 + 百度推送）
+   → warco-herald 扇出（各渠道文案，站长粘贴发布）
+每周：warco-dispatch 汇编战报草稿 → 站长在「编辑部」审阅发布 /w/:issue
 ```
 
-- **录入永远是站长的动作**。AI 默认只交草稿/字段代码块，不写库；仅当明确说「帮我录」时才 `POST /api/events`（请求头 `X-Admin-Key`）。
-- scout 读库永远第一步（`data/chronicle.db` 只读打开），**seed.js 只是快照，一切以 DB 为准**。
+- **录入永远是站长的动作**。AI 默认只交草稿/字段代码块，不写库；仅当明确说「帮我录」时才 `POST <线上地址>/api/events`（请求头 `X-Admin-Key`，地址与密钥在 `data/remote.json`）——**录到线上，不写本地库**。
+- **线上库是唯一真源，本地库只是只读镜像**：scout/分析类工作第一步 `node sync.js pull` 刷新镜像再读（`data/chronicle.db` 只读打开）；改动回写走线上 API 逐条（id 稳定、自动触发 SEO 缓存重建与百度推送），图片用 `node sync.js push-image <文件>` 上传。（seed.js 种子快照已于 2026-08-30 退役删除——静态快照必然过期，且对 AI 分析构成干扰源。）
 - 单条新闻直接说「写一条正史/野史」→ 走 warco-chronicler；批量搜集/查缺补漏 → 走 warco-scout。
 - 配图：外网截图被反爬拦截时，chronicler 可用本地渲染生成「官方公告存证卡」（做法同 `drafts/og-render.html`：写一个定尺寸 HTML 本地渲染后截图）。
-- `drafts/` 内容物：档案草稿（archive-drafts-*.md）、`og-render.html`（og.png 渲染源）、`build-full-rewrite-sql.js`（读 seed.js 生成全删全增 SQL，用于全量改版时同步线上）、`style-samples-2026-08-28.md`（文体决策存档）。
+- `drafts/` 内容物：档案草稿（archive-drafts-*.md）、`og-render.html`（og.png 渲染源）、`icon-render.html` + `make-favicon.js`（favicon/apple-touch-icon 渲染源与打包器）、`full-rewrite-2026-08-29.sql`（**最后一次**全删全增 SQL，独立自包含、待线上执行，执行完即可删）、`style-samples-2026-08-28.md`（文体决策存档）。生成它的 `build-full-rewrite-sql.js` 与数据源 `seed.js` 已随 id 永久化纪律退役删除。
 
 ---
 
@@ -272,25 +284,46 @@ warco-scout 侦察（查缺 / 增量）
 - 顶部卡片：今日 PV/UV、累计 PV/UV；可切换最近 7/14/30/90 天。
 - 四个面板：每日访问趋势条形图、热门路径、**嗅探记录（4xx 异常请求，谁在扫 `/admin`、`/wp-admin` 一目了然）**、来源 Referer。
 - 最近访问明细：时间/路径/状态码/访客（IP 哈希前 8 位）/客户端（UA 解析成「Chrome · Windows」「爬虫 / 机器人」等），每页 30 条。
+
+### 6.4 系统标签页（2026-08-30 起）
+
+- **SEO 接入配置**：百度推送 token、百度/Google/Bing 站长验证码，存服务器 `data/config.json`，
+  **保存即生效免重启**；非空值优先于同名环境变量，清空回落。附「测试百度推送」按钮
+  （把首页推一次百度，直接显示 success/remain 或错误信息，验证 token 链路）。
+- **运维速查**：部署更新、看日志、重启、备份、`sync.js` 等常用指令的展示与一键复制
+  （命令与 `DEPLOY.md` 保持一致，改部署路径时两处同步）。
+- **频道与支援链接**：打赏 / TG / 公众号 / X / 邮箱（前台「⛨ 支援本刊」弹层，配了才显示）
+  与「补给线」赞助位（文案 + 链接都填才上墙，输出带 `rel=sponsored`）。
+
+### 6.5 收件箱 / 编辑部 / 补给线（2026-08-30 起）
+
+- **收件箱**：上半是草稿（侦察 agent 投稿，带「核查要点」，不入正册）——「审核发布」打开档案表单
+  预填草稿内容，改完点「发 布 档 案」即转正；「驳回」保留记录不发布。下半是读者线报（前台匿名投递），
+  标已读 / 删除。标签页角标 = 待审草稿 + 未读线报数。
+- **编辑部**：战报与特稿的建稿 / 编辑 / 发布 / 转草稿。战报期号自动递增建议；「转草稿」会让已发布页
+  404，被收录后慎用。
+- **补给线**：作战室「模型补给表」的行编辑（模型 / 厂商 / 覆盖 / 价格 / 额度 / 状态 / 排序）；
+  断供倒计时类用 `watch` 观察态，撤出用 `removed`（划线显示）。
 - 设计边界（不用担心它撑爆或泄露）：静态资源命中不落库（4xx 一律记录）；同 IP 同路径 60 秒去重；内存攒 50 条或 5 秒批量落库；仅保留 90 天、总量上限 20 万行；**IP 只存加盐哈希不落明文**（盐在 `data/config.json`），路径/UA/Referer 截断 200 字符且渲染全转义（防存储型 XSS）。
 
 ---
 
 ## 7. 技术速查（详见 README.md / DEPLOY.md）
 
-- **栈**：零 npm 依赖，`node:http` + `node:sqlite`，Node ≥ 22.13；默认端口 4365。`node seed.js` 建库灌初始档案，`node server.js` 启动。
-- **文件地图**：`server.js`（静态资源 + REST API + SSR/SEO + 上传 + 鉴权 + 访问记录，单文件）｜`seed.js`（初始档案快照，`require('./seed.js').EVENTS` 可取数据不触发写库）｜`data/chronicle.db`（SQLite，WAL，gitignore）｜`data/config.json`（后台路径 + IP 盐）｜`public/index.html`（前台，样式脚本全内联）｜`public/admin.html`（后台）｜`public/uploads/`（图片，gitignore）。
-- **API**：读公开（`GET /api/events`、`/api/events/:id`、`/api/meta`），写需 `X-Admin-Key`（`POST/PUT/DELETE /api/events*`、`POST /api/upload`、`GET /api/stats`、`POST /api/auth/check`）。
-- **SEO/GEO 已内置**：首页 SSR 直出＋`window.__EVENTS__` 内联、档案独立页 `/ev/:id`（含 JSON-LD、翻页、线索内链）、robots/sitemap/RSS/`llms.txt`/`llms-full.txt`、gzip+ETag、动态产物内存缓存（增删改自动失效）。分享定位：独立页 `/ev/<id>`、站内锚点 `#ev-<id>`、手记 `#memo`。
+- **栈**：零 npm 依赖，`node:http` + `node:sqlite`，Node ≥ 22.13；默认端口 4365。`node sync.js pull` 从线上拉镜像建库，`node server.js` 启动。
+- **文件地图**：`server.js`（静态资源 + REST API + SSR/SEO + 上传 + 鉴权 + 访问记录，单文件）｜`sync.js`（线上 ⇄ 本地同步：pull 镜像 / push-image 传图）｜`data/chronicle.db`（SQLite，WAL，gitignore，本地为只读镜像）｜`data/config.json`（后台路径 + IP 盐 + SEO 接入配置）｜`data/remote.json`（sync.js 的线上地址与密钥，gitignore）｜`public/index.html`（前台，样式脚本全内联）｜`public/admin.html`（后台）｜`public/uploads/`（图片，gitignore）。
+- **API**：读公开（`GET /api/events`、`/api/events/:id`、`/api/meta`、`/api/supply`；`POST /api/tips` 公开限速投递），写需 `X-Admin-Key`（events / posts / drafts / tips 管理 / supply 写 / upload / stats / settings；`POST /api/drafts/:id/publish` 为审核发布）。
+- **SEO/GEO 已内置**：首页 SSR 直出＋`window.__EVENTS__` 内联、档案独立页 `/ev/:id`（含 JSON-LD、翻页、线索内链）、robots/sitemap/RSS/`llms.txt`/`llms-full.txt`、gzip+ETag、动态产物内存缓存（增删改自动失效）。分享定位：独立页 `/ev/<id>`、站内锚点 `#ev-<id>`、手记 `#memo`、线报 `#tip`、支援 `#support`。
+- **情报站页面（2026-08-30 起）**：作战室 `/warroom`（存活窗口 / 最近灭活 / 补给表 / 战线状态，5 分钟缓存）、刊物 `/w`·`/w/:issue`·`/t/:slug`、数据页 `/d/versions`·`/d/funding`（curated 常量在 server.js，更新要补行）·`/d/windows`（全自动推导）。全部进 sitemap 与 llms.txt。
 - **生产架构**：`用户 → Nginx（443，HTTPS 终止，www 301 到裸域）→ Node（127.0.0.1:4365）→ SQLite`；systemd 低权限用户 `umbrella` 守护；每日 4 点 cron 备份 `data/` + `uploads/` 保留 30 份。
 
 ---
 
 ## 8. 数据事实（截至 2026-08-29）
 
-- `seed.js` 当前快照：**89 条（正史 51 / 野史 38）**——2026-08-28 全量改版 84 条 + 2026-08-29 增补 5 条（供给线双档、断供次日野史、9 月双档查缺），按日期升序、id 即时间序。
+- 档案规模：**89 条（正史 51 / 野史 38）**——2026-08-28 全量改版 84 条 + 2026-08-29 增补 5 条（供给线双档、断供次日野史、9 月双档查缺），按日期升序、id 即时间序（以线上库实时数据为准，`node sync.js pull` 后本地可查）。
 - 线索分布：模型军备 12、融资阶梯 7、火箭并购案 7、自研模型线 7、AI 失控档案 3、定价攻防 3、供给线 2、临期锁额 2、Team 席位差 2、假焚诀 2。
-- 本地仓库通常没有 `data/`（gitignore，运行时生成）；**线上数据库才是现状**，seed 是重建用快照。全量改版时用 `drafts/build-full-rewrite-sql.js` 从 seed 生成 SQL 同步线上。
+- 本地仓库通常没有 `data/`（gitignore）；**线上数据库是唯一真源**，本地 `data/chronicle.db` 由 `node sync.js pull` 生成只读镜像。种子快照体系（seed.js + 全删全增）已于 2026-08-30 退役。
 - 时间轴叙事骨架（帮助快速找感觉）：2022 Anysphere 创立（毒株原点）→ 2023 Cursor 上线、「套壳」冷眼、OpenAI 领投种子轮 → 2024 Claude 3.5 点火、A 轮、小孩姐破防、收购 Supermaven → 2025 B/C/D 轮、2.0 与 CTO 离席、客服 Sam 幻觉事故 → 2026 SpaceX 600 亿收购、Grok Bot 下放、盛夏故障潮、各路套利窗口的检出与灭活。
 
 ---
@@ -301,6 +334,8 @@ warco-scout 侦察（查缺 / 增量）
 | --- | --- |
 | 2026-08-27 | 全栈上线：双线时间树前台 + SQLite 后台 + 部署文档；同日连发：访客监控、战地手记、事件线索与信源体系、后台分页排序、SEO/GEO（SSR + `/ev/:id` + robots/sitemap/RSS/llms.txt） |
 | 2026-08-29 | SEO/GEO 强化：聚合着陆页矩阵（`/s/:slug` 线索页 ×10 + `/y/:year` 年份页 + `/about`，slug 与导语配置在 `server.js` `SERIES_PAGES`）、移除 Google Fonts 改字体子集自托管、首页 head 动态化 + title 补搜索词、百度主动推送钩子与站长验证 meta（环境变量）、brotli、BreadcrumbList、favicon 全家桶（`drafts/icon-render.html` 渲染源）；新增 `GROWTH.md` 增长作战手册 |
+| 2026-08-30 | 后台新增「系统」标签页：SEO 接入配置（推送 token / 三家验证码）挪进 `data/config.json` 后台管理、保存即生效免重启（环境变量降为兜底），附百度推送测试按钮与运维指令速查；新增 `sync.js` 同步工具，确立「线上库唯一真源、本地只读镜像、回写走 API」工作流；**seed.js 种子快照体系退役删除**（静态快照必然过期、对 AI 分析构成干扰，本地建库改由 `sync.js pull` 承担） |
+| 2026-08-30 | **情报站升级（档案馆 → 情报站）**：红后作战室 `/warroom`（存活窗口 / 最近灭活 / 模型补给表 / 战线状态镜像）、战报周刊与特稿（`posts` 表 + `/w`·`/t` 页 + 后台「编辑部」）、草稿收件箱（`drafts` 表 + 后台审核发布流）、读者线报（前台匿名投递 + 后台查阅）、三张数据页 `/d/versions`·`/d/funding`·`/d/windows`、`front` 战区字段（扩圈至 AI 编程全线）、信源哨兵 `tools/sentinel.js` + 新 skill `warco-dispatch`（战报）与 `warco-herald`（扇出）、支援/赞助位配置化；新增 `AUTOMATION.md` 自动化手册。老库升级：`node tools/migrate-2026-08-30.js` |
 | 2026-08-27 | 种子数据重建为线上快照（53 条） |
 | 2026-08-28 | 种子数据扩至 81 条（补模型军备线与并购前后缺环）；新增 warco-scout 侦察 skill（沉淀信源清单） |
 | 2026-08-28 | **全站文案改版定稿**：正史·杂志特稿体 / 野史·红后终端体，库内档案全量重写（84 条） |
@@ -336,13 +371,22 @@ warco-scout 侦察（查缺 / 增量）
 14. 「本系统不删除记录」是红后的人设——事件的后续发展靠新立档案并用 series 串联，不靠悄悄改写旧档案（后台编辑用于修错别字/补信源，不用于改写叙事）。
 15. 新增年份记得补 `PHASES` 表（见 2.4），否则前台显示「PHASE-? 观测中」。
 
+**情报站侧（2026-08-30 定稿）**
+
+16. **不教唆红线**：套利 / 漏洞类内容全站只记录已公开的观测与官方处置（检出 / 灭活 / 存活天数），不写操作步骤、不出教程；作战室与数据页均带「不构成操作建议」声明。这是「记录不教唆」立场的产品化延伸，任何新功能不得越线。
+17. **变现护栏**：免费站永远保留全部内容——将来若做付费，只收「时效与便捷」的钱（推送 / 简报），不拆档案墙；「补给线」赞助位由站长把关，与立场冲突的灰产（中转站 / 拼车类）不接，赞助输出一律 `rel=sponsored`。
+18. **发布权永远在人**：agent 只能投草稿态（收件箱 / 编辑部 draft / drafts 文件），档案、战报、特稿的发布键与对外账号的发送键都在站长手里（AUTOMATION.md 第 3 节「人工闸口」）。
+19. 战报体已定稿（开篇特稿腔总评 + 字段化区块 + 「下周观察」收尾，见 warco-dispatch skill），不再重开讨论；战报期号即永久 URL（`/w/:issue`），发布后不改号。
+
 ---
 
 ## 11. 待补与已知事项
 
 - [ ] 「4365」取名的完整心证未留档（见第 1 节），站长想起来请补。
-- [ ] **线上库全删全增待执行**：`drafts/full-rewrite-2026-08-29.sql`（一次性带上检出/灭活改词 + 新增 5 条，合计 89 条）。服务器上 git pull → 备份库 → `sudo -u umbrella sqlite3 data/chronicle.db ".read drafts/full-rewrite-2026-08-29.sql"` → `systemctl restart umbrella4365`（SQL 文件头有完整注释）。注意全删全增会重排 /ev/:id，旧分享链接会指向新档案。执行后勾掉本项。
-  **⚠ 时序硬约束（2026-08-29 SEO 改造后）**：本项必须在向搜索引擎提交 sitemap / 开百度推送**之前**执行完毕（完整时序见 `GROWTH.md` 第 0 节）；此后档案 id 视为永久 URL，不再全删全增，修订走后台逐条编辑。
+- [ ] **线上库全删全增待执行（最后一次）**：`drafts/full-rewrite-2026-08-29.sql`（独立自包含，一次性带上检出/灭活改词 + 新增 5 条，合计 89 条；其数据源 seed.js 已退役删除，SQL 文件本身完整可用）。服务器上 git pull → 备份库 → `sudo -u umbrella sqlite3 data/chronicle.db ".read drafts/full-rewrite-2026-08-29.sql"` → `systemctl restart umbrella4365`（SQL 文件头有完整注释）。注意全删全增会重排 /ev/:id，旧分享链接会指向新档案。执行后勾掉本项并删除该 SQL。
+  **⚠ 时序硬约束（2026-08-29 SEO 改造后）**：本项必须在向搜索引擎提交 sitemap / 开百度推送**之前**执行完毕（完整时序见 `GROWTH.md` 第 0 节）；此后档案 id 视为永久 URL，不再全删全增，修订走后台逐条编辑或线上 API。
 - [ ] **新线索记得配聚合页**：后台录入用了新的 series 名后，把 slug + 搜索友好标题 + 导语补进 `server.js` 的 `SERIES_PAGES`（未配置会回退中文 URL，能用但搜索表现打折）。
-- [ ] `README.md` 目录结构一节中 seed 条数描述曾长期滞后于快照（已于 2026-08-29 修正为 84 条口径）；今后重建 seed 快照时记得顺手更新 README 与本文档第 8 节。
-- [ ] 现役 series 清单（4.4 节）与线索分布（8 节）以线上 DB 为准，本文档记录的是 2026-08-28 快照口径。
+- [ ] 现役 series 清单（4.4 节）与线索分布（8 节）以线上 DB 为准，本文档记录的是 2026-08-29 口径。
+- [ ] **2026-08-30 情报站升级待部署**：按 `drafts/launch-runbook-2026-08-30.md` 一次跑完（备份 → git pull → 全删全增 → 迁移 → 重启 → 补给表初始化 → 创刊内容发布 → 站长平台 → 哨兵定时 → 社区首发）。执行完勾掉本项与上面的全删全增项。
+- [ ] **数据页 curated 维护点**：新版本发布 / 新一轮融资 → 立档之外记得补 `server.js` 的 `VERSIONS` / `FUNDING` 常量各一行（部署生效）；模型上架 / 停供 / 调价 → 后台「补给线」改行。
+- [ ] **渠道注册**（注册完把链接填进后台「系统 → 频道与支援链接」）：TG 频道、X 账号、即刻、公众号（可选）、爱发电（可选）。

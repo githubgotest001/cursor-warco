@@ -43,6 +43,24 @@
 - **Mindgard**——git.exe 事件出处。
 - 通用：CVE 编号直接搜 `CVE-XXXX-XXXXX + cursor`，NVD 与厂商博客交叉。
 
+## 扩战区信源（2026-08-30 起 · AI 编程全圈）
+
+> 扩圈纪律：Cursor 永远是坐标。邻圈事件只收「改变格局 / 钱 / 大批用户体验」量级的（入档价值判定同第 5 节），
+> 立档时补 `front` 战区代号；模型厂事件若主要以「波及 Cursor 用户」呈现，仍以 Cursor 视角写、front 留空。
+
+| 战区（front 代号） | L0 一手 | 社区（野史侧） |
+| --- | --- | --- |
+| Claude Code（claude-code） | anthropic.com/news、docs.anthropic.com 发布记录 | r/ClaudeAI、HN |
+| Codex（codex） | openai.com/news、help.openai.com 更新页 | r/OpenAI、HN |
+| Copilot（copilot） | github.blog/changelog（Copilot 标签）、github.blog | r/github、HN |
+| Windsurf（windsurf） | windsurf.com/changelog、官方 X | r/windsurf、HN |
+| 国产工具（cn-tools） | Trae / 通义灵码 / CodeBuddy 官网公告与公众号 | 即刻、V2EX、linux.do |
+| 模型厂商（model-labs） | anthropic.com/news、openai.com/news、x.ai/news、blog.google | HN、X |
+
+**哨兵自动化**：`tools/sentinel.js` 已把上表主力信源（含 HN / r/cursor / GitHub Changelog RSS / 状态页事故流）
+接入定时轮询，新信号自动落 `data/sentinel-queue.md` 并可推 TG 提醒。增量侦察先消化队列，再按检索配方补扫——
+哨兵漏得掉的（微信生态、封闭频道），才需要人肉与检索兜底。
+
 ## L4 · 聚合站 / AI 百科（只当目录，严禁直接引用为事实）
 
 kingy.ai、aiuncovers.com、ai.miraheze.org、tech-insider.org、thedigipalms.com 等。

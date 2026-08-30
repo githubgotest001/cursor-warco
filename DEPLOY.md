@@ -32,12 +32,14 @@ node -v   # 应 >= v22.13
 sudo mkdir -p /opt/cursor-warco && sudo chown $USER /opt/cursor-warco
 git clone https://github.com/githubgotest001/cursor-warco.git /opt/cursor-warco
 cd /opt/cursor-warco
-
-node seed.js        # 首次建库灌入初始档案（已有 data/chronicle.db 时自动跳过）
 ```
 
-> 如果想把本机已录入的数据带上云：直接把本地的 `data/` 目录和 `public/uploads/` 目录
-> 一并拷贝到服务器同位置（先停服务再拷，`.db/.db-wal/.db-shm` 三个文件都要带）。
+数据初始化（线上库是唯一真源，仓库里不含数据）：
+
+- **重建 / 迁移服务器**：从备份恢复——把 `/opt/backups/chronicle-<时间戳>.db` 拷成
+  `data/chronicle.db`，解开对应的 `uploads-*.tar.gz` 到 `public/uploads/`（见第 7.3 节恢复流程）；
+  或把旧机的 `data/` 与 `public/uploads/` 整体拷来（先停服务再拷，`.db/.db-wal/.db-shm` 都要带）。
+- **全新空站**：什么都不用做，首次启动自动建空库，之后从后台录入。
 
 ## 3. 生产环境变量（安全核心）
 
@@ -427,9 +429,9 @@ echo "— 错误密钥拒绝 —";      curl -s -o /dev/null -w "%{http_code}\n"
 （见 README「SEO / GEO」），www→裸域 301 已随 5.3 的 Nginx 配置一步到位，第 9 步的验收命令
 也已覆盖全部 SEO 端点。
 
-剩下的人工动作——站长平台验证与 sitemap 提交（含 `BAIDU_SITE_VERIFY` / `BAIDU_PUSH_TOKEN` /
-`GOOGLE_SITE_VERIFY` / `BING_SITE_VERIFY` 四个环境变量的获取与配置）、社区分发、外链建设与
-复盘节奏，全部收录在 **[GROWTH.md](GROWTH.md)（增长作战手册）**，按其第 0 节的时序执行。
+剩下的人工动作——站长平台验证与 sitemap 提交（验证码与推送 token 在后台「系统」标签页填写，
+保存即生效免重启）、社区分发、外链建设与复盘节奏，全部收录在
+**[GROWTH.md](GROWTH.md)（增长作战手册）**，按其第 0 节的时序执行。
 
 ## 附录 A · Docker 部署（可选路线）
 
@@ -451,7 +453,7 @@ docker run -d --name umbrella4365 --restart always \
   -v /opt/cursor-warco-data/data:/app/data \
   -v /opt/cursor-warco-data/uploads:/app/public/uploads \
   umbrella4365
-docker exec umbrella4365 node seed.js   # 首次初始化数据
+# 数据初始化：从备份恢复 data/chronicle.db（见第 2 节），全新空站则无需操作
 ```
 
 Nginx/HTTPS 部分与上文相同。注意 `-p 127.0.0.1:4365:4365` 只绑定本机，不直接暴露公网。

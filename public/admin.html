@@ -151,9 +151,22 @@
   .form .msg { font-family: var(--mono); font-size: 11px; color: var(--umb-hi); letter-spacing: .1em; margin-right: auto; align-self: center; }
 
   /* ===== 标签页 ===== */
-  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
   .tabs button { letter-spacing: .18em; }
   .tabs button.on { background: var(--umb); color: #fff; border-color: var(--umb); font-weight: 700; }
+  .tabbadge { margin-left: 6px; color: var(--umb-hi); font-weight: 700; }
+  .tabs button.on .tabbadge { color: #fff; }
+
+  /* ===== 收件箱 ===== */
+  .verify-cell { margin-top: 5px; padding: 6px 9px; border: 1px dashed rgba(224,36,46,.35); font-size: 11px; line-height: 1.7; color: var(--dim); white-space: pre-wrap; }
+  .verify-cell b { color: var(--umb-hi); font-weight: 400; font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; display: block; margin-bottom: 3px; }
+  .state-pill { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; padding: 1px 7px; border: 1px solid currentColor; white-space: nowrap; }
+  .state-pill.pending { color: var(--umb-hi); }
+  .state-pill.accepted { color: #6fd08c; }
+  .state-pill.dismissed, .state-pill.read { color: var(--dim); }
+  .state-pill.new { color: var(--umb-hi); }
+  .state-pill.draft { color: var(--dim); }
+  .state-pill.published { color: #6fd08c; }
 
   /* ===== 访客监控 ===== */
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
@@ -174,6 +187,29 @@
   .code { font-family: var(--mono); font-size: 11px; color: var(--dim); }
   .st-ok { color: #6fd08c; }
   .st-bad { color: var(--umb-hi); }
+
+  /* ===== 系统页 ===== */
+  .set-field { margin-bottom: 14px; }
+  .set-field input { width: 100%; }
+  .set-field .hint-inline code { color: var(--umb-hi); font-family: var(--mono); font-size: 10.5px; }
+  .envhint { color: var(--dim); letter-spacing: .06em; font-weight: 400; }
+  .cmd { margin-bottom: 13px; }
+  .cmd .cl { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; color: var(--dim); margin-bottom: 5px; }
+  .cmd .cline {
+    display: flex; align-items: stretch; gap: 0; cursor: pointer;
+    border: 1px solid rgba(233,230,223,.16); background: #0d0f14;
+  }
+  .cmd .cline:hover { border-color: var(--umb); }
+  .cmd .cline code {
+    flex: 1; padding: 8px 10px; font-family: var(--mono); font-size: 11.5px; line-height: 1.6;
+    color: var(--bone); word-break: break-all; user-select: all;
+  }
+  .cmd .cline .cp {
+    flex: none; display: flex; align-items: center; padding: 0 12px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; color: var(--dim);
+    border-left: 1px solid rgba(233,230,223,.12);
+  }
+  .cmd .cline:hover .cp { color: var(--umb-hi); }
 
   .toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px);
@@ -223,7 +259,11 @@
 <div class="wrap">
   <div class="tabs">
     <button id="tabArchive" class="on">档案管理</button>
+    <button id="tabInbox">收件箱<span class="tabbadge" id="inboxBadge"></span></button>
+    <button id="tabPress">编辑部</button>
+    <button id="tabSupply">补给线</button>
     <button id="tabVisits">访客监控</button>
+    <button id="tabSystem">系统</button>
   </div>
 
   <section id="panelArchive">
@@ -257,6 +297,61 @@
   </table>
   <div class="empty" id="empty" style="display:none">NO RECORDS · 档案为空</div>
   <div class="pager" id="archivePager"></div>
+  </section>
+
+  <!-- ===== 收件箱：草稿（侦察 agent 投递）+ 读者线报 ===== -->
+  <section id="panelInbox" style="display:none">
+    <div class="toolbar">
+      <select id="dState" style="width:auto">
+        <option value="pending" selected>待审核</option>
+        <option value="accepted">已发布</option>
+        <option value="dismissed">已驳回</option>
+        <option value="all">全部</option>
+      </select>
+      <button id="dRefresh">刷新</button>
+      <span class="stat" id="dStat"></span>
+    </div>
+    <table>
+      <thead><tr><th>日期</th><th>类型</th><th style="width:52%">标题 / 摘要 / 核查要点</th><th>来源</th><th>操作</th></tr></thead>
+      <tbody id="dBody"></tbody>
+    </table>
+    <div class="empty" id="dEmpty" style="display:none">INBOX CLEAR · 无待审草稿</div>
+
+    <div class="box2" style="margin-top:22px">
+      <h3>读者线报 <span id="tipCount" style="color:var(--dim);font-weight:400"></span></h3>
+      <table>
+        <thead><tr><th>时间</th><th style="width:50%">内容</th><th>链接 / 联系</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="tipBody"></tbody>
+      </table>
+      <div class="empty" id="tipEmpty" style="display:none">NO INTEL · 暂无线报</div>
+    </div>
+  </section>
+
+  <!-- ===== 编辑部：每周战报 + 专题特稿 ===== -->
+  <section id="panelPress" style="display:none">
+    <div class="toolbar">
+      <button class="primary" id="newWeeklyBtn">＋ 新建战报</button>
+      <button class="primary" id="newFeatureBtn">＋ 新建特稿</button>
+      <span class="stat" id="pStat"></span>
+    </div>
+    <table>
+      <thead><tr><th>日期</th><th>类型</th><th style="width:46%">标题 / 摘要</th><th>状态</th><th>修改</th><th>操作</th></tr></thead>
+      <tbody id="pBody"></tbody>
+    </table>
+    <div class="empty" id="pEmpty" style="display:none">PRESS ROOM EMPTY · 尚无刊物</div>
+  </section>
+
+  <!-- ===== 补给线：模型补给表（作战室数据源） ===== -->
+  <section id="panelSupply" style="display:none">
+    <div class="toolbar">
+      <button class="primary" id="newSupplyBtn">＋ 新增补给</button>
+      <span class="stat">作战室「模型补给表」的数据源 · 价格额度以官方口径为准</span>
+    </div>
+    <table>
+      <thead><tr><th>排序</th><th>模型</th><th>厂商</th><th>覆盖</th><th>价格</th><th>额度 / 备注</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody id="sBody"></tbody>
+    </table>
+    <div class="empty" id="sEmpty" style="display:none">SUPPLY LINE EMPTY · 补给表为空</div>
   </section>
 
   <!-- ===== 访客监控 ===== -->
@@ -293,6 +388,83 @@
       <div class="pager" id="vRecentPager"></div>
     </div>
   </section>
+
+  <!-- ===== 系统：SEO 接入配置 + 运维速查 ===== -->
+  <section id="panelSystem" style="display:none">
+    <div class="cols">
+      <div class="box2">
+        <h3>SEO 接入配置 · 保存即生效（免重启）</h3>
+        <div class="set-field">
+          <label>百度主动推送 TOKEN <span class="envhint" id="envBaiduPushToken"></span></label>
+          <input type="text" id="sBaiduPushToken" placeholder="档案增删改时自动推送百度，收录提速到分钟级">
+          <div class="hint-inline">ziyuan.baidu.com → 普通收录 → API 提交，接口地址里 <code>token=</code> 后面的值。</div>
+        </div>
+        <div class="set-field">
+          <label>百度站长验证码 <span class="envhint" id="envBaiduSiteVerify"></span></label>
+          <input type="text" id="sBaiduSiteVerify" placeholder="baidu-site-verification 的 content 值">
+          <div class="hint-inline">ziyuan.baidu.com → 站点管理 → 验证方式选「HTML 标签」，取 content="…" 引号内的值；保存后回平台点验证。</div>
+        </div>
+        <div class="set-field">
+          <label>Google 验证码 <span class="envhint" id="envGoogleSiteVerify"></span></label>
+          <input type="text" id="sGoogleSiteVerify" placeholder="google-site-verification 的 content 值">
+          <div class="hint-inline">search.google.com/search-console → 验证方式选「HTML 标记」，取 content 值。</div>
+        </div>
+        <div class="set-field">
+          <label>Bing 验证码 <span class="envhint" id="envBingSiteVerify"></span></label>
+          <input type="text" id="sBingSiteVerify" placeholder="msvalidate.01 的 content 值">
+          <div class="hint-inline">bing.com/webmasters → HTML Meta 标记验证，取 content 值（从 GSC 导入站点则无需填）。</div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; margin-top:16px">
+          <button class="primary" id="sSaveBtn">保 存 配 置</button>
+          <button id="sTestBtn" title="用当前 token 把首页推送一次百度，验证链路">⟳ 测试百度推送</button>
+          <span class="msg" id="sMsg" style="margin:0"></span>
+        </div>
+        <div class="hint-inline" style="margin-top:12px">存储在服务器 <code>data/config.json</code>；此处的非空值优先于同名环境变量，清空则回落环境变量。</div>
+      </div>
+      <div class="box2">
+        <h3>运维速查 · 点击复制到剪贴板</h3>
+        <div id="cmdList"></div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="box2">
+        <h3>频道与支援链接 · 配置了才在前台出现</h3>
+        <div class="set-field">
+          <label>打赏链接（爱发电 / GitHub Sponsors 等）</label>
+          <input type="text" id="sDonateUrl" placeholder="https://afdian.com/a/…（前台「支援本刊」弹层的打赏按钮）">
+        </div>
+        <div class="set-field">
+          <label>TG 频道链接</label>
+          <input type="text" id="sTgUrl" placeholder="https://t.me/…">
+        </div>
+        <div class="set-field">
+          <label>公众号名称</label>
+          <input type="text" id="sWechatId" placeholder="如：UMBRELLA4365（仅展示名称）">
+        </div>
+        <div class="set-field">
+          <label>X / 推特主页</label>
+          <input type="text" id="sXUrl" placeholder="https://x.com/…">
+        </div>
+        <div class="set-field">
+          <label>联络邮箱</label>
+          <input type="text" id="sContactEmail" placeholder="tips@…（也用于接收线报回访）">
+        </div>
+        <div class="hint-inline">保存按钮共用上方「保 存 配 置」；全部留空时前台「支援本刊」只显示 RSS 与周刊入口。</div>
+      </div>
+      <div class="box2">
+        <h3>「补给线」赞助位 · 两项都填才上墙</h3>
+        <div class="set-field">
+          <label>赞助文案（页脚展示，≤40 字）</label>
+          <input type="text" id="sSponsorText" maxlength="40" placeholder="如：本刊由 XX 云主机 补给支持">
+        </div>
+        <div class="set-field">
+          <label>赞助链接</label>
+          <input type="text" id="sSponsorUrl" placeholder="https://…（带 rel=sponsored 输出，不伤 SEO）">
+        </div>
+        <div class="hint-inline">赞助位出现在首页页脚「补给线 SUPPLY LINE」一行；接什么商家由站长把关——与「记录不教唆」立场冲突的灰产不接。</div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <!-- ===== 编辑弹层 ===== -->
@@ -314,6 +486,12 @@
       <div>
         <label>标签 TAG（下拉选已有，或手输新的）</label>
         <input type="text" id="fTag" list="tagList" maxlength="8" placeholder="套利">
+      </div>
+      <div class="full">
+        <label>战区 FRONT（默认 Cursor 主战线；邻圈档案才选）</label>
+        <select id="fFront">
+          <option value="">CURSOR 主战线（默认，不标注）</option>
+        </select>
       </div>
       <div class="full">
         <label>标题 TITLE *</label>
@@ -360,6 +538,95 @@
   </div>
 </div>
 
+<!-- ===== 刊物编辑弹层（战报 / 特稿） ===== -->
+<div class="modal" id="postModal">
+  <div class="form">
+    <h2 id="postFormTitle">NEW DISPATCH · 新建战报</h2>
+    <div class="grid">
+      <div>
+        <label>日期 DATE（发刊日）</label>
+        <input type="date" id="pDate">
+      </div>
+      <div id="pIssueWrap">
+        <label>期号 ISSUE（战报）</label>
+        <input type="number" id="pIssue" min="1" placeholder="1">
+      </div>
+      <div id="pSlugWrap" style="display:none">
+        <label>SLUG（特稿 URL：/t/xxx，小写字母数字连字符）</label>
+        <input type="text" id="pSlug" maxlength="60" placeholder="spacex-merger">
+      </div>
+      <div class="full">
+        <label>标题 TITLE *</label>
+        <input type="text" id="pTitle" maxlength="80" placeholder="战报 第 N 期 · MM.DD–MM.DD / 特稿标题">
+      </div>
+      <div class="full">
+        <label>摘要 SUMMARY（索引页与 RSS 展示）</label>
+        <textarea id="pSummary" rows="2"></textarea>
+      </div>
+      <div class="full">
+        <label>正文 CONTENT（空行分段；「## 」小节标题；整段「- 」行成列表；[文字](链接) 生成链接）</label>
+        <textarea id="pContent" rows="14" style="font-family:var(--mono); font-size:12px;"></textarea>
+      </div>
+    </div>
+    <div class="acts">
+      <span class="msg" id="postFormMsg"></span>
+      <button id="postCancelBtn">取消</button>
+      <button id="postSaveBtn">存 草 稿</button>
+      <button class="primary" id="postPublishBtn">保 存 并 发 布</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 补给编辑弹层 ===== -->
+<div class="modal" id="supplyModal">
+  <div class="form">
+    <h2 id="supplyFormTitle">SUPPLY · 新增补给</h2>
+    <div class="grid">
+      <div>
+        <label>模型 MODEL *</label>
+        <input type="text" id="suModel" maxlength="60" placeholder="Composer 2.5">
+      </div>
+      <div>
+        <label>厂商 PROVIDER</label>
+        <input type="text" id="suProvider" maxlength="60" placeholder="Anysphere 自研">
+      </div>
+      <div>
+        <label>覆盖 TIER（谁能用）</label>
+        <input type="text" id="suTier" maxlength="80" placeholder="全线默认 / Pro 及以上">
+      </div>
+      <div>
+        <label>价格 PRICE（每百万 token 输入/输出）</label>
+        <input type="text" id="suPrice" maxlength="80" placeholder="$0.50 / $2.50">
+      </div>
+      <div class="full">
+        <label>额度口径 QUOTA</label>
+        <input type="text" id="suQuota" maxlength="120" placeholder="计入订阅额度 / 独立周池 / 按量计费">
+      </div>
+      <div>
+        <label>状态 STATUS</label>
+        <select id="suStatus">
+          <option value="active">在役 active</option>
+          <option value="watch">观察 watch（断供倒计时 / 传闻将撤）</option>
+          <option value="removed">撤出 removed</option>
+        </select>
+      </div>
+      <div>
+        <label>排序 SORT（小的在前）</label>
+        <input type="number" id="suSort" value="100">
+      </div>
+      <div class="full">
+        <label>备注 NOTE（表格里的小字）</label>
+        <input type="text" id="suNote" maxlength="200" placeholder="如：断供通牒生效日 2026-11-12">
+      </div>
+    </div>
+    <div class="acts">
+      <span class="msg" id="supplyFormMsg"></span>
+      <button id="supplyCancelBtn">取消</button>
+      <button class="primary" id="supplySaveBtn">保 存</button>
+    </div>
+  </div>
+</div>
+
 <datalist id="tagList"></datalist>
 <datalist id="seriesList"></datalist>
 <div class="toast" id="toast"></div>
@@ -369,11 +636,22 @@ const $ = id => document.getElementById(id);
 const KEY_STORE = 'umb4365_key';
 let KEY = localStorage.getItem(KEY_STORE) || '';
 let editingId = null;
+let publishingDraftId = null;   // 非空 = 事件表单正处于「审核草稿 → 发布」模式
 let rows = [];
 let archivePage = 1, archiveSort = 'date', archiveOrder = 'desc';
 let recentPage = 1;
 const RECENT_SIZE = 30;
 const fmtTs = s => { s = String(s || ''); return s ? s.slice(5, 16) : '—'; };
+
+/* 战区名册（与 server.js 的 FRONTS 一致） */
+const FRONTS = {
+  'claude-code': 'CLAUDE CODE 战区',
+  'codex': 'CODEX 战区',
+  'copilot': 'COPILOT 战区',
+  'windsurf': 'WINDSURF 战区',
+  'cn-tools': '国产工具战线',
+  'model-labs': '模型厂商战区',
+};
 
 const headers = () => ({ 'Content-Type': 'application/json', 'X-Admin-Key': KEY });
 
@@ -399,6 +677,7 @@ $('loginBtn').onclick = async () => {
     $('gate').classList.add('hidden');
     loadMeta();
     load();
+    refreshInboxBadge();
   } else {
     $('gateErr').textContent = 'ACCESS DENIED · 密钥无效';
   }
@@ -493,23 +772,34 @@ async function loadMeta() {
 }
 
 /* ===== 表单 ===== */
-function openForm(row) {
-  editingId = row ? row.id : null;
-  $('formTitle').textContent = row ? `EDIT RECORD · 编辑档案 #${row.id}` : 'NEW RECORD · 新建档案';
+/* 战区下拉初始化 */
+for (const [code, name] of Object.entries(FRONTS)) {
+  const opt = document.createElement('option');
+  opt.value = code; opt.textContent = `${name}（${code}）`;
+  $('fFront').appendChild(opt);
+}
+
+function openForm(row, draftId) {
+  editingId = row && !draftId ? row.id : null;
+  publishingDraftId = draftId || null;
+  $('formTitle').textContent = draftId ? `REVIEW DRAFT · 审核草稿 #${draftId} → 发布档案`
+    : row ? `EDIT RECORD · 编辑档案 #${row.id}` : 'NEW RECORD · 新建档案';
+  $('saveBtn').textContent = draftId ? '发 布 档 案' : '保 存 档 案';
   document.querySelector(`input[name="side"][value="${row ? row.side : 'main'}"]`).checked = true;
   $('fDate').value = row ? row.date : new Date().toISOString().slice(0, 10);
   $('fTag').value = row ? row.tag : '';
+  $('fFront').value = row ? (row.front || '') : '';
   $('fTitle').value = row ? row.title : '';
   $('fSummary').value = row ? row.summary : '';
   $('fDetail').value = row ? row.detail : '';
   $('fImage').value = row ? row.image : '';
   $('fSeries').value = row ? (row.series || '') : '';
   $('fSource').value = row ? (row.source || '') : '';
-  $('formMsg').textContent = '';
+  $('formMsg').textContent = draftId && row && row.verify ? '核查要点：' + row.verify.slice(0, 120) : '';
   updatePreview();
   $('modal').classList.add('open');
 }
-function closeForm() { $('modal').classList.remove('open'); }
+function closeForm() { $('modal').classList.remove('open'); publishingDraftId = null; $('saveBtn').textContent = '保 存 档 案'; }
 $('newBtn').onclick = () => openForm(null);
 $('cancelBtn').onclick = closeForm;
 $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeForm(); });
@@ -554,6 +844,7 @@ $('saveBtn').onclick = async () => {
     side: document.querySelector('input[name="side"]:checked').value,
     date: $('fDate').value,
     tag: $('fTag').value.trim(),
+    front: $('fFront').value,
     title: $('fTitle').value.trim(),
     summary: $('fSummary').value.trim(),
     detail: $('fDetail').value,
@@ -566,29 +857,358 @@ $('saveBtn').onclick = async () => {
     return;
   }
   $('saveBtn').disabled = true;
-  const res = await fetch(editingId ? '/api/events/' + editingId : '/api/events', {
-    method: editingId ? 'PUT' : 'POST',
+  const endpoint = publishingDraftId ? `/api/drafts/${publishingDraftId}/publish`
+    : editingId ? '/api/events/' + editingId : '/api/events';
+  const res = await fetch(endpoint, {
+    method: publishingDraftId ? 'POST' : editingId ? 'PUT' : 'POST',
     headers: headers(),
     body: JSON.stringify(body)
   });
   $('saveBtn').disabled = false;
   const data = await res.json();
-  if (data.ok) { closeForm(); toast(editingId ? '档案已更新' : '档案已入库'); load(); loadMeta(); }
+  if (data.ok) {
+    const wasDraft = Boolean(publishingDraftId);
+    closeForm();
+    toast(wasDraft ? '草稿已发布为档案' : editingId ? '档案已更新' : '档案已入库');
+    load(); loadMeta();
+    if (wasDraft) { loadDrafts(); refreshInboxBadge(); }
+  }
   else $('formMsg').textContent = data.error || '保存失败';
 };
 
 /* ===== 标签页 ===== */
+const TABS = {
+  archive: ['tabArchive', 'panelArchive'],
+  inbox: ['tabInbox', 'panelInbox'],
+  press: ['tabPress', 'panelPress'],
+  supply: ['tabSupply', 'panelSupply'],
+  visits: ['tabVisits', 'panelVisits'],
+  system: ['tabSystem', 'panelSystem'],
+};
 function showTab(name) {
-  const isArchive = name === 'archive';
-  $('panelArchive').style.display = isArchive ? '' : 'none';
-  $('panelVisits').style.display = isArchive ? 'none' : '';
-  $('tabArchive').classList.toggle('on', isArchive);
-  $('tabVisits').classList.toggle('on', !isArchive);
+  for (const [key, [tab, panel]] of Object.entries(TABS)) {
+    $(panel).style.display = key === name ? '' : 'none';
+    $(tab).classList.toggle('on', key === name);
+  }
 }
 $('tabArchive').onclick = () => { showTab('archive'); history.replaceState(null, '', location.pathname); };
+$('tabInbox').onclick = () => { showTab('inbox'); history.replaceState(null, '', '#inbox'); loadDrafts(); loadTips(); };
+$('tabPress').onclick = () => { showTab('press'); history.replaceState(null, '', '#press'); loadPosts(); };
+$('tabSupply').onclick = () => { showTab('supply'); history.replaceState(null, '', '#supply'); loadSupply(); };
 $('tabVisits').onclick = () => { showTab('visits'); history.replaceState(null, '', '#visits'); loadStats(); };
+$('tabSystem').onclick = () => { showTab('system'); history.replaceState(null, '', '#system'); loadSettings(); };
 $('vRefresh').onclick = () => { recentPage = 1; loadStats(); };
 $('vDays').onchange = () => { recentPage = 1; loadStats(); };
+
+/* ===== 收件箱：草稿审核 ===== */
+let draftRows = [];
+async function refreshInboxBadge() {
+  try {
+    const [d, t] = await Promise.all([
+      (await fetch('/api/drafts?state=pending', { headers: headers() })).json(),
+      (await fetch('/api/tips', { headers: headers() })).json(),
+    ]);
+    const n = (d.pending || 0) + (t.unread || 0);
+    $('inboxBadge').textContent = n ? ` ${n}` : '';
+  } catch {}
+}
+async function loadDrafts() {
+  const state = $('dState').value;
+  const d = await (await fetch(`/api/drafts?state=${encodeURIComponent(state)}`, { headers: headers() })).json();
+  if (!d.ok) return toast('读取草稿失败：' + (d.error || ''));
+  draftRows = d.drafts || [];
+  $('dStat').textContent = `待审核 ${d.pending} 条`;
+  $('dBody').innerHTML = draftRows.map(r => `
+    <tr>
+      <td class="mono">${escapeHtml(r.date || '—')}</td>
+      <td><span class="pill ${r.side}">${r.side === 'main' ? '正史' : '野史'}</span></td>
+      <td>
+        <div class="title-cell">${escapeHtml(r.title)}${r.series ? ` <span class="badge b-series">◈ ${escapeHtml(r.series)}</span>` : ''}${r.tag ? ` <span class="badge b-tag">${escapeHtml(r.tag)}</span>` : ''}${r.front ? ` <span class="badge b-tag">⌖ ${escapeHtml(FRONTS[r.front] || r.front)}</span>` : ''}</div>
+        <div class="sum-cell">${escapeHtml(r.summary)}</div>
+        ${r.verify ? `<div class="verify-cell"><b>核查要点 · 不入库</b>${escapeHtml(r.verify)}</div>` : ''}
+      </td>
+      <td class="mono" style="font-size:11px;color:var(--dim)">${escapeHtml(r.origin)}<br><span class="state-pill ${r.state}">${r.state === 'pending' ? '待审' : r.state === 'accepted' ? '已发布' : '已驳回'}</span></td>
+      <td><div class="ops" style="flex-direction:column; gap:5px">
+        ${r.state === 'pending' ? `<button onclick="reviewDraft(${r.id})">审核发布</button><button onclick="dismissDraft(${r.id})">驳回</button>` : ''}
+        ${r.state === 'accepted' && r.event_id ? `<a class="btn" style="padding:4px 10px;font-size:11px;text-align:center" href="/ev/${r.event_id}" target="_blank">档案 ↗</a>` : ''}
+        <button class="danger" onclick="delDraft(${r.id})">删除</button>
+      </div></td>
+    </tr>`).join('');
+  $('dEmpty').style.display = draftRows.length ? 'none' : 'block';
+}
+window.reviewDraft = id => {
+  const r = draftRows.find(x => x.id === id);
+  if (r) openForm(r, id);
+};
+window.dismissDraft = async id => {
+  const res = await fetch('/api/drafts/' + id, { method: 'PUT', headers: headers(), body: JSON.stringify({ state: 'dismissed' }) });
+  if (res.ok) { toast('草稿已驳回'); loadDrafts(); refreshInboxBadge(); }
+};
+window.delDraft = async id => {
+  if (!confirm(`确认删除草稿 #${id}？`)) return;
+  const res = await fetch('/api/drafts/' + id, { method: 'DELETE', headers: headers() });
+  if (res.ok) { toast('草稿已销毁'); loadDrafts(); refreshInboxBadge(); }
+};
+$('dState').onchange = loadDrafts;
+$('dRefresh').onclick = () => { loadDrafts(); loadTips(); refreshInboxBadge(); };
+
+/* ===== 收件箱：读者线报 ===== */
+async function loadTips() {
+  const d = await (await fetch('/api/tips', { headers: headers() })).json();
+  if (!d.ok) return;
+  const tips = d.tips || [];
+  $('tipCount').textContent = tips.length ? `· 未读 ${d.unread} / 共 ${tips.length}` : '';
+  $('tipBody').innerHTML = tips.map(t => `
+    <tr>
+      <td class="mono" style="font-size:11px">${escapeHtml(fmtTs(t.created_at))}</td>
+      <td style="line-height:1.7">${escapeHtml(t.content)}</td>
+      <td class="mono" style="font-size:11px; word-break:break-all">${t.url ? `<a class="btn" style="border:none;padding:0;color:var(--umb-hi)" href="${escapeHtml(t.url)}" target="_blank" rel="noopener">${escapeHtml(t.url.slice(0, 40))}…</a><br>` : ''}${escapeHtml(t.contact || '—')}</td>
+      <td><span class="state-pill ${t.state}">${t.state === 'new' ? '未读' : '已读'}</span></td>
+      <td><div class="ops" style="flex-direction:column; gap:5px">
+        ${t.state === 'new' ? `<button onclick="readTip(${t.id})">标记已读</button>` : ''}
+        <button class="danger" onclick="delTip(${t.id})">删除</button>
+      </div></td>
+    </tr>`).join('');
+  $('tipEmpty').style.display = tips.length ? 'none' : 'block';
+}
+window.readTip = async id => {
+  await fetch('/api/tips/' + id, { method: 'PUT', headers: headers(), body: JSON.stringify({ state: 'read' }) });
+  loadTips(); refreshInboxBadge();
+};
+window.delTip = async id => {
+  if (!confirm(`确认删除线报 #${id}？`)) return;
+  await fetch('/api/tips/' + id, { method: 'DELETE', headers: headers() });
+  loadTips(); refreshInboxBadge();
+};
+
+/* ===== 编辑部：战报 / 特稿 ===== */
+let postRows = [], editingPostId = null, postKind = 'weekly';
+async function loadPosts() {
+  const d = await (await fetch('/api/posts', { headers: headers() })).json();
+  if (!d.ok) return toast('读取刊物失败：' + (d.error || ''));
+  postRows = d.posts || [];
+  const pub = postRows.filter(p => p.status === 'published').length;
+  $('pStat').textContent = `共 ${postRows.length} 篇 · 已发布 ${pub}`;
+  $('pBody').innerHTML = postRows.map(p => `
+    <tr>
+      <td class="mono">${escapeHtml(p.date)}</td>
+      <td class="mono" style="font-size:11px">${p.kind === 'weekly' ? `战报 第 ${p.issue} 期` : `特稿 /t/${escapeHtml(p.slug)}`}</td>
+      <td>
+        <div class="title-cell">${escapeHtml(p.title)}</div>
+        <div class="sum-cell">${escapeHtml(p.summary || '')}</div>
+      </td>
+      <td><span class="state-pill ${p.status}">${p.status === 'published' ? '已发布' : '草稿'}</span></td>
+      <td class="mono" style="color:var(--dim);font-size:11px">${fmtTs(p.updated_at)}</td>
+      <td><div class="ops" style="flex-direction:column; gap:5px">
+        <button onclick="editPost(${p.id})">编辑</button>
+        ${p.status === 'published'
+          ? `<a class="btn" style="padding:4px 10px;font-size:11px;text-align:center" href="${p.kind === 'weekly' ? '/w/' + p.issue : '/t/' + escapeHtml(p.slug)}" target="_blank">查看 ↗</a><button onclick="unpublishPost(${p.id})">转草稿</button>`
+          : `<button onclick="publishPost(${p.id})">发布</button>`}
+        <button class="danger" onclick="delPost(${p.id})">删除</button>
+      </div></td>
+    </tr>`).join('');
+  $('pEmpty').style.display = postRows.length ? 'none' : 'block';
+}
+function openPostForm(row, kind) {
+  editingPostId = row ? row.id : null;
+  postKind = row ? row.kind : kind;
+  const isWeekly = postKind === 'weekly';
+  $('postFormTitle').textContent = row ? `EDIT · 编辑${isWeekly ? '战报' : '特稿'} #${row.id}`
+    : (isWeekly ? 'NEW DISPATCH · 新建战报' : 'NEW FEATURE · 新建特稿');
+  $('pIssueWrap').style.display = isWeekly ? '' : 'none';
+  $('pSlugWrap').style.display = isWeekly ? 'none' : '';
+  $('pDate').value = row ? row.date : new Date().toISOString().slice(0, 10);
+  const nextIssue = postRows.filter(p => p.kind === 'weekly').reduce((m, p) => Math.max(m, p.issue || 0), 0) + 1;
+  $('pIssue').value = row ? (row.issue || '') : nextIssue;
+  $('pSlug').value = row ? (row.slug || '') : '';
+  $('pTitle').value = row ? row.title : (isWeekly ? `战报 第 ${nextIssue} 期 · ` : '');
+  $('pSummary').value = row ? (row.summary || '') : '';
+  $('pContent').value = row ? (row.content || '') : '';
+  $('postFormMsg').textContent = '';
+  $('postModal').classList.add('open');
+}
+async function savePost(status) {
+  const body = {
+    kind: postKind,
+    issue: Number($('pIssue').value) || null,
+    slug: $('pSlug').value.trim(),
+    date: $('pDate').value,
+    title: $('pTitle').value.trim(),
+    summary: $('pSummary').value.trim(),
+    content: $('pContent').value,
+  };
+  if (status) body.status = status;
+  else if (editingPostId) body.status = (postRows.find(p => p.id === editingPostId) || {}).status || 'draft';
+  else body.status = 'draft';
+  if (!body.date || !body.title) { $('postFormMsg').textContent = '日期 / 标题 为必填'; return; }
+  const res = await fetch(editingPostId ? '/api/posts/' + editingPostId : '/api/posts', {
+    method: editingPostId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(body),
+  });
+  const d = await res.json();
+  if (d.ok) { $('postModal').classList.remove('open'); toast(body.status === 'published' ? '已发布上墙' : '草稿已保存'); loadPosts(); }
+  else $('postFormMsg').textContent = d.error || '保存失败';
+}
+$('newWeeklyBtn').onclick = () => openPostForm(null, 'weekly');
+$('newFeatureBtn').onclick = () => openPostForm(null, 'feature');
+$('postCancelBtn').onclick = () => $('postModal').classList.remove('open');
+$('postModal').addEventListener('click', e => { if (e.target === $('postModal')) $('postModal').classList.remove('open'); });
+$('postSaveBtn').onclick = () => savePost(null);
+$('postPublishBtn').onclick = () => savePost('published');
+window.editPost = id => { const p = postRows.find(x => x.id === id); if (p) openPostForm(p); };
+window.publishPost = async id => {
+  const res = await fetch('/api/posts/' + id, { method: 'PUT', headers: headers(), body: JSON.stringify({ status: 'published' }) });
+  const d = await res.json();
+  if (d.ok) { toast('已发布上墙'); loadPosts(); } else toast('发布失败：' + (d.error || ''));
+};
+window.unpublishPost = async id => {
+  if (!confirm('转回草稿会让已发布页面 404（若已被收录请慎重）。继续？')) return;
+  const res = await fetch('/api/posts/' + id, { method: 'PUT', headers: headers(), body: JSON.stringify({ status: 'draft' }) });
+  if (res.ok) { toast('已转草稿'); loadPosts(); }
+};
+window.delPost = async id => {
+  if (!confirm(`确认删除刊物 #${id}？不可恢复。`)) return;
+  const res = await fetch('/api/posts/' + id, { method: 'DELETE', headers: headers() });
+  if (res.ok) { toast('已销毁'); loadPosts(); }
+};
+
+/* ===== 补给线 ===== */
+let supplyRows = [], editingSupplyId = null;
+async function loadSupply() {
+  const d = await (await fetch('/api/supply')).json();
+  if (!d.ok) return;
+  supplyRows = d.supply || [];
+  $('sBody').innerHTML = supplyRows.map(s => `
+    <tr>
+      <td class="mono">${s.sort}</td>
+      <td><b>${escapeHtml(s.model)}</b></td>
+      <td>${escapeHtml(s.provider || '—')}</td>
+      <td style="font-size:12px">${escapeHtml(s.tier || '—')}</td>
+      <td class="mono" style="font-size:11px">${escapeHtml(s.price || '—')}</td>
+      <td style="font-size:12px">${escapeHtml(s.quota || '—')}${s.note ? `<div class="sum-cell">${escapeHtml(s.note)}</div>` : ''}</td>
+      <td><span class="state-pill ${s.status === 'active' ? 'published' : s.status === 'watch' ? 'pending' : 'dismissed'}">${s.status === 'active' ? '在役' : s.status === 'watch' ? '观察' : '撤出'}</span></td>
+      <td><div class="ops"><button onclick="editSupply(${s.id})">编辑</button><button class="danger" onclick="delSupply(${s.id})">删除</button></div></td>
+    </tr>`).join('');
+  $('sEmpty').style.display = supplyRows.length ? 'none' : 'block';
+}
+function openSupplyForm(row) {
+  editingSupplyId = row ? row.id : null;
+  $('supplyFormTitle').textContent = row ? `SUPPLY · 编辑补给 #${row.id}` : 'SUPPLY · 新增补给';
+  $('suModel').value = row ? row.model : '';
+  $('suProvider').value = row ? row.provider : '';
+  $('suTier').value = row ? row.tier : '';
+  $('suPrice').value = row ? row.price : '';
+  $('suQuota').value = row ? row.quota : '';
+  $('suStatus').value = row ? row.status : 'active';
+  $('suSort').value = row ? row.sort : 100;
+  $('suNote').value = row ? row.note : '';
+  $('supplyFormMsg').textContent = '';
+  $('supplyModal').classList.add('open');
+}
+$('newSupplyBtn').onclick = () => openSupplyForm(null);
+$('supplyCancelBtn').onclick = () => $('supplyModal').classList.remove('open');
+$('supplyModal').addEventListener('click', e => { if (e.target === $('supplyModal')) $('supplyModal').classList.remove('open'); });
+$('supplySaveBtn').onclick = async () => {
+  const body = {
+    model: $('suModel').value.trim(), provider: $('suProvider').value.trim(), tier: $('suTier').value.trim(),
+    price: $('suPrice').value.trim(), quota: $('suQuota').value.trim(), status: $('suStatus').value,
+    sort: Number($('suSort').value) || 100, note: $('suNote').value.trim(),
+  };
+  if (!body.model) { $('supplyFormMsg').textContent = '模型名必填'; return; }
+  const res = await fetch(editingSupplyId ? '/api/supply/' + editingSupplyId : '/api/supply', {
+    method: editingSupplyId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(body),
+  });
+  const d = await res.json();
+  if (d.ok) { $('supplyModal').classList.remove('open'); toast('补给表已更新'); loadSupply(); }
+  else $('supplyFormMsg').textContent = d.error || '保存失败';
+};
+window.editSupply = id => { const s = supplyRows.find(x => x.id === id); if (s) openSupplyForm(s); };
+window.delSupply = async id => {
+  if (!confirm(`确认删除补给 #${id}？`)) return;
+  const res = await fetch('/api/supply/' + id, { method: 'DELETE', headers: headers() });
+  if (res.ok) { toast('已删除'); loadSupply(); }
+};
+
+/* ===== 系统：SEO 接入配置 + 频道与支援链接 ===== */
+const SETTING_FIELDS = {
+  baiduPushToken: 'sBaiduPushToken',
+  baiduSiteVerify: 'sBaiduSiteVerify',
+  googleSiteVerify: 'sGoogleSiteVerify',
+  bingSiteVerify: 'sBingSiteVerify',
+};
+const LINK_FIELDS = {
+  donateUrl: 'sDonateUrl',
+  tgUrl: 'sTgUrl',
+  wechatId: 'sWechatId',
+  xUrl: 'sXUrl',
+  contactEmail: 'sContactEmail',
+  sponsorText: 'sSponsorText',
+  sponsorUrl: 'sSponsorUrl',
+};
+async function loadSettings() {
+  const res = await fetch('/api/settings', { headers: headers() });
+  const d = await res.json();
+  if (!d.ok) return toast('读取配置失败：' + (d.error || ''));
+  for (const [key, inputId] of Object.entries(SETTING_FIELDS)) {
+    $(inputId).value = d.settings[key] || '';
+    const hint = $('env' + key.charAt(0).toUpperCase() + key.slice(1));
+    if (hint) hint.textContent = d.envFallback[key] && !d.settings[key] ? '（当前由服务器环境变量兜底）' : '';
+  }
+  for (const [key, inputId] of Object.entries(LINK_FIELDS)) {
+    $(inputId).value = (d.links && d.links[key]) || '';
+  }
+}
+$('sSaveBtn').onclick = async () => {
+  const body = {};
+  for (const [key, inputId] of Object.entries(SETTING_FIELDS)) body[key] = $(inputId).value.trim();
+  for (const [key, inputId] of Object.entries(LINK_FIELDS)) body[key] = $(inputId).value.trim();
+  $('sSaveBtn').disabled = true;
+  const res = await fetch('/api/settings', { method: 'PUT', headers: headers(), body: JSON.stringify(body) });
+  $('sSaveBtn').disabled = false;
+  const d = await res.json();
+  if (d.ok) { toast('配置已保存 · 立即生效'); $('sMsg').textContent = ''; loadSettings(); }
+  else $('sMsg').textContent = d.error || '保存失败';
+};
+$('sTestBtn').onclick = async () => {
+  $('sMsg').textContent = 'PUSHING…';
+  $('sTestBtn').disabled = true;
+  try {
+    const res = await fetch('/api/settings/test-baidu', { method: 'POST', headers: headers() });
+    const d = await res.json();
+    if (d.ok && d.result && d.result.success !== undefined) {
+      $('sMsg').textContent = `✓ 推送成功 ${d.result.success} 条 · 当日剩余配额 ${d.result.remain ?? '?'}`;
+    } else if (d.ok) {
+      $('sMsg').textContent = `✕ 百度返回错误：${(d.result && (d.result.message || d.result.error)) || '未知'}（token 是否正确？）`;
+    } else {
+      $('sMsg').textContent = '✕ ' + (d.error || '测试失败');
+    }
+  } catch (e) {
+    $('sMsg').textContent = '✕ 请求失败：' + e.message;
+  }
+  $('sTestBtn').disabled = false;
+};
+
+/* ===== 系统：运维速查（命令与 DEPLOY.md / README 保持一致） ===== */
+const CMDS = [
+  ['部署更新 · 拉代码并重启（服务器）', 'cd /opt/cursor-warco && sudo -u umbrella git pull && sudo systemctl restart umbrella4365'],
+  ['查看运行状态（服务器）', 'systemctl status umbrella4365 --no-pager'],
+  ['最近 50 行日志 · 含[百度推送]记录（服务器）', 'sudo journalctl -u umbrella4365 -n 50 --no-pager'],
+  ['只重启服务（服务器）', 'sudo systemctl restart umbrella4365'],
+  ['手动备份 · 库+图片+配置（服务器）', 'sudo /opt/cursor-warco/backup.sh'],
+  ['档案条数速查（服务器）', 'sqlite3 /opt/cursor-warco/data/chronicle.db "SELECT COUNT(*) FROM events;"'],
+  ['拉线上库+图片到本地镜像（开发机）', 'node sync.js pull'],
+  ['上传本地图片到线上（开发机）', 'node sync.js push-image 图片路径'],
+];
+$('cmdList').innerHTML = CMDS.map(([label, cmd], i) => `
+  <div class="cmd">
+    <span class="cl">${escapeHtml(label)}</span>
+    <div class="cline" data-cmd-i="${i}" title="点击复制"><code>${escapeHtml(cmd)}</code><span class="cp">⧉ 复制</span></div>
+  </div>`).join('');
+$('cmdList').addEventListener('click', e => {
+  const line = e.target.closest('.cline');
+  if (!line) return;
+  const cmd = CMDS[Number(line.dataset.cmdI)][1];
+  navigator.clipboard.writeText(cmd).then(() => toast('已复制指令')).catch(() => toast('复制失败，请手动选中'));
+});
 
 /* ===== 访客监控 =====
    UA / Referer / path 全是访问者可控字符串，渲染一律走 escapeHtml，防存储型 XSS */
@@ -652,7 +1272,12 @@ async function loadStats() {
     $('gate').classList.add('hidden');
     loadMeta();
     load();
+    refreshInboxBadge();
     if (location.hash === '#visits') { showTab('visits'); loadStats(); }
+    else if (location.hash === '#system') { showTab('system'); loadSettings(); }
+    else if (location.hash === '#inbox') { showTab('inbox'); loadDrafts(); loadTips(); }
+    else if (location.hash === '#press') { showTab('press'); loadPosts(); }
+    else if (location.hash === '#supply') { showTab('supply'); loadSupply(); }
   } else {
     localStorage.removeItem(KEY_STORE);
   }

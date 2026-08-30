@@ -33,6 +33,7 @@ description: 为 UMBRELLA 4365 / Cursor 战地纪实网站（umbrella4365.com）
 | `image` | 否 | **图片由用户自行提供，本 skill 不产出**；默认留空，或填 `/uploads/xxx.png` / 外链 |
 | `series` | 否 | 事件线索名。同线索档案自动串联成时间线（详情页可点击跳转、算窗口跨度）；≥2 条才开新线索 |
 | `source` | 否 | 一条最硬的信源 URL |
+| `front` | 否 | 战区代号，**默认留空 = Cursor 主战线**。邻圈档案才填：`claude-code` / `codex` / `copilot` / `windsurf` / `cn-tools` / `model-labs`（前台卡片会打「⌖ 战区」徽标）。波及 Cursor 用户的事件以 Cursor 视角写、front 留空 |
 
 ## 流程
 
@@ -63,10 +64,12 @@ description: 为 UMBRELLA 4365 / Cursor 战地纪实网站（umbrella4365.com）
 
 默认把最终字段用**代码块**逐项列出，方便用户复制到后台表单。`image` 默认留空（图片由用户自己找），用户若已提供图片链接再填。除非用户明确说「帮我录进去」，否则不要擅自写库——录入是用户的动作。
 
-两种录入方式（按需告知）：
+三种交付升级（按需告知，都以线上为准、不写本地库；线上地址与密钥在 `data/remote.json`）：
 
-- **手动**：后台隐藏入口（见项目 `data/config.json` 的 `adminPath` 或启动日志）→「档案管理」→「新建档案」。
-- **API**（用户要求代录时）：`POST /api/events`，请求头 `X-Admin-Key: <ADMIN_KEY>`，body 为上述字段的 JSON。
+- **手动**（默认）：后台隐藏入口（见项目 `data/config.json` 的 `adminPath` 或启动日志）→「档案管理」→「新建档案」。
+- **投收件箱**（用户说「投到收件箱」）：`POST <线上>/api/drafts`（`X-Admin-Key`，字段同档案 + `verify` 核查要点 + `origin`）——草稿态入库，站长在后台「收件箱」审核发布。这仍属「交草稿」，不算录入。
+- **直接录入**（用户明确说「帮我录」）：`POST <线上>/api/events`，请求头 `X-Admin-Key: <ADMIN_KEY>`，body 为上述字段的 JSON。
+  配图先 `node sync.js push-image <本地文件>` 上传拿到 `/uploads/…` 路径，再填进 `image` 字段。
 
 ## 常见坑
 

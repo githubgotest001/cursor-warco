@@ -5,8 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "seed": "node seed.js",
-    "reseed": "node seed.js --force"
+    "pull": "node sync.js pull",
+    "sentinel": "node tools/sentinel.js"
   },
   "engines": {
     "node": ">=22.13.0"

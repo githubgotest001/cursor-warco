@@ -14,9 +14,12 @@
 ## 快速开始（本地运行）
 
 ```bash
-node seed.js      # 首次建库并灌入初始档案（已有数据时自动跳过）
-node server.js    # 启动服务，默认端口 4365；Ctrl+C 停止
+node sync.js pull   # 从线上拉档案镜像建库（首次运行 / 每次让 AI 分析前）
+node server.js      # 启动服务，默认端口 4365；Ctrl+C 停止
 ```
+
+> 本地没有独立的种子数据：**线上库是唯一真源**，本地 `data/chronicle.db` 由 `sync.js pull`
+> 生成的只读镜像充当。不 pull 直接 `node server.js` 也能启动（空库）。
 
 - 前台（时间树）：http://localhost:4365/
 - 管理后台：入口路径是**隐藏的**——看启动日志打印的地址（也记录在 `data/config.json`）。
@@ -32,22 +35,33 @@ node server.js    # 启动服务，默认端口 4365；Ctrl+C 停止
 | `ADMIN_PATH` | 后台隐藏入口路径（不含 `/`） | 自动生成随机值，存 `data/config.json` |
 | `TRUST_PROXY` | 置 `1` 表示在 Nginx 等反代之后（取 X-Forwarded-For 作为客户端 IP） | 关 |
 | `SITE_URL` | 站点对外地址，生成 canonical / sitemap / RSS 的绝对链接 | `https://umbrella4365.com` |
-| `BAIDU_PUSH_TOKEN` | 百度主动推送 token；设置后档案增删改会实时把受影响 URL 推给百度 | 关 |
+| `BAIDU_PUSH_TOKEN` | 百度主动推送 token；配置后档案增删改实时推送受影响 URL | 关 |
 | `BAIDU_SITE_VERIFY` | 百度站长验证码（首页输出验证 meta） | 关 |
 | `GOOGLE_SITE_VERIFY` | Google Search Console 验证码（首页输出验证 meta） | 关 |
 | `BING_SITE_VERIFY` | Bing 站长验证码（首页输出验证 meta） | 关 |
 
+> 后四个 SEO 接入变量**推荐改从后台「系统」标签页管理**（存 `data/config.json`，保存即生效
+> 免重启，另带百度推送测试按钮与运维指令速查）；环境变量仅作兜底，后台里的非空值优先。
+
 内置防爆破：同一 IP 15 分钟内密钥错 5 次封禁 15 分钟（登录与全部写接口共用计数）。
 
-### 本地重建数据（全删全增）
+### 线上 ⇄ 本地同步（sync.js）
+
+**线上库是唯一真源，本地库只是供 AI 分析用的只读镜像。** 让 agent 扫库做内容分析前，
+先拉一次镜像保证数据新鲜；改动回写永远走线上（后台或 REST API 逐条）——这样 `/ev/:id`
+的 id 稳定不变（已被搜索引擎收录），且自动触发 SEO 缓存重建与百度推送：
 
 ```bash
-node seed.js --force    # 按 seed.js 快照清空重灌（等效：sqlite3 data/chronicle.db ".read drafts/full-rewrite-<日期>.sql"）
-node server.js          # 重建后必须重启服务
+node sync.js pull                 # 线上 → 本地：档案全量镜像 + 引用图片增量下载
+node sync.js push-image 图片路径   # 本地图片 → 线上 /uploads/（需管理密钥），返回可填入 image 字段的路径
 ```
 
-> **重要**：首页 SSR、`/ev/:id`、sitemap、RSS 的缓存只在走后台 API 写入时自动失效。
-> 用 `seed.js --force` 或 SQL **直接改库**，正在运行的服务不会感知——必须重启
+站点地址与密钥按优先级取自：命令行参数（`--site` / `--key`）> 环境变量（`UMB_SITE` /
+`UMB_ADMIN_KEY`）> `data/remote.json`（`{"site": "…", "adminKey": "…"}`，data/ 已
+gitignore 不会泄露）。`pull` 不需要密钥。
+
+> **重要**：首页 SSR、`/ev/:id`、sitemap、RSS 的缓存只在走后台 / API 写入时自动失效。
+> 用 `sync.js pull` 或 SQL **直接改库**，正在运行的服务不会感知——必须重启
 > （本地 Ctrl+C 后重跑 `node server.js`；线上 `sudo systemctl restart umbrella4365`）。
 
 ## 部署
@@ -63,6 +77,19 @@ node server.js          # 重建后必须重启服务
 - **分享定位**：每条档案有独立页面 `/ev/<id>`，弹层内「⧉ 链接」一键复制该地址，分享出去带
   事件专属标题与预览卡片；`#ev-<id>` 锚点仍可在时间树内直接定位。
 - **社交卡片**：内置 Open Graph / Twitter 卡片与分享图 `public/og.png`，分享到群聊 / 推特有预览。
+- **红后作战室 `/warroom`**（2026-08-30 起）：档案库实时推导的战况面板——存活套利窗口（标题带
+  「（存活）」的档案 + 检出日推算存活天数）、最近灭活（series 内检出/灭活成对推导）、模型补给表
+  （`supply` 表，后台维护）、战线状态（status.cursor.com 镜像，5 分钟缓存超时降级）。
+- **战报周刊 `/w`**：每周战报 `/w/<期号>` 与专题特稿 `/t/<slug>`（`posts` 表，草稿态不对外，
+  正文支持空行分段 / `## ` 小节 / `- ` 列表 / `[文字](链接)`）；与档案合流进 RSS。
+- **数据页 `/d/*`**：版本史全表 `/d/versions`、融资估值全史 `/d/funding`（两者 curated 在
+  `server.js` 的 `VERSIONS` / `FUNDING` 常量）、套利窗口全史 `/d/windows`（全自动库推导）。
+- **读者线报**：首页「☏ 提供线报」弹层匿名投递（`/api/tips`，限速 5 条/小时/IP + 蜜罐字段，
+  只存 IP 哈希），后台「收件箱」查阅。
+- **战区徽标**：`front` 字段非空的档案在卡片 / 弹层 / 档案页打「⌖ 战区」徽标（Claude Code /
+  Codex / Copilot / Windsurf / 国产工具 / 模型厂商，名册在 `server.js` 与 `index.html` 的 `FRONTS`）。
+- **支援与赞助**：后台「系统」页配置打赏 / TG / 公众号 / X 链接（前台「⛨ 支援本刊」弹层）与
+  「补给线」赞助位（sponsorText + sponsorUrl 都配置才在页脚出现，输出带 `rel=sponsored`）。
 
 ## SEO / GEO
 
@@ -104,7 +131,12 @@ node server.js          # 重建后必须重启服务
 | `image` | 图片（`/uploads/…` 或外链 URL，后台可直接上传） |
 | `series` | 事件线索（选填）。同一漏洞/羊毛窗口的多条事件填相同线索名，前台串成时间线并显示窗口跨度 |
 | `source` | 信源链接（选填）。原始报道/官方公告 URL，前台"调阅档案"可点击追溯 |
+| `front` | 战区代号（选填，2026-08-30 起）。空 = Cursor 主战线；邻圈档案填 `claude-code` / `codex` / `copilot` / `windsurf` / `cn-tools` / `model-labs` |
 | `created_at` / `updated_at` | 创建 / 最近修改时间（自动，后台列表可按其排序） |
+
+另有四张辅助表（建表语句在 `server.js`，老库升级跑一次 `node tools/migrate-2026-08-30.js`）：
+`posts`（刊物：weekly 战报 / feature 特稿，draft/published 两态）、`drafts`（草稿收件箱：侦察 agent
+投稿 + 核查要点，审核发布后转正为 events 并回写 event_id）、`tips`（读者线报）、`supply`（模型补给表）。
 
 ## 事件线索（漏洞 / 羊毛窗口）
 
@@ -130,13 +162,19 @@ node server.js          # 重建后必须重启服务
 ## 目录结构
 
 ```
-server.js          零依赖服务端（静态资源 + REST API + SSR/SEO + 聚合页 + 百度推送 + 鉴权 + 访问记录）
-seed.js            建库 + 初始档案快照（2026-08-29：正史 51 / 野史 38 共 89 条、10 条事件线索；线上以 data/chronicle.db 为准）
+server.js          零依赖服务端（静态资源 + REST API + SSR/SEO + 聚合页 + 作战室/刊物/数据页 + 百度推送 + 鉴权 + 访问记录）
+sync.js            线上 ⇄ 本地同步工具：pull 拉档案镜像+图片 / push-image 传图（线上库为唯一真源）
 GROWTH.md          增长作战手册：站长平台接入、社区分发、外链与复盘（站外动作清单）
-data/chronicle.db  SQLite 数据库（运行时生成，已 gitignore）
+AUTOMATION.md      自动化手册：哨兵 / 侦察 / 战报 / 扇出的 agent 编辑部操作规程
+tools/
+  sentinel.js      信源哨兵：定时轮询 L0/L2 信源，diff 新信号进 data/sentinel-queue.md（可推 TG）
+  seed-supply.js   模型补给表初始数据（一次性）
+  migrate-2026-08-30.js  一次性迁移：events.front + posts/drafts/tips/supply 表（幂等）
+data/chronicle.db  SQLite 数据库（本地为 sync.js pull 的只读镜像，已 gitignore）
+data/remote.json   sync.js 的线上地址与密钥（可选，已 gitignore）
 public/
   index.html       前台：垂直双线时间树（最新在上 · 左正史 · 右野史）
-  admin.html       后台：RED QUEEN 终端（档案管理 + 访客监控）
+  admin.html       后台：RED QUEEN 终端（档案管理 + 收件箱 + 编辑部 + 补给线 + 访客监控 + 系统）
   logo.svg         站标：保护伞红白伞面 × Cursor 六边形 × 中央光标
   favicon.ico      收藏夹图标（32/16px，重新生成流程见 drafts/icon-render.html 头部注释）
   apple-touch-icon.png  iOS 主屏图标（180px）
@@ -156,6 +194,16 @@ public/
 | DELETE | `/api/events/:id` | 是 | 删除 |
 | POST | `/api/upload` | 是 | 图片上传（JSON base64，≤10MB） |
 | GET | `/api/stats?days=&rpage=&rsize=` | 是 | 访问统计（PV/UV、趋势、热门路径、来源、嗅探记录、最近访问分页） |
+| GET / PUT | `/api/settings` | 是 | SEO 接入配置 + 频道与支援链接的读取与保存，保存即生效 |
+| POST | `/api/settings/test-baidu` | 是 | 用当前 token 把首页推送一次百度，返回百度原始响应（验证链路） |
+| GET / POST | `/api/posts`；PUT / DELETE `/api/posts/:id` | 是 | 刊物（战报 / 特稿）管理；发布态变更自动推百度 |
+| GET / POST | `/api/drafts`；PUT / DELETE `/api/drafts/:id` | 是 | 草稿收件箱（侦察 agent 投稿，含 verify 核查要点） |
+| POST | `/api/drafts/:id/publish` | 是 | 审核发布：草稿（可带最终修改）→ 正式档案，草稿标记 accepted |
+| POST | `/api/tips` | 否 | 读者线报投递（8–1000 字，限速 5 条/小时/IP，蜜罐字段 `website`） |
+| GET | `/api/tips`；PUT / DELETE `/api/tips/:id` | 是 | 线报查阅 / 标记已读 / 删除 |
+| GET | `/api/supply` | 否 | 模型补给表（作战室数据源，公开只读） |
+| POST | `/api/supply`；PUT / DELETE `/api/supply/:id` | 是 | 补给表维护 |
 | POST | `/api/auth/check` | — | 校验管理密钥（含防爆破限速） |
 
-写操作需请求头 `X-Admin-Key: <ADMIN_KEY>`。
+写操作需请求头 `X-Admin-Key: <ADMIN_KEY>`。SSR 页面：`/warroom`、`/w`、`/w/:issue`、`/t/:slug`、
+`/d/versions|funding|windows` 已全部进 sitemap / llms.txt；刊物与档案合流进 RSS。

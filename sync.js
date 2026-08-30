@@ -1,0 +1,148 @@
+/**
+ * UMBRELLA 4365 · 线上 ⇄ 本地同步工具（零依赖，Node ≥ 22.13）
+ *
+ * 设计前提：线上库是唯一真源，本地库只是供 AI 分析用的只读镜像——
+ * 档案的增删改永远走线上（后台或 REST API 逐条），保证 /ev/:id 永久 URL 不变，
+ * 并自动触发 SEO 缓存重建与百度推送。因此同步只有两个方向明确的动作：
+ *
+ *   node sync.js pull                    线上 → 本地：档案全量镜像 + 引用图片增量下载
+ *   node sync.js push-image <图片路径>    本地 → 线上：上传图片到 /uploads/（需管理密钥）
+ *
+ * 站点地址与密钥的来源（按优先级）：
+ *   site：    --site <url>  >  环境变量 UMB_SITE  >  data/remote.json 的 "site"  >  https://umbrella4365.com
+ *   adminKey：--key <key>   >  环境变量 UMB_ADMIN_KEY  >  data/remote.json 的 "adminKey"（仅 push-image 需要）
+ *
+ * data/remote.json 示例（data/ 已 gitignore，密钥不会入库）：
+ *   { "site": "https://umbrella4365.com", "adminKey": "线上 ADMIN_KEY" }
+ */
+const fs = require('node:fs');
+const path = require('node:path');
+const { DatabaseSync } = require('node:sqlite');
+
+const ROOT = __dirname;
+const DATA_DIR = path.join(ROOT, 'data');
+const DB_PATH = path.join(DATA_DIR, 'chronicle.db');
+const UPLOAD_DIR = path.join(ROOT, 'public', 'uploads');
+const REMOTE_CONF = path.join(DATA_DIR, 'remote.json');
+
+/* ---- 参数解析 ---- */
+const argv = process.argv.slice(2);
+const cmd = argv[0];
+function argOf(flag) {
+  const i = argv.indexOf(flag);
+  return i >= 0 && argv[i + 1] ? argv[i + 1] : '';
+}
+function remoteConf() {
+  try { return JSON.parse(fs.readFileSync(REMOTE_CONF, 'utf8')); } catch { return {}; }
+}
+const SITE = (argOf('--site') || process.env.UMB_SITE || remoteConf().site || 'https://umbrella4365.com').replace(/\/+$/, '');
+const ADMIN_KEY = argOf('--key') || process.env.UMB_ADMIN_KEY || remoteConf().adminKey || '';
+
+/* ---- pull：线上 → 本地镜像 ---- */
+async function pull() {
+  console.log(`拉取线上档案：${SITE}/api/events`);
+  const res = await fetch(`${SITE}/api/events`);
+  if (!res.ok) throw new Error(`GET /api/events 失败：HTTP ${res.status}`);
+  const { events } = await res.json();
+  if (!Array.isArray(events) || !events.length) throw new Error('线上返回 0 条档案，中止（防止误清空本地库）');
+
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  const db = new DatabaseSync(DB_PATH);
+  /* schema 与 server.js 初始化一致，本地没有库时也能直接建出来 */
+  db.exec(`
+    PRAGMA journal_mode = WAL;
+    CREATE TABLE IF NOT EXISTS events (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      side       TEXT NOT NULL CHECK(side IN ('main','dark')),
+      date       TEXT NOT NULL,
+      tag        TEXT NOT NULL DEFAULT '',
+      title      TEXT NOT NULL,
+      summary    TEXT NOT NULL,
+      detail     TEXT NOT NULL DEFAULT '',
+      image      TEXT NOT NULL DEFAULT '',
+      series     TEXT NOT NULL DEFAULT '',
+      source     TEXT NOT NULL DEFAULT '',
+      front      TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_events_date ON events(date DESC);
+  `);
+  /* 老镜像库缺 front 列时就地补上（镜像库可随时重建，不算运行时迁移） */
+  if (!db.prepare('PRAGMA table_info(events)').all().some(c => c.name === 'front')) {
+    db.exec(`ALTER TABLE events ADD COLUMN front TEXT NOT NULL DEFAULT ''`);
+  }
+  const ins = db.prepare(
+    `INSERT INTO events (id, side, date, tag, title, summary, detail, image, series, source, front, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM events');
+    for (const e of events) {
+      ins.run(e.id, e.side, e.date, e.tag || '', e.title, e.summary, e.detail || '',
+              e.image || '', e.series || '', e.source || '', e.front || '', e.created_at || e.date, e.updated_at || e.date);
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw err;
+  }
+  const main = events.filter(e => e.side === 'main').length;
+  console.log(`本地镜像已重建：${events.length} 条（正史 ${main} / 野史 ${events.length - main}）→ ${DB_PATH}`);
+
+  /* 引用图片增量下载（只拉档案实际引用的 /uploads/*，已存在的跳过） */
+  const wanted = [...new Set(events.map(e => e.image).filter(u => u && u.startsWith('/uploads/')))];
+  let fetched = 0, missing = 0;
+  for (const u of wanted) {
+    const local = path.join(UPLOAD_DIR, path.basename(u));
+    if (fs.existsSync(local)) continue;
+    try {
+      const r = await fetch(SITE + u);
+      if (!r.ok) { console.warn(`  ⚠ 图片缺失（线上 ${r.status}）：${u}`); missing++; continue; }
+      fs.writeFileSync(local, Buffer.from(await r.arrayBuffer()));
+      fetched++;
+    } catch (err) {
+      console.warn(`  ⚠ 图片下载失败：${u}（${err.message}）`); missing++;
+    }
+  }
+  console.log(`图片：引用 ${wanted.length} 张 · 新下载 ${fetched} 张${missing ? ` · 失败 ${missing} 张` : ''}`);
+  console.log('提醒：本地库是只读镜像——改动请走后台或线上 API（逐条），不要改本地库再回推。');
+}
+
+/* ---- push-image：本地图片 → 线上 uploads ---- */
+async function pushImage(file) {
+  if (!file) throw new Error('用法：node sync.js push-image <图片路径>');
+  if (!ADMIN_KEY) throw new Error('缺少管理密钥：--key / 环境变量 UMB_ADMIN_KEY / data/remote.json 的 "adminKey"');
+  const buf = fs.readFileSync(file);
+  if (buf.length > 10 * 1024 * 1024) throw new Error('图片超过 10MB 上限');
+  const res = await fetch(`${SITE}/api/upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': ADMIN_KEY },
+    body: JSON.stringify({ name: path.basename(file), data: buf.toString('base64') }),
+  });
+  const d = await res.json();
+  if (!d.ok) throw new Error(`上传失败：${d.error || res.status}`);
+  console.log(`已上传 → ${d.url}`);
+  console.log(`完整地址：${SITE}${d.url}（录入档案时 image 字段填 ${d.url}）`);
+}
+
+/* ---- 入口 ---- */
+(async () => {
+  try {
+    if (cmd === 'pull') await pull();
+    else if (cmd === 'push-image') await pushImage(argv[1] && !argv[1].startsWith('--') ? argv[1] : '');
+    else {
+      console.log('UMBRELLA 4365 · 同步工具（线上库为唯一真源）');
+      console.log('  node sync.js pull                    线上 → 本地：档案镜像 + 引用图片');
+      console.log('  node sync.js push-image <图片路径>    本地图片 → 线上 /uploads/（需密钥）');
+      console.log('  可选参数：--site <url>  --key <adminKey>');
+      process.exitCode = cmd ? 1 : 0;
+      if (cmd) console.error(`未知命令：${cmd}`);
+    }
+  } catch (e) {
+    console.error(`✕ ${e.message}`);
+    process.exitCode = 1;
+  }
+})();
