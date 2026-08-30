@@ -466,6 +466,10 @@ const SITE_INTRO = 'UMBRELLA 4365（umbrella4365.com）是一个中文时间轴�
 /* 英文站点简介只出现在机器可读层（llms.txt），供英文语境的 AI 检索理解本站，不做英文页面 */
 const SITE_INTRO_EN = 'UMBRELLA 4365 (umbrella4365.com) is a Chinese-language timeline archive chronicling Cursor (the AI code editor by Anysphere) and the AI coding scene, written in a war-correspondence style. Events are filed on two tracks: the Main Chronicle (正史) covers funding rounds, releases and acquisitions backed by public sources; the Shadow Chronicle (野史) covers exploits, arbitrage plays and incidents reported from off-the-record channels, with stylized narration. Records only; no stance taken.';
 
+/* ICP 备案号：境内服务器的法定展示义务，出现在全部公开页面页脚（链接到工信部备案系统） */
+const ICP_NO = '京ICP备17020239号';
+const icpHTML = () => `<a href="https://beian.miit.gov.cn" target="_blank" rel="noopener nofollow">${ICP_NO}</a>`;
+
 const allEvents = () => db.prepare('SELECT * FROM events ORDER BY date DESC, id DESC').all();
 
 const seoCache = new Map(); // key -> { body: Buffer, etag }
@@ -862,7 +866,7 @@ ${ev.image ? '' : `<meta property="og:image:width" content="1200">
   </main>
   <footer class="sitefoot">
     基于公开报道与场外情报整理 · 野史含演绎 仅作记录 不构成立场<br>
-    <a href="/">⇱ 返回完整时间树</a> · <a href="/feed.xml">RSS</a> · <a href="${SITE_URL}">umbrella4365.com</a>
+    <a href="/">⇱ 返回完整时间树</a> · <a href="/feed.xml">RSS</a> · <a href="${SITE_URL}">umbrella4365.com</a> · ${icpHTML()}
   </footer>
 </div>
 </body>
@@ -1074,7 +1078,7 @@ ${extraCss || ''}</style>
   </main>
   <footer class="sitefoot">
     基于公开报道与场外情报整理 · 野史含演绎 仅作记录 不构成立场<br>
-    <a href="/">⇱ 返回完整时间树</a> · <a href="/about">关于本站</a> · <a href="/feed.xml">RSS</a> · <a href="${SITE_URL}">umbrella4365.com</a>
+    <a href="/">⇱ 返回完整时间树</a> · <a href="/about">关于本站</a> · <a href="/feed.xml">RSS</a> · <a href="${SITE_URL}">umbrella4365.com</a> · ${icpHTML()}
   </footer>
 </div>
 </body>
@@ -1462,7 +1466,7 @@ function postPageHTML(p) {
   </main>
   <footer class="sitefoot">
     基于公开报道与场外情报整理 · 仅作记录 不构成立场<br>
-    <a href="/w">刊物索引</a> · <a href="/warroom">红后作战室</a> · <a href="/feed.xml">RSS</a> · <a href="${SITE_URL}">umbrella4365.com</a>
+    <a href="/w">刊物索引</a> · <a href="/warroom">红后作战室</a> · <a href="/feed.xml">RSS</a> · <a href="${SITE_URL}">umbrella4365.com</a> · ${icpHTML()}
   </footer>
 </div>
 </body>
