@@ -155,6 +155,11 @@
   }
   .stationnav a:hover { color: var(--umb-hi); }
   .stationnav .grow { flex: 1; }
+  .stationnav a.cdnav {
+    color: var(--umb-hi); font-weight: 700; border-bottom-color: var(--umb);
+    text-shadow: 0 0 10px rgba(224,36,46,.4);
+  }
+  .stationnav a.cdnav::before { content: "●"; margin-right: 5px; animation: blink 1.4s steps(1) infinite; }
 
   /* 收录统计 + 筛选 */
   .legend-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -630,6 +635,7 @@
   </div>
   <nav class="stationnav" aria-label="情报站导航">
     <a href="/warroom">◈ 红后作战室</a>
+    <a href="/warroom" id="cdNav" class="cdnav" style="display:none"></a>
     <a href="/w">战报周刊</a>
     <a href="/d/windows">套利窗口史</a>
     <a href="/d/versions">版本史</a>
@@ -1075,6 +1081,19 @@ const tipLink = document.getElementById('tipLink');
 if (tipLink) tipLink.addEventListener('click', e => { e.preventDefault(); openTip(); });
 const supportLink = document.getElementById('supportLink');
 if (supportLink) supportLink.addEventListener('click', e => { e.preventDefault(); openSupport(); });
+
+/* ============ 倒计时（后台「系统」页配置；D 数在客户端算，绕开首页 SSR 缓存的日期滞后） ============ */
+(function () {
+  const cd = window.__CD__ || {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cd.date || '') || !cd.label) return;
+  const el = document.getElementById('cdNav');
+  if (!el) return;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.ceil((new Date(cd.date + 'T00:00:00') - today) / 864e5);
+  el.textContent = `${cd.label} ${days > 0 ? 'D-' + days : days === 0 ? 'D-DAY' : '已生效'}`;
+  el.title = `${cd.date} · 详见红后作战室`;
+  el.style.display = '';
+})();
 
 /* 报头署名同为手记暗门 */
 document.querySelector('.byline').addEventListener('click', openMemo);

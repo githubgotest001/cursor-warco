@@ -381,7 +381,12 @@
 
     <div class="cols">
       <div class="box2"><h3>每日访问 · PV / 独立访客</h3><div id="vDaily"></div></div>
-      <div class="box2"><h3>热门路径</h3><div class="plist" id="vTop"></div></div>
+      <div class="box2"><h3>版面热度 · 哪类页面被高频访问</h3><div id="vSections"></div></div>
+    </div>
+
+    <div class="box2" style="margin-bottom:16px">
+      <h3>热门路径 TOP 20 · 带标题反查（跟随上方天数筛选）</h3>
+      <div class="plist" id="vTop"></div>
     </div>
 
     <div class="cols">
@@ -477,6 +482,34 @@
         <div class="set-field">
           <label>赞助链接</label>
           <input type="text" id="sSponsorUrl" placeholder="https://…（带 rel=sponsored 输出，不伤 SEO）">
+        </div>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="box2">
+        <h3>TG 频道自动推送 · 档案/战报发布即推</h3>
+        <div class="set-field">
+          <label>Bot Token</label>
+          <input type="text" id="sTgBotToken" placeholder="123456:ABC-…（@BotFather 创建）">
+        </div>
+        <div class="set-field">
+          <label>频道 Chat ID</label>
+          <input type="text" id="sTgChatId" placeholder="@频道用户名 或 -100 开头的数字 ID">
+          <div class="hint-inline">把 bot 拉进频道设为管理员即可。只在「发布」时推送（新档案 / 战报 / 特稿首次发布），编辑不推不刷屏。
+            <button id="sTgTestBtn" style="padding:3px 10px;font-size:11px;margin-left:6px">⟳ 测试推送</button><span class="code" id="sTgMsg"></span></div>
+        </div>
+      </div>
+      <div class="box2">
+        <h3>倒计时 · 两项都填才亮牌</h3>
+        <div class="set-field">
+          <label>目标日期</label>
+          <input type="date" id="sCountdownDate">
+        </div>
+        <div class="set-field">
+          <label>标牌文案（≤12 字）</label>
+          <input type="text" id="sCountdownLabel" maxlength="24" placeholder="如：OpenAI 断供日">
+          <div class="hint-inline">显示在首页导航条（☢ 红字 D-N，点击进作战室）与作战室顶部倒计时面板；到期自动变「已生效」，清空即下牌。</div>
         </div>
       </div>
     </div>
@@ -1171,6 +1204,12 @@ const LINK_FIELDS = {
   sponsorText: 'sSponsorText',
   sponsorUrl: 'sSponsorUrl',
 };
+const OPS_FIELDS = {
+  tgBotToken: 'sTgBotToken',
+  tgChatId: 'sTgChatId',
+  countdownDate: 'sCountdownDate',
+  countdownLabel: 'sCountdownLabel',
+};
 async function loadSettings() {
   const res = await fetch('/api/settings', { headers: headers() });
   const d = await res.json();
@@ -1183,8 +1222,17 @@ async function loadSettings() {
   for (const [key, inputId] of Object.entries(LINK_FIELDS)) {
     $(inputId).value = (d.links && d.links[key]) || '';
   }
+  for (const [key, inputId] of Object.entries(OPS_FIELDS)) {
+    $(inputId).value = (d.ops && d.ops[key]) || '';
+  }
   $('deployVer').textContent = d.version ? `当前版本 ${d.version}` : '';
 }
+$('sTgTestBtn').onclick = async e => {
+  e.preventDefault();
+  $('sTgMsg').textContent = '…';
+  const d = await (await fetch('/api/settings/test-tg', { method: 'POST', headers: headers() })).json();
+  $('sTgMsg').textContent = d.ok ? '✓ 已发到频道' : '✕ ' + (d.error || '失败');
+};
 
 /* ===== 系统：一键部署 ===== */
 $('deployBtn').onclick = async () => {
@@ -1234,6 +1282,7 @@ $('sSaveBtn').onclick = async () => {
   const body = {};
   for (const [key, inputId] of Object.entries(SETTING_FIELDS)) body[key] = $(inputId).value.trim();
   for (const [key, inputId] of Object.entries(LINK_FIELDS)) body[key] = $(inputId).value.trim();
+  for (const [key, inputId] of Object.entries(OPS_FIELDS)) body[key] = $(inputId).value.trim();
   $('sSaveBtn').disabled = true;
   const res = await fetch('/api/settings', { method: 'PUT', headers: headers(), body: JSON.stringify(body) });
   $('sSaveBtn').disabled = false;
@@ -1396,7 +1445,23 @@ async function loadStats() {
   const plist = (arr, key) => arr.length
     ? arr.map(x => `<div class="r"><span class="p">${escapeHtml(x[key])}</span><span class="n">${x.n}</span></div>`).join('')
     : '<div class="code">暂无数据</div>';
-  $('vTop').innerHTML = plist(d.topPaths, 'path');
+
+  /* 版面热度：按版面聚合的 PV/UV 条形 */
+  const smax = Math.max(1, ...(d.sections || []).map(x => x.pv));
+  $('vSections').innerHTML = (d.sections || []).length ? d.sections.map(x => `
+    <div class="bar">
+      <span class="k" style="min-width:96px">${escapeHtml(x.sec)}</span>
+      <span class="track"><span class="fill" style="width:${(x.pv / smax * 100).toFixed(1)}%"></span></span>
+      <span class="v">${x.pv} · ${x.uv}人</span>
+    </div>`).join('') : '<div class="code">暂无数据</div>';
+
+  /* 热门路径：路径 + 反查标题 + PV/UV */
+  $('vTop').innerHTML = (d.topPaths || []).length ? d.topPaths.map(x => `
+    <div class="r">
+      <span class="p">${escapeHtml(x.path)}${x.title ? ` <span style="color:var(--bone);opacity:.85">· ${escapeHtml(x.title)}</span>` : ''}</span>
+      <span class="n">${x.n}<span style="color:var(--dim);font-weight:400"> · ${x.uv}人</span></span>
+    </div>`).join('') : '<div class="code">暂无数据</div>';
+
   $('vScan').innerHTML = plist(d.scans, 'path');
   $('vRef').innerHTML = plist(d.referers, 'referer');
 

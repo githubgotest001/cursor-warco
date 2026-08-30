@@ -110,6 +110,54 @@ function getLinks() {
   return out;
 }
 
+/* 运营配置（后台「系统」页）：TG 频道自动推送 + 倒计时（都为空则对应功能静默关闭） */
+const OPS_KEYS = ['tgBotToken', 'tgChatId', 'countdownDate', 'countdownLabel'];
+function getOps() {
+  const cfg = readConfig();
+  const out = {};
+  for (const k of OPS_KEYS) out[k] = String(cfg[k] || '').trim().slice(0, 200);
+  return out;
+}
+
+/* ============ TG 频道自动推送 ============
+   档案 / 刊物「发布」时把红后体摘要推进 TG 频道（发布键在站长手里，推送只是扇出）。
+   编辑不推（防刷屏）；失败只记日志，不影响主流程。 */
+async function tgPushRaw(text, token, chat) {
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10000),
+    body: JSON.stringify({ chat_id: chat, text: text.slice(0, 3900) }),
+  });
+  return r.json();
+}
+function tgPush(text) {
+  const { tgBotToken, tgChatId } = getOps();
+  if (!tgBotToken || !tgChatId) return;
+  tgPushRaw(text, tgBotToken, tgChatId)
+    .then(j => console.log(`[TG推送] ${j.ok ? '成功' : '失败 ' + (j.description || '')}`))
+    .catch(e => console.warn(`[TG推送] 失败（不影响主流程）：${e.message}`));
+}
+function tgPushEvent(row) {
+  const no = (row.side === 'main' ? 'A-' : 'X-') + String(row.id).padStart(3, '0');
+  tgPush([
+    `▍新档案 · ${row.side === 'main' ? '正史' : '野史'} ${no}${row.tag ? ' · ' + row.tag : ''}`,
+    row.title,
+    '',
+    row.summary,
+    '',
+    `${SITE_URL}/ev/${row.id}`,
+  ].join('\n'));
+}
+function tgPushPost(p) {
+  tgPush([
+    `▍${p.kind === 'weekly' ? `战报 第 ${p.issue} 期` : '专题特稿'}`,
+    p.title,
+    '',
+    p.summary || '',
+    '',
+    SITE_URL + postPath(p),
+  ].join('\n'));
+}
+
 /* ============ 数据库 ============ */
 const db = new DatabaseSync(DB_PATH);
 db.exec(`
@@ -344,7 +392,7 @@ function requireAuth(req, res) {
    3) 内存缓冲后批量落库，避免每个请求一次同步写阻塞事件循环
    4) 仅保留 LOG_KEEP_DAYS 天且设行数上限，防止被刷请求撑爆磁盘
    5) IP 只存加盐哈希；路径 / UA / 来源一律截断 */
-const LOG_SKIP_EXT = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.css', '.js', '.map']);
+const LOG_SKIP_EXT = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.css', '.js', '.map', '.woff2']);
 const LOG_DEDUP_MS = 60 * 1000;
 const LOG_FLUSH_MS = 5000;
 const LOG_FLUSH_MAX = 50;
@@ -648,7 +696,7 @@ function homeHeadHTML(events) {
     `<meta name="twitter:image" content="${SITE_URL}/og.png">`,
     verifyMetaHTML(),
     `<script type="application/ld+json">${website}</script>`,
-    `<script>window.__EVENTS__=${ldjson(events)};window.__LINKS__=${ldjson(getLinks())};</script>`,
+    `<script>window.__EVENTS__=${ldjson(events)};window.__LINKS__=${ldjson(getLinks())};window.__CD__=${ldjson((({ countdownDate, countdownLabel }) => ({ date: countdownDate, label: countdownLabel }))(getOps()))};</script>`,
     `<script type="application/ld+json">${itemList}</script>`,
   ].filter(Boolean).join('\n');
 }
@@ -1645,6 +1693,9 @@ const WARROOM_CSS = `
   .wr-status.unknown { color:var(--bone-dim); }
   .wr-note { margin-top:8px; font-size:11px; line-height:1.9; color:var(--bone-dim); }
   .wr-note a { color:var(--umb-hi); text-decoration:none; }
+  .wr-cdrow { display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; padding:2px 0 4px; }
+  .wr-cdrow .dnum { font-family:var(--mono); font-size:30px; font-weight:800; letter-spacing:.06em; color:var(--umb-hi); text-shadow:0 0 18px rgba(224,36,46,.55); }
+  .wr-cdrow .t { color:#efdada; font-size:13.5px; letter-spacing:.04em; }
   .wtable-wrap { overflow-x:auto; }
   table.wtable { width:100%; border-collapse:collapse; font-size:12px; }
   table.wtable th { font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; color:var(--bone-dim); text-align:left; padding:7px 8px; border-bottom:1px solid rgba(224,36,46,.35); white-space:nowrap; font-weight:400; }
@@ -1703,7 +1754,21 @@ function warroomPageHTML(status) {
       ${(status.incidents || []).map(i => `<div class="wr-row"><span class="t">${escHtml(i.name)}</span><span class="m">${escHtml(i.at)} · ${escHtml(i.status)}</span></div>`).join('')}`;
   }
 
-  const bodyHtml = `
+  const ops = getOps();
+  let cdHtml = '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ops.countdownDate) && ops.countdownLabel) {
+    const dDays = Math.ceil((new Date(ops.countdownDate) - new Date(todayStr)) / 864e5);
+    cdHtml = `
+    <div class="wr-box">
+      <h2>◈ 倒计时 COUNTDOWN</h2>
+      <div class="wr-cdrow">
+        <span class="dnum">${dDays > 0 ? 'D-' + dDays : dDays === 0 ? 'D-DAY' : '已生效'}</span>
+        <span class="t">${escHtml(ops.countdownLabel)}（${dotDate(ops.countdownDate)}）</span>
+      </div>
+    </div>`;
+  }
+
+  const bodyHtml = `${cdHtml}
     <div class="wr-box">
       <h2>◈ 套利窗口 · 存活中 LIVE WINDOWS</h2>
       ${liveHtml}
@@ -2196,27 +2261,79 @@ async function handleAPI(req, res, url) {
       `SELECT COUNT(*) AS pv, COUNT(DISTINCT ip_hash) AS uv FROM visits WHERE day = date('now','localtime')`
     ).get();
     const total = db.prepare(`SELECT COUNT(*) AS pv, COUNT(DISTINCT ip_hash) AS uv FROM visits`).get();
+    const cutoff = `-${days} days`;
     const daily = db.prepare(
       `SELECT day, COUNT(*) AS pv, COUNT(DISTINCT ip_hash) AS uv FROM visits
        WHERE day >= date('now','localtime',?) GROUP BY day ORDER BY day DESC`
-    ).all(`-${days} days`);
+    ).all(cutoff);
+
+    /* 热门路径（跟随天数筛选，带 UV，反查标题——一眼看出哪条档案/哪个页面在被高频访问） */
     const topPaths = db.prepare(
-      `SELECT path, COUNT(*) AS n FROM visits WHERE status < 400 GROUP BY path ORDER BY n DESC LIMIT 12`
-    ).all();
+      `SELECT path, COUNT(*) AS n, COUNT(DISTINCT ip_hash) AS uv FROM visits
+       WHERE status < 400 AND day >= date('now','localtime',?) GROUP BY path ORDER BY n DESC LIMIT 20`
+    ).all(cutoff);
+    const D_NAMES = { versions: '版本史全表', funding: '融资估值全史', windows: '套利窗口全史' };
+    for (const r of topPaths) {
+      let m;
+      if ((m = r.path.match(/^\/ev\/(\d+)$/))) {
+        const e = db.prepare('SELECT title FROM events WHERE id = ?').get(Number(m[1]));
+        r.title = e ? e.title : '（已销毁档案）';
+      } else if ((m = r.path.match(/^\/s\/([^/]+)$/))) {
+        let name = seriesBySlug.get(m[1]);
+        if (!name) { try { name = decodeURIComponent(m[1]); } catch { name = ''; } }
+        r.title = name ? `线索 · ${name}` : '';
+      } else if ((m = r.path.match(/^\/w\/(\d+)$/))) {
+        const p2 = db.prepare(`SELECT title FROM posts WHERE kind='weekly' AND issue = ?`).get(Number(m[1]));
+        r.title = p2 ? p2.title : '';
+      } else if ((m = r.path.match(/^\/t\/([a-z0-9-]+)$/))) {
+        const p2 = db.prepare(`SELECT title FROM posts WHERE kind='feature' AND slug = ?`).get(m[1]);
+        r.title = p2 ? p2.title : '';
+      } else if ((m = r.path.match(/^\/y\/(\d{4})$/))) {
+        r.title = `${m[1]} 年大事记`;
+      } else if ((m = r.path.match(/^\/d\/(\w+)$/))) {
+        r.title = D_NAMES[m[1]] || '';
+      } else {
+        r.title = '';
+      }
+    }
+
+    /* 版面热度：路径归类为版面后聚合 PV/UV（llms 与 /api/events 的命中 ≈ AI 爬虫读站证据） */
+    const sections = db.prepare(
+      `SELECT CASE
+         WHEN path = '/' THEN '首页时间树'
+         WHEN path LIKE '/ev/%' THEN '档案独立页'
+         WHEN path LIKE '/s/%' THEN '线索聚合页'
+         WHEN path LIKE '/y/%' THEN '年份大事记'
+         WHEN path = '/warroom' THEN '红后作战室'
+         WHEN path = '/w' OR path LIKE '/w/%' THEN '战报周刊'
+         WHEN path LIKE '/t/%' THEN '专题特稿'
+         WHEN path LIKE '/d/%' THEN '数据速查页'
+         WHEN path = '/about' THEN '关于本站'
+         WHEN path = '/feed.xml' THEN 'RSS 订阅'
+         WHEN path IN ('/llms.txt', '/llms-full.txt') THEN 'AI 索引 llms'
+         WHEN path IN ('/sitemap.xml', '/robots.txt') THEN '爬虫基础设施'
+         WHEN path LIKE '/api/%' THEN 'API 机器读取'
+         ELSE '其他' END AS sec,
+         COUNT(*) AS pv, COUNT(DISTINCT ip_hash) AS uv
+       FROM visits WHERE status < 400 AND day >= date('now','localtime',?)
+       GROUP BY sec ORDER BY pv DESC`
+    ).all(cutoff);
+
     const scans = db.prepare(
-      `SELECT path, COUNT(*) AS n, MAX(ts) AS last_ts FROM visits WHERE status >= 400
+      `SELECT path, COUNT(*) AS n, MAX(ts) AS last_ts FROM visits WHERE status >= 400 AND day >= date('now','localtime',?)
        GROUP BY path ORDER BY n DESC LIMIT 12`
-    ).all();
+    ).all(cutoff);
     const referers = db.prepare(
-      `SELECT referer, COUNT(*) AS n FROM visits WHERE referer <> '' GROUP BY referer ORDER BY n DESC LIMIT 10`
-    ).all();
+      `SELECT referer, COUNT(*) AS n FROM visits WHERE referer <> '' AND day >= date('now','localtime',?)
+       GROUP BY referer ORDER BY n DESC LIMIT 10`
+    ).all(cutoff);
     const rSize = Math.min(Math.max(Number(url.searchParams.get('rsize')) || 30, 1), 100);
     const rPage = Math.max(Number(url.searchParams.get('rpage')) || 1, 1);
     const recentTotal = db.prepare(`SELECT COUNT(*) AS c FROM visits`).get().c;
     const recent = db.prepare(
       `SELECT ts, path, status, ip_hash, ua, referer FROM visits ORDER BY id DESC LIMIT ? OFFSET ?`
     ).all(rSize, (rPage - 1) * rSize);
-    return sendJSON(res, 200, { ok: true, today, total, daily, topPaths, scans, referers, recent, recentTotal, rPage, rSize, keepDays: LOG_KEEP_DAYS });
+    return sendJSON(res, 200, { ok: true, today, total, daily, topPaths, sections, scans, referers, recent, recentTotal, rPage, rSize, keepDays: LOG_KEEP_DAYS });
   }
 
   /* 站点设置（后台「系统」页）：SEO 接入配置 + 频道与支援链接的读取 / 保存 / 推送测试 */
@@ -2230,19 +2347,33 @@ async function handleAPI(req, res, url) {
     }
     const links = {};
     for (const k of LINK_KEYS) links[k] = String(cfg[k] || '').trim();
+    const ops = {};
+    for (const k of OPS_KEYS) ops[k] = String(cfg[k] || '').trim();
     const version = (await execCmd('git', ['rev-parse', '--short', 'HEAD'], 10000)).out;
-    return sendJSON(res, 200, { ok: true, settings, envFallback, links, siteUrl: SITE_URL, version });
+    return sendJSON(res, 200, { ok: true, settings, envFallback, links, ops, siteUrl: SITE_URL, version });
   }
   if (url.pathname === '/api/settings' && req.method === 'PUT') {
     if (!requireAuth(req, res)) return;
     const b = await readJSON(req);
     const patch = {};
-    for (const key of [...Object.keys(SETTING_KEYS), ...LINK_KEYS]) {
+    for (const key of [...Object.keys(SETTING_KEYS), ...LINK_KEYS, ...OPS_KEYS]) {
       if (key in b) patch[key] = cut(String(b[key] || '').trim(), 200);
     }
     writeConfig(patch);
-    invalidateDynamic();   // 验证 meta 与 __LINKS__ 在首页 head 里，改完立刻重建
+    invalidateDynamic();   // 验证 meta / __LINKS__ / 倒计时都在首页 head 里，改完立刻重建
     return sendJSON(res, 200, { ok: true });
+  }
+  /* 测试 TG 推送：向配置的频道发一条测试消息，验证 bot token 与 chat id */
+  if (url.pathname === '/api/settings/test-tg' && req.method === 'POST') {
+    if (!requireAuth(req, res)) return;
+    const { tgBotToken, tgChatId } = getOps();
+    if (!tgBotToken || !tgChatId) return sendJSON(res, 400, { ok: false, error: '尚未配置 TG Bot Token 或频道 Chat ID' });
+    try {
+      const j = await tgPushRaw(`▍链路测试 · RED QUEEN ONLINE\n${SITE_URL}`, tgBotToken, tgChatId);
+      return sendJSON(res, j.ok ? 200 : 502, { ok: Boolean(j.ok), error: j.ok ? undefined : (j.description || 'TG 返回失败') });
+    } catch (e) {
+      return sendJSON(res, 502, { ok: false, error: `推送请求失败：${e.message}` });
+    }
   }
   /* ============ 一键部署（后台「系统」页）============
      行为固定为三步：git pull --ff-only → node --check server.js → systemd 环境下退出进程由
@@ -2419,6 +2550,7 @@ async function handleAPI(req, res, url) {
       const row = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
       invalidateDynamic();
       baiduPushEvent(row);
+      tgPushEvent(row);
       return sendJSON(res, 201, { ok: true, event: rowToEvent(row) });
     }
   }
@@ -2479,7 +2611,7 @@ async function handleAPI(req, res, url) {
             String(b.title).trim(), String(b.summary || '').trim(), String(b.content || ''), b.date, b.status);
       const row = db.prepare('SELECT * FROM posts WHERE id = ?').get(info.lastInsertRowid);
       invalidateDynamic();
-      if (row.status === 'published') baiduPush([SITE_URL + postPath(row), `${SITE_URL}/w`, `${SITE_URL}/`]);
+      if (row.status === 'published') { baiduPush([SITE_URL + postPath(row), `${SITE_URL}/w`, `${SITE_URL}/`]); tgPushPost(row); }
       return sendJSON(res, 201, { ok: true, post: row });
     } catch (e) {
       return sendJSON(res, 400, { ok: false, error: /UNIQUE/i.test(String(e)) ? '期号或 slug 已被占用' : String(e.message || e) });
@@ -2510,7 +2642,10 @@ async function handleAPI(req, res, url) {
       }
       const updated = db.prepare('SELECT * FROM posts WHERE id = ?').get(id);
       invalidateDynamic();
-      if (updated.status === 'published') baiduPush([SITE_URL + postPath(updated), `${SITE_URL}/w`, ...(wasPublished ? [] : [`${SITE_URL}/`])]);
+      if (updated.status === 'published') {
+        baiduPush([SITE_URL + postPath(updated), `${SITE_URL}/w`, ...(wasPublished ? [] : [`${SITE_URL}/`])]);
+        if (!wasPublished) tgPushPost(updated);   // 首次发布才推，编辑已发布内容不刷屏
+      }
       return sendJSON(res, 200, { ok: true, post: updated });
     }
     if (req.method === 'DELETE') {
@@ -2569,6 +2704,7 @@ async function handleAPI(req, res, url) {
       db.prepare(`UPDATE drafts SET state='accepted', event_id=?, updated_at=datetime('now','localtime') WHERE id=?`).run(event.id, id);
       invalidateDynamic();
       baiduPushEvent(event);
+      tgPushEvent(event);
       return sendJSON(res, 201, { ok: true, event, draftId: id });
     }
     if (parts.length === 3 && req.method === 'PUT') {
