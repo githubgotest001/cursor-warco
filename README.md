@@ -4,8 +4,20 @@
 >
 > 一条正史（官方档案），一条野史（民间情报），沿一条时间脊柱由新到旧记录 Cursor 的光与影。
 > 仅作记录，不构成立场。域名：[umbrella4365.com](https://umbrella4365.com)
->
-> 本文档只讲技术。网站的世界观设定、文风调性、后台使用与运营纪律见 [PROJECT_BIBLE.md](PROJECT_BIBLE.md)（项目设定集）。
+
+## 文档地图（找东西从这里进）
+
+**一句话分工：设定问 BIBLE，技术问 README，部署问 DEPLOY，增长问 GROWTH，自动化问 AUTOMATION。**
+
+| 我想…… | 去读 |
+| --- | --- |
+| 了解世界观、文体、固定文案、已定决策与禁忌 | [PROJECT_BIBLE.md](PROJECT_BIBLE.md)（设定集 · **改站/写档案前必读**） |
+| 查功能清单、数据模型、API、环境变量 | 本文档（README，只讲技术） |
+| 部署 / 迁移 / 备份 / 排障 | [DEPLOY.md](DEPLOY.md) |
+| 做站长平台接入、社区分发、外链、复盘 | [GROWTH.md](GROWTH.md) |
+| 跑哨兵 / 侦察 / 战报 / 扇出的 agent 编辑部 | [AUTOMATION.md](AUTOMATION.md) |
+| 写一条档案 / 批量搜集 / 汇编战报 / 生成分发文案 | `.cursor/skills/` 下的 warco-chronicler / scout / dispatch / herald |
+| 弄清 drafts/ 里每个文件是干嘛的、能不能删 | [drafts/README.md](drafts/README.md) |
 
 ## 技术栈
 

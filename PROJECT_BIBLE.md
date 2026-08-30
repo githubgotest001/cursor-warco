@@ -22,7 +22,9 @@
 | `.cursor/skills/warco-scout/`（含 `references/sources.md`） | 档案侦察执行规范：信源分级清单、查缺/增量两种搜集模式 |
 | `.cursor/skills/warco-dispatch/` | 每周战报汇编规范：战报体、固定结构、期号纪律 |
 | `.cursor/skills/warco-herald/` | 分发文案规范：各渠道口音、不教唆红线、链接纪律 |
-| `drafts/style-samples-2026-08-28.md` | 文体定稿的决策存档（当年备选方向对比，只读不改） |
+| `drafts/README.md` | drafts/ 目录索引：待办 / 工作草稿 / 渲染源 / 决策存档四类的清单与处置纪律 |
+
+人类新读者从 `README.md` 顶部的「文档地图」进；AI 动手改站前先读本文档第 10 节「已定决策与禁忌」。
 
 文体细则以 skill 的 `fields-and-voice.md` 为准，本文档只收录「为什么这么定」和速查摘要。
 
@@ -259,7 +261,7 @@ tools/sentinel.js 哨兵（定时轮询信源，diff 新信号 → data/sentinel
 - **线上库是唯一真源，本地库只是只读镜像**：scout/分析类工作第一步 `node sync.js pull` 刷新镜像再读（`data/chronicle.db` 只读打开）；改动回写走线上 API 逐条（id 稳定、自动触发 SEO 缓存重建与百度推送），图片用 `node sync.js push-image <文件>` 上传。（seed.js 种子快照已于 2026-08-30 退役删除——静态快照必然过期，且对 AI 分析构成干扰源。）
 - 单条新闻直接说「写一条正史/野史」→ 走 warco-chronicler；批量搜集/查缺补漏 → 走 warco-scout。
 - 配图：外网截图被反爬拦截时，chronicler 可用本地渲染生成「官方公告存证卡」（做法同 `drafts/og-render.html`：写一个定尺寸 HTML 本地渲染后截图）。
-- `drafts/` 内容物：档案草稿（archive-drafts-*.md）、`og-render.html`（og.png 渲染源）、`icon-render.html` + `make-favicon.js`（favicon/apple-touch-icon 渲染源与打包器）、`full-rewrite-2026-08-29.sql`（**最后一次**全删全增 SQL，独立自包含、待线上执行，执行完即可删）、`style-samples-2026-08-28.md`（文体决策存档）。生成它的 `build-full-rewrite-sql.js` 与数据源 `seed.js` 已随 id 永久化纪律退役删除。
+- `drafts/` 内容物与处置纪律见 **[drafts/README.md](drafts/README.md)**（待办 / 工作草稿 / 渲染源 / 决策存档四类索引，本文档不再重复维护清单）。
 
 ---
 

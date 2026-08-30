@@ -66,6 +66,11 @@ SEO 接入配置（token / 验证码）在**后台「系统」标签页**填写�
 
 ### 2.1 百度搜索资源平台（境内已备案，优先做）
 
+> ⚠ **域名坑（2026-08-30 实战）**：添加站点时百度会默认推荐 `www.` 前缀——**必须手动选不带 www 的裸域**。
+> 本站全链路（Nginx 301、canonical、sitemap、推送）都按裸域定死，注册成 www 会导致推送报
+> `site init fail`（token 与站点不匹配）。已误注册 www 的不用删，另加一个裸域站点、用裸域的
+> token 与验证码即可。
+
 1. [ziyuan.baidu.com](https://ziyuan.baidu.com) → 用户中心 → 站点管理 → 添加 `https://umbrella4365.com`
 2. 验证方式选「HTML 标签」，把 content 值填进后台「系统」页的**百度站长验证码**并保存，回平台点验证
 3. 「普通收录」→「sitemap」提交 `https://umbrella4365.com/sitemap.xml`
