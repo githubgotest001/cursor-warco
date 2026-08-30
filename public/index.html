@@ -669,25 +669,12 @@
 </div>
 
 <script>
-/* ============ 年份阶段观测（生化纪元） ============ */
-const PHASES = {
-  '2022': { a: 'PHASE-0 始祖毒株 · PROGENITOR', b: '暗面无记录' },
-  '2023': { a: 'PHASE-I 初次泄漏 · OUTBREAK',  b: '暗面微弱杂音' },
-  '2024': { a: 'PHASE-II 城市扩散 · SPREAD',   b: '暗面异常增殖' },
-  '2025': { a: 'PHASE-III 全球大流行 · PANDEMIC', b: '变异体横行 · MUTATION' },
-  '2026': { a: 'PHASE-IV 吞并纪元 · ASSIMILATION', b: '暗面信号追踪中…' },
-};
+/* ============ 年份阶段观测（生化纪元）：优先用首页 SSR 注入的服务端副本，避免与 server.js 漂移 ============ */
+const PHASES = window.__PHASES__ || {};
 const phaseOf = y => PHASES[y] || { a: `PHASE-? 观测中 · ${y}`, b: '暗面信号追踪中…' };
 
-/* 战区名册（与 server.js 的 FRONTS 保持一致；'' = Cursor 主战线不标注） */
-const FRONTS = {
-  'claude-code': 'CLAUDE CODE 战区',
-  'codex': 'CODEX 战区',
-  'copilot': 'COPILOT 战区',
-  'windsurf': 'WINDSURF 战区',
-  'cn-tools': '国产工具战线',
-  'model-labs': '模型厂商战区',
-};
+/* 战区名册：取自首页 SSR 注入的 window.__FRONTS__（与 server.js 单一来源）；无注入时徽标降级显示原始代号 */
+const FRONTS = window.__FRONTS__ || {};
 
 const track = document.getElementById('track');
 const LENS = [40, 112, 72];

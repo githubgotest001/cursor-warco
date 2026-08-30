@@ -545,6 +545,21 @@ const icpHTML = () => `<a href="https://beian.miit.gov.cn" target="_blank" rel="
 
 const allEvents = () => db.prepare('SELECT * FROM events ORDER BY date DESC, id DESC').all();
 
+/* 独立页面（/ev/:id · 列表外壳 · 刊物页）共享的基础样式：字体子集、配色变量、报头 mast。
+   抽成常量避免三处逐字重复（改配色/字体只需一处），各页面在其后追加专属样式。 */
+const PAGE_BASE_CSS = `  @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800; font-display:swap;
+    src:local("JetBrains Mono"), url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  :root { --ink:#0a0b0e; --umb:#e0242e; --umb-hi:#ff4a52; --bone:#e9e6df; --bone-dim:#9aa0a8;
+    --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif; --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; --mono:"JetBrains Mono","Consolas",monospace; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--ink); color:var(--bone); font-family:var(--sans); -webkit-font-smoothing:antialiased; }`;
+const MAST_CSS = `  .mast { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0 12px; border-bottom:1px solid rgba(224,36,46,.35); }
+  .brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--bone); }
+  .brand img { width:26px; height:auto; filter:drop-shadow(0 0 10px rgba(224,36,46,.4)); }
+  .brand b { font-family:var(--serif); font-size:15px; letter-spacing:.06em; }
+  .brand .em { color:var(--umb-hi); }`;
+
 const seoCache = new Map(); // key -> { body: Buffer, etag }
 /* 档案 / 刊物 / 设置发生增删改时，同步失效 SEO 缓存与作战室缓存 */
 function invalidateDynamic() {
@@ -696,7 +711,7 @@ function homeHeadHTML(events) {
     `<meta name="twitter:image" content="${SITE_URL}/og.png">`,
     verifyMetaHTML(),
     `<script type="application/ld+json">${website}</script>`,
-    `<script>window.__EVENTS__=${ldjson(events)};window.__LINKS__=${ldjson(getLinks())};window.__CD__=${ldjson((({ countdownDate, countdownLabel }) => ({ date: countdownDate, label: countdownLabel }))(getOps()))};</script>`,
+    `<script>window.__EVENTS__=${ldjson(events)};window.__LINKS__=${ldjson(getLinks())};window.__CD__=${ldjson((({ countdownDate, countdownLabel }) => ({ date: countdownDate, label: countdownLabel }))(getOps()))};window.__FRONTS__=${ldjson(FRONTS)};window.__PHASES__=${ldjson(SSR_PHASES)};</script>`,
     `<script type="application/ld+json">${itemList}</script>`,
   ].filter(Boolean).join('\n');
 }
@@ -836,19 +851,9 @@ ${ev.image ? '' : `<meta property="og:image:width" content="1200">
 <script type="application/ld+json">${ld}</script>
 <script type="application/ld+json">${crumb}</script>
 <style>
-  @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800; font-display:swap;
-    src:local("JetBrains Mono"), url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
-    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-  :root { --ink:#0a0b0e; --umb:#e0242e; --umb-hi:#ff4a52; --bone:#e9e6df; --bone-dim:#9aa0a8;
-    --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif; --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; --mono:"JetBrains Mono","Consolas",monospace; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--ink); color:var(--bone); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+${PAGE_BASE_CSS}
   .wrap { max-width:680px; margin:0 auto; padding:14px clamp(14px,4vw,28px) 36px; }
-  .mast { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0 12px; border-bottom:1px solid rgba(224,36,46,.35); }
-  .brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--bone); }
-  .brand img { width:26px; height:auto; filter:drop-shadow(0 0 10px rgba(224,36,46,.4)); }
-  .brand b { font-family:var(--serif); font-size:15px; letter-spacing:.06em; }
-  .brand .em { color:var(--umb-hi); }
+${MAST_CSS}
   .mast .no { font-family:var(--mono); font-size:10px; letter-spacing:.18em; color:var(--bone-dim); }
   .dossier { margin-top:18px; }
   .bar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
@@ -1085,19 +1090,9 @@ function listPageHTML({ url, pageTitle, desc, kicker, h1, lead, metaHtml, bodyHt
 <link rel="alternate" type="application/rss+xml" title="UMBRELLA 4365 · 档案更新" href="/feed.xml">
 ${ldHtml}
 <style>
-  @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800; font-display:swap;
-    src:local("JetBrains Mono"), url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
-    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-  :root { --ink:#0a0b0e; --umb:#e0242e; --umb-hi:#ff4a52; --bone:#e9e6df; --bone-dim:#9aa0a8;
-    --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif; --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; --mono:"JetBrains Mono","Consolas",monospace; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--ink); color:var(--bone); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+${PAGE_BASE_CSS}
   .wrap { max-width:720px; margin:0 auto; padding:14px clamp(14px,4vw,28px) 36px; }
-  .mast { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0 12px; border-bottom:1px solid rgba(224,36,46,.35); }
-  .brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--bone); }
-  .brand img { width:26px; height:auto; filter:drop-shadow(0 0 10px rgba(224,36,46,.4)); }
-  .brand b { font-family:var(--serif); font-size:15px; letter-spacing:.06em; }
-  .brand .em { color:var(--umb-hi); }
+${MAST_CSS}
   .mast .no { font-family:var(--mono); font-size:10px; letter-spacing:.18em; color:var(--bone-dim); text-align:right; }
   .lede { margin:22px 0 6px; }
   .lede h1 { font-family:var(--serif); font-size:clamp(20px,4vw,26px); line-height:1.45; letter-spacing:.02em; }
@@ -1473,19 +1468,9 @@ function postPageHTML(p) {
 <script type="application/ld+json">${ld}</script>
 <script type="application/ld+json">${crumb}</script>
 <style>
-  @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800; font-display:swap;
-    src:local("JetBrains Mono"), url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
-    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-  :root { --ink:#0a0b0e; --umb:#e0242e; --umb-hi:#ff4a52; --bone:#e9e6df; --bone-dim:#9aa0a8;
-    --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif; --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; --mono:"JetBrains Mono","Consolas",monospace; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--ink); color:var(--bone); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+${PAGE_BASE_CSS}
   .wrap { max-width:680px; margin:0 auto; padding:14px clamp(14px,4vw,28px) 36px; }
-  .mast { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0 12px; border-bottom:1px solid rgba(224,36,46,.35); }
-  .brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--bone); }
-  .brand img { width:26px; height:auto; filter:drop-shadow(0 0 10px rgba(224,36,46,.4)); }
-  .brand b { font-family:var(--serif); font-size:15px; letter-spacing:.06em; }
-  .brand .em { color:var(--umb-hi); }
+${MAST_CSS}
   .mast .no { font-family:var(--mono); font-size:10px; letter-spacing:.18em; color:var(--bone-dim); }
   .dossier { margin-top:18px; }
   .bar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
@@ -2273,20 +2258,24 @@ async function handleAPI(req, res, url) {
        WHERE status < 400 AND day >= date('now','localtime',?) GROUP BY path ORDER BY n DESC LIMIT 20`
     ).all(cutoff);
     const D_NAMES = { versions: '版本史全表', funding: '融资估值全史', windows: '套利窗口全史' };
+    /* 标题反查语句预编译一次，循环内复用（避免每条热门路径都重新编译 SQL） */
+    const stEvTitle = db.prepare('SELECT title FROM events WHERE id = ?');
+    const stWeeklyTitle = db.prepare(`SELECT title FROM posts WHERE kind='weekly' AND issue = ?`);
+    const stFeatureTitle = db.prepare(`SELECT title FROM posts WHERE kind='feature' AND slug = ?`);
     for (const r of topPaths) {
       let m;
       if ((m = r.path.match(/^\/ev\/(\d+)$/))) {
-        const e = db.prepare('SELECT title FROM events WHERE id = ?').get(Number(m[1]));
+        const e = stEvTitle.get(Number(m[1]));
         r.title = e ? e.title : '（已销毁档案）';
       } else if ((m = r.path.match(/^\/s\/([^/]+)$/))) {
         let name = seriesBySlug.get(m[1]);
         if (!name) { try { name = decodeURIComponent(m[1]); } catch { name = ''; } }
         r.title = name ? `线索 · ${name}` : '';
       } else if ((m = r.path.match(/^\/w\/(\d+)$/))) {
-        const p2 = db.prepare(`SELECT title FROM posts WHERE kind='weekly' AND issue = ?`).get(Number(m[1]));
+        const p2 = stWeeklyTitle.get(Number(m[1]));
         r.title = p2 ? p2.title : '';
       } else if ((m = r.path.match(/^\/t\/([a-z0-9-]+)$/))) {
-        const p2 = db.prepare(`SELECT title FROM posts WHERE kind='feature' AND slug = ?`).get(m[1]);
+        const p2 = stFeatureTitle.get(m[1]);
         r.title = p2 ? p2.title : '';
       } else if ((m = r.path.match(/^\/y\/(\d{4})$/))) {
         r.title = `${m[1]} 年大事记`;
@@ -2499,7 +2488,8 @@ async function handleAPI(req, res, url) {
       `SELECT series, COUNT(*) AS n, MIN(date) AS first, MAX(date) AS last
        FROM events WHERE series <> '' GROUP BY series ORDER BY last DESC`
     ).all();
-    return sendJSON(res, 200, { ok: true, tags, series });
+    /* fronts 下发给后台（admin.html 不走 SSR 注入），与 server.js 的 FRONTS 保持单一来源 */
+    return sendJSON(res, 200, { ok: true, tags, series, fronts: FRONTS });
   }
 
   /* 事件集合 */
@@ -2843,6 +2833,7 @@ function serveStatic(req, res, url) {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-cache, must-revalidate',
       'X-Robots-Tag': 'noindex, nofollow',
+      'X-Frame-Options': 'DENY',   // 后台绝不允许被任何页面 iframe 嵌套（覆盖全站的 SAMEORIGIN）
     });
     return fs.createReadStream(path.join(PUBLIC_DIR, 'admin.html')).pipe(res);
   }
@@ -2862,6 +2853,11 @@ function serveStatic(req, res, url) {
         : ext === '.woff2' ? 'public, max-age=31536000, immutable'
         : 'public, max-age=3600',
     };
+    /* 上传的 SVG 可能内嵌 <script>：作为 <img> 引用不执行，但被直接导航打开时会执行（存储型 XSS）。
+       用 CSP sandbox 让直接访问时脚本失活，不影响正常的 <img> 引用显示。 */
+    if (ext === '.svg' && p.startsWith('/uploads/')) {
+      headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+    }
     if (COMPRESSIBLE_EXT.has(ext)) {
       headers.Vary = 'Accept-Encoding';
       if (st.size > 1024) {
@@ -2885,6 +2881,12 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   /* 响应结束后再记录，拿得到最终状态码，且不拖慢请求 */
   res.on('finish', () => { try { recordVisit(req, res, url); } catch {} });
+  /* 全站安全响应头：在任何 writeHead 之前用 setHeader 注入，覆盖所有出口（SSR/JSON/静态/304/错误）。
+     nosniff 防 MIME 嗅探；Referrer-Policy 收敛来源泄露；X-Frame-Options 默认 SAMEORIGIN 防点击劫持，
+     后台 admin.html 出口再单独收紧为 DENY。 */
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   try {
     if (url.pathname.startsWith('/api/')) return await handleAPI(req, res, url);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }

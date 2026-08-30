@@ -703,15 +703,8 @@ let recentPage = 1;
 const RECENT_SIZE = 30;
 const fmtTs = s => { s = String(s || ''); return s ? s.slice(5, 16) : '—'; };
 
-/* 战区名册（与 server.js 的 FRONTS 一致） */
-const FRONTS = {
-  'claude-code': 'CLAUDE CODE 战区',
-  'codex': 'CODEX 战区',
-  'copilot': 'COPILOT 战区',
-  'windsurf': 'WINDSURF 战区',
-  'cn-tools': '国产工具战线',
-  'model-labs': '模型厂商战区',
-};
+/* 战区名册：登录后由 /api/meta 下发（见 loadMeta），与 server.js 单一来源，避免各存一份 */
+let FRONTS = {};
 
 const headers = () => ({ 'Content-Type': 'application/json', 'X-Admin-Key': KEY });
 
@@ -735,7 +728,7 @@ $('loginBtn').onclick = async () => {
     KEY = key;
     localStorage.setItem(KEY_STORE, key);
     $('gate').classList.add('hidden');
-    loadMeta();
+    await loadMeta();
     load();
     refreshInboxBadge();
   } else {
@@ -826,17 +819,23 @@ async function loadMeta() {
   try {
     const d = await (await fetch('/api/meta')).json();
     if (!d.ok) return;
+    FRONTS = d.fronts || {};
+    initFrontOptions();
     $('tagList').innerHTML = (d.tags || []).map(t => `<option value="${escapeHtml(t)}">`).join('');
     $('seriesList').innerHTML = (d.series || []).map(s => `<option value="${escapeHtml(s.series)}">${s.n} 节点 · ${s.first}→${s.last}</option>`).join('');
   } catch {}
 }
 
 /* ===== 表单 ===== */
-/* 战区下拉初始化 */
-for (const [code, name] of Object.entries(FRONTS)) {
-  const opt = document.createElement('option');
-  opt.value = code; opt.textContent = `${name}（${code}）`;
-  $('fFront').appendChild(opt);
+/* 战区下拉初始化（幂等：先清掉除「主战线」外的旧选项，供 loadMeta 拿到名册后调用） */
+function initFrontOptions() {
+  const sel = $('fFront');
+  sel.querySelectorAll('option:not([value=""])').forEach(o => o.remove());
+  for (const [code, name] of Object.entries(FRONTS)) {
+    const opt = document.createElement('option');
+    opt.value = code; opt.textContent = `${name}（${code}）`;
+    sel.appendChild(opt);
+  }
 }
 
 function openForm(row, draftId) {
@@ -1485,7 +1484,7 @@ async function loadStats() {
 (async () => {
   if (KEY && await tryLogin(KEY)) {
     $('gate').classList.add('hidden');
-    loadMeta();
+    await loadMeta();
     load();
     refreshInboxBadge();
     if (location.hash === '#visits') { showTab('visits'); loadStats(); }
