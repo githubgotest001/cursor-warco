@@ -210,6 +210,12 @@
     border-left: 1px solid rgba(233,230,223,.12);
   }
   .cmd .cline:hover .cp { color: var(--umb-hi); }
+  .deploy-log {
+    margin-top: 10px; padding: 10px 12px; max-height: 220px; overflow: auto;
+    background: #0d0f14; border: 1px solid rgba(233,230,223,.16);
+    font-family: var(--mono); font-size: 11px; line-height: 1.7; color: var(--dim);
+    white-space: pre-wrap; word-break: break-all;
+  }
 
   .toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px);
@@ -422,7 +428,15 @@
         <div class="hint-inline" style="margin-top:12px">存储在服务器 <code>data/config.json</code>；此处的非空值优先于同名环境变量，清空则回落环境变量。</div>
       </div>
       <div class="box2">
-        <h3>运维速查 · 点击复制到剪贴板</h3>
+        <h3>一键部署 · 拉取最新代码并自动重启</h3>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+          <button class="primary" id="deployBtn">▲ 部 署 更 新</button>
+          <span class="code" id="deployVer"></span>
+        </div>
+        <pre class="deploy-log" id="deployLog" style="display:none"></pre>
+        <div class="hint-inline" style="margin-top:10px">流程固定：<code>git pull --ff-only</code> → 语法自检 → systemd 自动重启（约数秒中断）。
+          自检不过会拒绝重启、旧版继续运行。涉及一次性迁移脚本或环境变量的大版本仍走 SSH（见 DEPLOY.md）。</div>
+        <h3 style="margin-top:20px">运维速查 · 点击复制到剪贴板</h3>
         <div id="cmdList"></div>
       </div>
     </div>
@@ -1156,7 +1170,53 @@ async function loadSettings() {
   for (const [key, inputId] of Object.entries(LINK_FIELDS)) {
     $(inputId).value = (d.links && d.links[key]) || '';
   }
+  $('deployVer').textContent = d.version ? `当前版本 ${d.version}` : '';
 }
+
+/* ===== 系统：一键部署 ===== */
+$('deployBtn').onclick = async () => {
+  if (!confirm('从仓库拉取最新代码并部署？systemd 环境下会自动重启（约数秒中断）。')) return;
+  const log = $('deployLog');
+  $('deployBtn').disabled = true;
+  log.style.display = '';
+  log.textContent = '拉取中…';
+  try {
+    const d = await (await fetch('/api/system/deploy', { method: 'POST', headers: headers() })).json();
+    if (!d.ok) { log.textContent = '✕ ' + (d.error || '部署失败'); $('deployBtn').disabled = false; return; }
+    if (!d.updated) {
+      log.textContent = `已是最新（${d.version}）${d.log ? '\n' + d.log : ''}`;
+      toast('已是最新版本');
+      $('deployBtn').disabled = false;
+      return;
+    }
+    log.textContent = `${d.from} → ${d.version}\n${d.log || ''}\n${d.note || ''}`;
+    if (!d.restarting) { $('deployBtn').disabled = false; loadSettings(); return; }
+    log.textContent += '\n等待服务重启';
+    let tries = 0;
+    const timer = setInterval(async () => {
+      tries++;
+      log.textContent += '.';
+      try {
+        const r = await fetch('/api/meta', { cache: 'no-store' });
+        if (r.ok) {
+          clearInterval(timer);
+          log.textContent += ' ✓ 新版已上线';
+          toast('部署完成 · 新版已上线');
+          $('deployBtn').disabled = false;
+          loadSettings();
+        }
+      } catch {}
+      if (tries > 20) {
+        clearInterval(timer);
+        log.textContent += '\n超过 40 秒未恢复——请 SSH 查看 systemctl status umbrella4365';
+        $('deployBtn').disabled = false;
+      }
+    }, 2000);
+  } catch (e) {
+    log.textContent = '✕ 请求异常：' + e.message;
+    $('deployBtn').disabled = false;
+  }
+};
 $('sSaveBtn').onclick = async () => {
   const body = {};
   for (const [key, inputId] of Object.entries(SETTING_FIELDS)) body[key] = $(inputId).value.trim();

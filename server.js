@@ -23,6 +23,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
+const { execFile } = require('node:child_process');
 const { DatabaseSync } = require('node:sqlite');
 
 const PORT = Number(process.env.PORT || 4365);
@@ -2205,7 +2206,10 @@ async function handleAPI(req, res, url) {
     }
     const links = {};
     for (const k of LINK_KEYS) links[k] = String(cfg[k] || '').trim();
-    return sendJSON(res, 200, { ok: true, settings, envFallback, links, siteUrl: SITE_URL });
+    const version = await new Promise(resolve => {
+      execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, timeout: 10000 }, (err, stdout) => resolve(err ? '' : String(stdout).trim()));
+    });
+    return sendJSON(res, 200, { ok: true, settings, envFallback, links, siteUrl: SITE_URL, version });
   }
   if (url.pathname === '/api/settings' && req.method === 'PUT') {
     if (!requireAuth(req, res)) return;
@@ -2218,6 +2222,38 @@ async function handleAPI(req, res, url) {
     invalidateDynamic();   // 验证 meta 与 __LINKS__ 在首页 head 里，改完立刻重建
     return sendJSON(res, 200, { ok: true });
   }
+  /* ============ 一键部署（后台「系统」页）============
+     行为固定为三步：git pull --ff-only → node --check server.js → systemd 环境下退出进程由
+     Restart=always 拉起新版。不接受任何参数、不执行任意命令；语法自检不过则拒绝重启（旧版继续跑）。
+     涉及一次性迁移脚本 / 环境变量的升级仍走 SSH（见 DEPLOY.md / runbook）。 */
+  if (url.pathname === '/api/system/deploy' && req.method === 'POST') {
+    if (!requireAuth(req, res)) return;
+    const run = (cmd, args) => new Promise(resolve => {
+      execFile(cmd, args, { cwd: ROOT, timeout: 60000 }, (err, stdout, stderr) => {
+        resolve({ ok: !err, out: String(stdout || '').trim(), err: (String(stderr || '').trim() || (err ? err.message : '')) });
+      });
+    });
+    const before = (await run('git', ['rev-parse', '--short', 'HEAD'])).out || '?';
+    const pull = await run('git', ['pull', '--ff-only']);
+    if (!pull.ok) return sendJSON(res, 500, { ok: false, error: `git pull 失败：${pull.err || pull.out}` });
+    const after = (await run('git', ['rev-parse', '--short', 'HEAD'])).out || '?';
+    if (before === after) {
+      return sendJSON(res, 200, { ok: true, updated: false, version: after, log: pull.out || '已是最新' });
+    }
+    const check = await run(process.execPath, ['--check', 'server.js']);
+    if (!check.ok) {
+      return sendJSON(res, 500, { ok: false, error: `已拉取到 ${after}，但新代码未通过语法自检，已保持 ${before} 继续运行——请 SSH 处理。\n${check.err}` });
+    }
+    invalidateDynamic();   // 静态模板可能已更新；若不重启（本地开发）也让首页缓存重建
+    const underSystemd = Boolean(process.env.INVOCATION_ID);
+    sendJSON(res, 200, {
+      ok: true, updated: true, from: before, version: after, restarting: underSystemd, log: pull.out,
+      note: underSystemd ? '2 秒后自动重启，约数秒后恢复' : '当前不在 systemd 下（本地开发）：已拉取，server.js 的变更需手动重启生效',
+    });
+    if (underSystemd) setTimeout(() => { try { flushVisits(); } catch {} process.exit(0); }, 2000);
+    return;
+  }
+
   if (url.pathname === '/api/settings/test-baidu' && req.method === 'POST') {
     if (!requireAuth(req, res)) return;
     const token = getSettings().baiduPushToken;

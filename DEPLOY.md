@@ -359,6 +359,10 @@ curl -s http://127.0.0.1:4365/api/events | head -c 200; echo   # 数据回来了
 
 ## 8. 日常更新发布
 
+**首选：后台「系统 → ▲ 部署更新」一键完成**（git pull --ff-only → 语法自检 → systemd 自动重启，
+自检不过会拒绝重启保住旧版）。涉及一次性迁移脚本（tools/migrate-*.js）或环境变量变更的升级，
+仍走下面的 SSH 流程：
+
 ```bash
 cd /opt/cursor-warco
 sudo -u umbrella git pull        # 目录属于 umbrella 用户，用它的身份拉取

@@ -206,8 +206,9 @@ public/
 | DELETE | `/api/events/:id` | 是 | 删除 |
 | POST | `/api/upload` | 是 | 图片上传（JSON base64，≤10MB） |
 | GET | `/api/stats?days=&rpage=&rsize=` | 是 | 访问统计（PV/UV、趋势、热门路径、来源、嗅探记录、最近访问分页） |
-| GET / PUT | `/api/settings` | 是 | SEO 接入配置 + 频道与支援链接的读取与保存，保存即生效 |
+| GET / PUT | `/api/settings` | 是 | SEO 接入配置 + 频道与支援链接的读取与保存（GET 附当前 git 版本），保存即生效 |
 | POST | `/api/settings/test-baidu` | 是 | 用当前 token 把首页推送一次百度，返回百度原始响应（验证链路） |
+| POST | `/api/system/deploy` | 是 | 一键部署：`git pull --ff-only` → `node --check` 自检 → systemd 环境下退出进程由 `Restart=always` 拉起新版；自检不过拒绝重启。固定流程无参数，迁移类升级仍走 SSH |
 | GET / POST | `/api/posts`；PUT / DELETE `/api/posts/:id` | 是 | 刊物（战报 / 特稿）管理；发布态变更自动推百度 |
 | GET / POST | `/api/drafts`；PUT / DELETE `/api/drafts/:id` | 是 | 草稿收件箱（侦察 agent 投稿，含 verify 核查要点） |
 | POST | `/api/drafts/:id/publish` | 是 | 审核发布：草稿（可带最终修改）→ 正式档案，草稿标记 accepted |
