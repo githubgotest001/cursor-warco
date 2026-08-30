@@ -209,6 +209,8 @@ public/
 | GET / PUT | `/api/settings` | 是 | SEO 接入配置 + 频道与支援链接的读取与保存（GET 附当前 git 版本），保存即生效 |
 | POST | `/api/settings/test-baidu` | 是 | 用当前 token 把首页推送一次百度，返回百度原始响应（验证链路） |
 | POST | `/api/system/deploy` | 是 | 一键部署：`git pull --ff-only` → `node --check` 自检 → systemd 环境下退出进程由 `Restart=always` 拉起新版；自检不过拒绝重启。固定流程无参数，迁移类升级仍走 SSH |
+| GET | `/api/system/status` / `/api/system/logs` | 是 | 状态体检（版本/进程/库与图片体积/内容计数）与运行日志（进程内环形缓冲 300 行，重启即清） |
+| POST | `/api/system/backup` / `/api/system/sentinel` / `/api/system/restart` | 是 | 在线备份（`VACUUM INTO` 到 `data/backups/`，留 10 份，仅库）· 服务器跑一轮哨兵 · 重启（仅 systemd 环境） |
 | GET / POST | `/api/posts`；PUT / DELETE `/api/posts/:id` | 是 | 刊物（战报 / 特稿）管理；发布态变更自动推百度 |
 | GET / POST | `/api/drafts`；PUT / DELETE `/api/drafts/:id` | 是 | 草稿收件箱（侦察 agent 投稿，含 verify 核查要点） |
 | POST | `/api/drafts/:id/publish` | 是 | 审核发布：草稿（可带最终修改）→ 正式档案，草稿标记 accepted |
