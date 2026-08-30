@@ -211,11 +211,15 @@
   }
   .cmd .cline:hover .cp { color: var(--umb-hi); }
   .deploy-log {
-    margin-top: 10px; padding: 10px 12px; max-height: 220px; overflow: auto;
+    margin-top: 10px; padding: 10px 12px; max-height: 260px; overflow: auto;
     background: #0d0f14; border: 1px solid rgba(233,230,223,.16);
     font-family: var(--mono); font-size: 11px; line-height: 1.7; color: var(--dim);
     white-space: pre-wrap; word-break: break-all;
   }
+  .oprow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .opgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; }
+  .opgrid button { width: 100%; white-space: nowrap; }
+  .savebar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 16px 0; }
 
   .toast {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px);
@@ -395,52 +399,54 @@
     </div>
   </section>
 
-  <!-- ===== 系统：SEO 接入配置 + 运维速查 ===== -->
+  <!-- ===== 系统：运维（部署 + 常用操作）→ 配置（SEO + 链接）→ 保存条 → SSH 速查 ===== -->
   <section id="panelSystem" style="display:none">
     <div class="cols">
       <div class="box2">
-        <h3>SEO 接入配置 · 保存即生效（免重启）</h3>
-        <div class="set-field">
-          <label>百度主动推送 TOKEN <span class="envhint" id="envBaiduPushToken"></span></label>
-          <input type="text" id="sBaiduPushToken" placeholder="档案增删改时自动推送百度，收录提速到分钟级">
-          <div class="hint-inline">ziyuan.baidu.com → 普通收录 → API 提交，接口地址里 <code>token=</code> 后面的值。</div>
-        </div>
-        <div class="set-field">
-          <label>百度站长验证码 <span class="envhint" id="envBaiduSiteVerify"></span></label>
-          <input type="text" id="sBaiduSiteVerify" placeholder="baidu-site-verification 的 content 值">
-          <div class="hint-inline">ziyuan.baidu.com → 站点管理 → 验证方式选「HTML 标签」，取 content="…" 引号内的值；保存后回平台点验证。</div>
-        </div>
-        <div class="set-field">
-          <label>Google 验证码 <span class="envhint" id="envGoogleSiteVerify"></span></label>
-          <input type="text" id="sGoogleSiteVerify" placeholder="google-site-verification 的 content 值">
-          <div class="hint-inline">search.google.com/search-console → 验证方式选「HTML 标记」，取 content 值。</div>
-        </div>
-        <div class="set-field">
-          <label>Bing 验证码 <span class="envhint" id="envBingSiteVerify"></span></label>
-          <input type="text" id="sBingSiteVerify" placeholder="msvalidate.01 的 content 值">
-          <div class="hint-inline">bing.com/webmasters → HTML Meta 标记验证，取 content 值（从 GSC 导入站点则无需填）。</div>
-        </div>
-        <div style="display:flex; gap:10px; align-items:center; margin-top:16px">
-          <button class="primary" id="sSaveBtn">保 存 配 置</button>
-          <button id="sTestBtn" title="用当前 token 把首页推送一次百度，验证链路">⟳ 测试百度推送</button>
-          <span class="msg" id="sMsg" style="margin:0"></span>
-        </div>
-        <div class="hint-inline" style="margin-top:12px">存储在服务器 <code>data/config.json</code>；此处的非空值优先于同名环境变量，清空则回落环境变量。</div>
-      </div>
-      <div class="box2">
-        <h3>一键部署 · 拉取最新代码并自动重启</h3>
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+        <h3>部署 DEPLOY</h3>
+        <div class="oprow">
           <button class="primary" id="deployBtn">▲ 部 署 更 新</button>
           <span class="code" id="deployVer"></span>
         </div>
         <pre class="deploy-log" id="deployLog" style="display:none"></pre>
         <div class="hint-inline" style="margin-top:10px">流程固定：<code>git pull --ff-only</code> → 语法自检 → systemd 自动重启（约数秒中断）。
-          自检不过会拒绝重启、旧版继续运行。涉及一次性迁移脚本或环境变量的大版本仍走 SSH（见 DEPLOY.md）。</div>
-        <h3 style="margin-top:20px">运维速查 · 点击复制到剪贴板</h3>
-        <div id="cmdList"></div>
+          自检不过会拒绝重启、旧版继续运行。带一次性迁移脚本或环境变量变更的大版本仍走 SSH（见 DEPLOY.md 第 8 节）。</div>
+      </div>
+      <div class="box2">
+        <h3>常用操作 QUICK OPS</h3>
+        <div class="opgrid">
+          <button id="opStatus">▦ 状态体检</button>
+          <button id="opLogs">≡ 运行日志</button>
+          <button id="opBackup">⛃ 立即备份</button>
+          <button id="opSentinel">◉ 跑一轮哨兵</button>
+          <button id="sTestBtn" title="用当前 token 把首页推送一次百度，验证链路">⟳ 测试百度推送</button>
+          <button id="opRestart" class="danger">↻ 重启服务</button>
+        </div>
+        <pre class="deploy-log" id="opLog" style="display:none"></pre>
       </div>
     </div>
+
     <div class="cols">
+      <div class="box2">
+        <h3>SEO 接入配置</h3>
+        <div class="set-field">
+          <label>百度主动推送 TOKEN <span class="envhint" id="envBaiduPushToken"></span></label>
+          <input type="text" id="sBaiduPushToken" placeholder="档案增删改时自动推送百度，收录提速到分钟级">
+          <div class="hint-inline">ziyuan.baidu.com → <b>裸域站点</b> → 普通收录 → API 提交，<code>token=</code> 后面的值；填完用左侧「测试百度推送」验证。</div>
+        </div>
+        <div class="set-field">
+          <label>百度站长验证码 <span class="envhint" id="envBaiduSiteVerify"></span></label>
+          <input type="text" id="sBaiduSiteVerify" placeholder="baidu-site-verification 的 content 值">
+        </div>
+        <div class="set-field">
+          <label>Google 验证码 <span class="envhint" id="envGoogleSiteVerify"></span></label>
+          <input type="text" id="sGoogleSiteVerify" placeholder="google-site-verification 的 content 值">
+        </div>
+        <div class="set-field">
+          <label>Bing 验证码 <span class="envhint" id="envBingSiteVerify"></span></label>
+          <input type="text" id="sBingSiteVerify" placeholder="msvalidate.01 的 content 值（从 GSC 导入则无需填）">
+        </div>
+      </div>
       <div class="box2">
         <h3>频道与支援链接 · 配置了才在前台出现</h3>
         <div class="set-field">
@@ -463,10 +469,7 @@
           <label>联络邮箱</label>
           <input type="text" id="sContactEmail" placeholder="tips@…（也用于接收线报回访）">
         </div>
-        <div class="hint-inline">保存按钮共用上方「保 存 配 置」；全部留空时前台「支援本刊」只显示 RSS 与周刊入口。</div>
-      </div>
-      <div class="box2">
-        <h3>「补给线」赞助位 · 两项都填才上墙</h3>
+        <h3 style="margin-top:18px">「补给线」赞助位 · 两项都填才上墙</h3>
         <div class="set-field">
           <label>赞助文案（页脚展示，≤40 字）</label>
           <input type="text" id="sSponsorText" maxlength="40" placeholder="如：本刊由 XX 云主机 补给支持">
@@ -475,8 +478,18 @@
           <label>赞助链接</label>
           <input type="text" id="sSponsorUrl" placeholder="https://…（带 rel=sponsored 输出，不伤 SEO）">
         </div>
-        <div class="hint-inline">赞助位出现在首页页脚「补给线 SUPPLY LINE」一行；接什么商家由站长把关——与「记录不教唆」立场冲突的灰产不接。</div>
       </div>
+    </div>
+
+    <div class="box2 savebar">
+      <button class="primary" id="sSaveBtn">保 存 全 部 配 置</button>
+      <span class="msg" id="sMsg" style="margin:0"></span>
+      <span class="hint-inline" style="margin:0">上面两栏（SEO + 链接 + 赞助位）一起保存 · 即时生效免重启 · 存服务器 <code>data/config.json</code>，非空值优先于同名环境变量</span>
+    </div>
+
+    <div class="box2">
+      <h3>SSH / 开发机命令速查 · 点击复制（一键按钮覆盖不到的场景）</h3>
+      <div id="cmdList"></div>
     </div>
   </section>
 </div>
@@ -1228,33 +1241,110 @@ $('sSaveBtn').onclick = async () => {
   if (d.ok) { toast('配置已保存 · 立即生效'); $('sMsg').textContent = ''; loadSettings(); }
   else $('sMsg').textContent = d.error || '保存失败';
 };
+/* ===== 系统：常用操作（结果统一输出到 opLog 面板） ===== */
+function opShow(text) {
+  const l = $('opLog');
+  l.style.display = '';
+  l.textContent = text;
+}
+function opAppend(text) { $('opLog').textContent += text; }
+
+/* 服务重启后的探活（重启服务 / 部署共用思路） */
+function waitRecover(onDone) {
+  let tries = 0;
+  const timer = setInterval(async () => {
+    tries++;
+    opAppend('.');
+    try {
+      const r = await fetch('/api/meta', { cache: 'no-store' });
+      if (r.ok) { clearInterval(timer); opAppend(' ✓ 服务已恢复'); toast('服务已恢复'); onDone && onDone(); }
+    } catch {}
+    if (tries > 20) { clearInterval(timer); opAppend('\n超过 40 秒未恢复——请 SSH 查看 systemctl status umbrella4365'); onDone && onDone(); }
+  }, 2000);
+}
+
 $('sTestBtn').onclick = async () => {
-  $('sMsg').textContent = 'PUSHING…';
+  opShow('百度推送测试中…');
   $('sTestBtn').disabled = true;
   try {
     const res = await fetch('/api/settings/test-baidu', { method: 'POST', headers: headers() });
     const d = await res.json();
     if (d.ok && d.result && d.result.success !== undefined) {
-      $('sMsg').textContent = `✓ 推送成功 ${d.result.success} 条 · 当日剩余配额 ${d.result.remain ?? '?'}`;
+      opShow(`✓ 推送成功 ${d.result.success} 条 · 当日剩余配额 ${d.result.remain ?? '?'}`);
     } else if (d.ok) {
-      $('sMsg').textContent = `✕ 百度返回错误：${(d.result && (d.result.message || d.result.error)) || '未知'}（token 是否正确？）`;
+      opShow(`✕ 百度返回错误：${(d.result && (d.result.message || d.result.error)) || '未知'}\n（token 是否取自裸域站点？新加站点可能有数小时初始化延迟）`);
     } else {
-      $('sMsg').textContent = '✕ ' + (d.error || '测试失败');
+      opShow('✕ ' + (d.error || '测试失败'));
     }
   } catch (e) {
-    $('sMsg').textContent = '✕ 请求失败：' + e.message;
+    opShow('✕ 请求失败：' + e.message);
   }
   $('sTestBtn').disabled = false;
 };
 
-/* ===== 系统：运维速查（命令与 DEPLOY.md / README 保持一致） ===== */
+$('opStatus').onclick = async () => {
+  opShow('体检中…');
+  const d = await (await fetch('/api/system/status', { headers: headers() })).json();
+  if (!d.ok) return opShow('✕ ' + (d.error || '读取失败'));
+  opShow([
+    `版本 ${d.version} · Node ${d.node} · ${d.systemd ? 'systemd 守护中' : '前台进程（本地开发）'}`,
+    `进程运行 ${d.uptime} · 内存 ${d.rssMb} MB`,
+    `数据库 ${d.dbMb} MB（含 WAL）· 图片 ${d.uploads} 张 / ${d.uploadsMb} MB · 访问日志 ${d.counts.visits} 行`,
+    `档案 ${d.counts.events} 条 · 刊物 已发布 ${d.counts.postsPublished} / 草稿 ${d.counts.postsDraft}`,
+    `收件箱 待审草稿 ${d.counts.draftsPending} · 未读线报 ${d.counts.tipsUnread} · 补给表 ${d.counts.supply} 行`,
+  ].join('\n'));
+};
+
+$('opLogs').onclick = async () => {
+  opShow('读取运行日志…');
+  const d = await (await fetch('/api/system/logs', { headers: headers() })).json();
+  if (!d.ok) return opShow('✕ ' + (d.error || '读取失败'));
+  opShow(`—— 运行日志 · ${d.since} · 最近 ${d.lines.length} 行 ——\n` + (d.lines.join('\n') || '（暂无）'));
+  $('opLog').scrollTop = $('opLog').scrollHeight;
+};
+
+$('opBackup').onclick = async () => {
+  opShow('备份中（VACUUM INTO 在线快照，不中断服务）…');
+  const d = await (await fetch('/api/system/backup', { method: 'POST', headers: headers() })).json();
+  if (!d.ok) return opShow('✕ ' + (d.error || '备份失败'));
+  opShow(`✓ 已备份 ${d.file}（${d.sizeMb} MB）· 服务器上保留最近 ${d.kept} 份\n提醒：此按钮只备份数据库；图片与异地备份仍由每日 cron 的 backup.sh 负责`);
+  toast('数据库已备份');
+};
+
+$('opSentinel').onclick = async () => {
+  if (!confirm('在服务器上跑一轮信源哨兵？约 30–90 秒（境内开发机抓不到的源，服务器网络往往可达）。')) return;
+  $('opSentinel').disabled = true;
+  opShow('哨兵出动，轮询 11 个信源…');
+  try {
+    const d = await (await fetch('/api/system/sentinel', { method: 'POST', headers: headers() })).json();
+    opShow(d.ok ? `—— 哨兵战报 ——\n${d.log}` : '✕ ' + (d.error || '执行失败'));
+  } catch (e) {
+    opShow('✕ 请求异常：' + e.message);
+  }
+  $('opSentinel').disabled = false;
+};
+
+$('opRestart').onclick = async () => {
+  if (!confirm('重启服务？约数秒中断，systemd 自动拉起。')) return;
+  $('opRestart').disabled = true;
+  opShow('发送重启指令…');
+  try {
+    const d = await (await fetch('/api/system/restart', { method: 'POST', headers: headers() })).json();
+    if (!d.ok) { opShow('✕ ' + (d.error || '失败')); $('opRestart').disabled = false; return; }
+    opAppend('\n等待服务重启');
+    waitRecover(() => { $('opRestart').disabled = false; loadSettings(); });
+  } catch (e) {
+    opShow('✕ 请求异常：' + e.message);
+    $('opRestart').disabled = false;
+  }
+};
+
+/* ===== 系统：SSH / 开发机命令速查（一键按钮覆盖不到的场景；命令与 DEPLOY.md 保持一致） ===== */
 const CMDS = [
-  ['部署更新 · 拉代码并重启（服务器）', 'cd /opt/cursor-warco && sudo -u umbrella git pull && sudo systemctl restart umbrella4365'],
-  ['查看运行状态（服务器）', 'systemctl status umbrella4365 --no-pager'],
-  ['最近 50 行日志 · 含[百度推送]记录（服务器）', 'sudo journalctl -u umbrella4365 -n 50 --no-pager'],
-  ['只重启服务（服务器）', 'sudo systemctl restart umbrella4365'],
-  ['手动备份 · 库+图片+配置（服务器）', 'sudo /opt/cursor-warco/backup.sh'],
-  ['档案条数速查（服务器）', 'sqlite3 /opt/cursor-warco/data/chronicle.db "SELECT COUNT(*) FROM events;"'],
+  ['服务起不来时看状态（SSH）', 'systemctl status umbrella4365 --no-pager'],
+  ['服务起不来时看系统级日志（SSH · 运行日志按钮只覆盖进程存活期）', 'sudo journalctl -u umbrella4365 -n 50 --no-pager'],
+  ['完整备份 · 库+图片+配置到 /opt/backups（SSH · 一键备份只含数据库）', 'sudo /opt/cursor-warco/backup.sh'],
+  ['带迁移脚本的大版本升级（SSH）', 'cd /opt/cursor-warco && sudo -u umbrella git pull && sudo -u umbrella node tools/migrate-*.js && sudo systemctl restart umbrella4365'],
   ['拉线上库+图片到本地镜像（开发机）', 'node sync.js pull'],
   ['上传本地图片到线上（开发机）', 'node sync.js push-image 图片路径'],
 ];

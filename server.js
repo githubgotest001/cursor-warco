@@ -40,6 +40,15 @@ const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+/* 子进程一键化助手（部署 / 哨兵 / 版本号）：固定 cwd 于项目根，参数写死不拼接任何用户输入 */
+function execCmd(cmd, args, timeout = 60000) {
+  return new Promise(resolve => {
+    execFile(cmd, args, { cwd: ROOT, timeout }, (err, stdout, stderr) => {
+      resolve({ ok: !err, out: String(stdout || '').trim(), err: (String(stderr || '').trim() || (err ? err.message : '')) });
+    });
+  });
+}
+
 /* ============ 本地配置 data/config.json ============ */
 function readConfig() {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch { return {}; }
@@ -352,6 +361,21 @@ const hashIP = ip => crypto.createHash('sha256').update(VISIT_SALT + ip).digest(
 function localNow() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/* 运行日志环形缓冲：包装 console，后台「运行日志」按钮直接读，无需 SSH 看 journal */
+const LOG_RING_MAX = 300;
+const logRing = [];
+for (const level of ['log', 'warn', 'error']) {
+  const orig = console[level].bind(console);
+  console[level] = (...args) => {
+    try {
+      const line = `[${localNow()}] ${args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}`;
+      logRing.push(line);
+      if (logRing.length > LOG_RING_MAX) logRing.shift();
+    } catch {}
+    orig(...args);
+  };
 }
 
 function recordVisit(req, res, url) {
@@ -2206,9 +2230,7 @@ async function handleAPI(req, res, url) {
     }
     const links = {};
     for (const k of LINK_KEYS) links[k] = String(cfg[k] || '').trim();
-    const version = await new Promise(resolve => {
-      execFile('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, timeout: 10000 }, (err, stdout) => resolve(err ? '' : String(stdout).trim()));
-    });
+    const version = (await execCmd('git', ['rev-parse', '--short', 'HEAD'], 10000)).out;
     return sendJSON(res, 200, { ok: true, settings, envFallback, links, siteUrl: SITE_URL, version });
   }
   if (url.pathname === '/api/settings' && req.method === 'PUT') {
@@ -2228,19 +2250,14 @@ async function handleAPI(req, res, url) {
      涉及一次性迁移脚本 / 环境变量的升级仍走 SSH（见 DEPLOY.md / runbook）。 */
   if (url.pathname === '/api/system/deploy' && req.method === 'POST') {
     if (!requireAuth(req, res)) return;
-    const run = (cmd, args) => new Promise(resolve => {
-      execFile(cmd, args, { cwd: ROOT, timeout: 60000 }, (err, stdout, stderr) => {
-        resolve({ ok: !err, out: String(stdout || '').trim(), err: (String(stderr || '').trim() || (err ? err.message : '')) });
-      });
-    });
-    const before = (await run('git', ['rev-parse', '--short', 'HEAD'])).out || '?';
-    const pull = await run('git', ['pull', '--ff-only']);
+    const before = (await execCmd('git', ['rev-parse', '--short', 'HEAD'])).out || '?';
+    const pull = await execCmd('git', ['pull', '--ff-only']);
     if (!pull.ok) return sendJSON(res, 500, { ok: false, error: `git pull 失败：${pull.err || pull.out}` });
-    const after = (await run('git', ['rev-parse', '--short', 'HEAD'])).out || '?';
+    const after = (await execCmd('git', ['rev-parse', '--short', 'HEAD'])).out || '?';
     if (before === after) {
       return sendJSON(res, 200, { ok: true, updated: false, version: after, log: pull.out || '已是最新' });
     }
-    const check = await run(process.execPath, ['--check', 'server.js']);
+    const check = await execCmd(process.execPath, ['--check', 'server.js']);
     if (!check.ok) {
       return sendJSON(res, 500, { ok: false, error: `已拉取到 ${after}，但新代码未通过语法自检，已保持 ${before} 继续运行——请 SSH 处理。\n${check.err}` });
     }
@@ -2251,6 +2268,82 @@ async function handleAPI(req, res, url) {
       note: underSystemd ? '2 秒后自动重启，约数秒后恢复' : '当前不在 systemd 下（本地开发）：已拉取，server.js 的变更需手动重启生效',
     });
     if (underSystemd) setTimeout(() => { try { flushVisits(); } catch {} process.exit(0); }, 2000);
+    return;
+  }
+
+  /* 状态体检：版本 / 进程 / 库与图片体积 / 内容计数（只读） */
+  if (url.pathname === '/api/system/status' && req.method === 'GET') {
+    if (!requireAuth(req, res)) return;
+    const mb = n => Math.round(n / 1024 / 1024 * 10) / 10;
+    const fsize = p => { try { return fs.statSync(p).size; } catch { return 0; } };
+    let uploads = 0, uploadsBytes = 0;
+    try { for (const f of fs.readdirSync(UPLOAD_DIR)) { uploads++; uploadsBytes += fsize(path.join(UPLOAD_DIR, f)); } } catch {}
+    const upSec = Math.floor(process.uptime());
+    const uptime = upSec >= 86400 ? `${Math.floor(upSec / 86400)} 天 ${Math.floor(upSec % 86400 / 3600)} 时`
+      : upSec >= 3600 ? `${Math.floor(upSec / 3600)} 时 ${Math.floor(upSec % 3600 / 60)} 分` : `${Math.floor(upSec / 60)} 分`;
+    const c = q => { try { return db.prepare(q).get().c; } catch { return '?'; } };
+    return sendJSON(res, 200, {
+      ok: true,
+      version: (await execCmd('git', ['rev-parse', '--short', 'HEAD'], 10000)).out || '?',
+      node: process.version,
+      systemd: Boolean(process.env.INVOCATION_ID),
+      uptime,
+      rssMb: mb(process.memoryUsage.rss()),
+      dbMb: mb(fsize(DB_PATH) + fsize(DB_PATH + '-wal')),
+      uploads, uploadsMb: mb(uploadsBytes),
+      counts: {
+        events: c('SELECT COUNT(*) AS c FROM events'),
+        postsPublished: c(`SELECT COUNT(*) AS c FROM posts WHERE status='published'`),
+        postsDraft: c(`SELECT COUNT(*) AS c FROM posts WHERE status='draft'`),
+        draftsPending: c(`SELECT COUNT(*) AS c FROM drafts WHERE state='pending'`),
+        tipsUnread: c(`SELECT COUNT(*) AS c FROM tips WHERE state='new'`),
+        supply: c('SELECT COUNT(*) AS c FROM supply'),
+        visits: c('SELECT COUNT(*) AS c FROM visits'),
+      },
+    });
+  }
+
+  /* 运行日志：进程内环形缓冲（最近 300 行），含百度推送等内置日志 */
+  if (url.pathname === '/api/system/logs' && req.method === 'GET') {
+    if (!requireAuth(req, res)) return;
+    return sendJSON(res, 200, { ok: true, lines: logRing.slice(-200), since: '进程启动以来（重启即清）' });
+  }
+
+  /* 立即备份：VACUUM INTO 在线快照到 data/backups/，保留最近 10 份（图片与异地备份仍走 cron backup.sh） */
+  if (url.pathname === '/api/system/backup' && req.method === 'POST') {
+    if (!requireAuth(req, res)) return;
+    const bdir = path.join(DATA_DIR, 'backups');
+    fs.mkdirSync(bdir, { recursive: true });
+    const ts = localNow().replace(/[-: ]/g, '').slice(0, 12);
+    const fname = `chronicle-${ts}.db`;
+    const dest = path.join(bdir, fname);
+    try {
+      db.exec(`VACUUM INTO '${dest.replaceAll("'", "''")}'`);
+    } catch (e) {
+      return sendJSON(res, 500, { ok: false, error: `备份失败：${e.message}` });
+    }
+    const keep = 10;
+    const olds = fs.readdirSync(bdir).filter(f => /^chronicle-\d+\.db$/.test(f)).sort().reverse().slice(keep);
+    for (const f of olds) { try { fs.unlinkSync(path.join(bdir, f)); } catch {} }
+    const sizeMb = Math.round(fs.statSync(dest).size / 1024 / 1024 * 100) / 100;
+    return sendJSON(res, 200, { ok: true, file: `data/backups/${fname}`, sizeMb, kept: Math.min(keep, fs.readdirSync(bdir).length) });
+  }
+
+  /* 跑一轮哨兵：在服务器网络环境执行 tools/sentinel.js（境内开发机抓不到的源这里往往可达） */
+  if (url.pathname === '/api/system/sentinel' && req.method === 'POST') {
+    if (!requireAuth(req, res)) return;
+    const r = await execCmd(process.execPath, ['tools/sentinel.js'], 150000);
+    const tail = s => String(s || '').split('\n').slice(-40).join('\n');
+    if (!r.ok && !r.out) return sendJSON(res, 500, { ok: false, error: `哨兵执行失败：${r.err}` });
+    return sendJSON(res, 200, { ok: true, log: tail(r.out) + (r.err ? '\n[stderr] ' + tail(r.err) : '') });
+  }
+
+  /* 重启服务：systemd 环境下退出进程，由 Restart=always 拉起 */
+  if (url.pathname === '/api/system/restart' && req.method === 'POST') {
+    if (!requireAuth(req, res)) return;
+    if (!process.env.INVOCATION_ID) return sendJSON(res, 400, { ok: false, error: '当前不在 systemd 下（本地开发），请手动 Ctrl+C 重启' });
+    sendJSON(res, 200, { ok: true, restarting: true, note: '2 秒后重启，约数秒后恢复' });
+    setTimeout(() => { try { flushVisits(); } catch {} process.exit(0); }, 2000);
     return;
   }
 
