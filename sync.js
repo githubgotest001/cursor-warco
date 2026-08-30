@@ -8,6 +8,10 @@
  *   node sync.js pull                    线上 → 本地：档案全量镜像 + 引用图片增量下载
  *   node sync.js push-image <图片路径>    本地 → 线上：上传图片到 /uploads/（需管理密钥）
  *
+ * 注意：pull 只镜像 events（档案）与引用图片，不同步访问日志 / 刊物 / 收件箱 / 补给等运营数据——
+ * 镜像供内容分析用；访客日志含加盐 IP 哈希（本地与线上盐不同）且体量大，设计上不出服务器。
+ * 本地后台「访客监控」显示的因此是本机流量，看真实访客数据请去线上后台。
+ *
  * 站点地址与密钥的来源（按优先级）：
  *   site：    --site <url>  >  环境变量 UMB_SITE  >  data/remote.json 的 "site"  >  https://umbrella4365.com
  *   adminKey：--key <key>   >  环境变量 UMB_ADMIN_KEY  >  data/remote.json 的 "adminKey"（仅 push-image 需要）

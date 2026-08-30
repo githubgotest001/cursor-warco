@@ -68,6 +68,10 @@ node sync.js pull                 # 线上 → 本地：档案全量镜像 + 引
 node sync.js push-image 图片路径   # 本地图片 → 线上 /uploads/（需管理密钥），返回可填入 image 字段的路径
 ```
 
+> **pull 只镜像档案（events）与引用图片**，不同步访问日志 / 刊物 / 收件箱 / 补给等运营数据——
+> 镜像是给内容分析用的，访客日志含加盐 IP 哈希（两边盐不同，本来也对不上）且体量大，不出服务器。
+> 所以本地后台「访客监控」显示的是本机测试流量；**看真实访客数据永远去线上后台**。
+
 站点地址与密钥按优先级取自：命令行参数（`--site` / `--key`）> 环境变量（`UMB_SITE` /
 `UMB_ADMIN_KEY`）> `data/remote.json`（`{"site": "…", "adminKey": "…"}`，data/ 已
 gitignore 不会泄露）。`pull` 不需要密钥。
