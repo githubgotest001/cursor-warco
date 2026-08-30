@@ -15,6 +15,11 @@
 
 ```bash
 # 1. 备份（全删全增前必做）
+# 若 /opt/cursor-warco/backup.sh 不存在（DEPLOY.md 第 7 节的脚本尚未创建过），用下面的一次性命令代替：
+#   sudo apt-get install -y sqlite3 && sudo mkdir -p /opt/backups
+#   sudo sqlite3 /opt/cursor-warco/data/chronicle.db ".backup '/opt/backups/chronicle-$(date +%Y%m%d-%H%M).db'"
+#   sudo tar czf /opt/backups/uploads-$(date +%Y%m%d-%H%M).tar.gz -C /opt/cursor-warco/public uploads
+#   （上线收尾后记得回 DEPLOY.md 7.1–7.3 把每日备份脚本与 cron 补上——备份没验证过恢复 = 没有备份）
 sudo /opt/cursor-warco/backup.sh
 
 # 2. 拉新代码（带来 full-rewrite SQL 与全部新功能）
