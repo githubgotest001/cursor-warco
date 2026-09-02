@@ -64,13 +64,15 @@ node server.js      # 启动服务，默认端口 4365；Ctrl+C 停止
 的 id 稳定不变（已被搜索引擎收录），且自动触发 SEO 缓存重建与百度推送：
 
 ```bash
-node sync.js pull                 # 线上 → 本地：档案全量镜像 + 引用图片增量下载
+node sync.js pull                 # 线上 → 本地：档案 + 刊物 + 补给表全量镜像，引用图片增量下载
 node sync.js push-image 图片路径   # 本地图片 → 线上 /uploads/（需管理密钥），返回可填入 image 字段的路径
 ```
 
-> **pull 只镜像档案（events）与引用图片**，不同步访问日志 / 刊物 / 收件箱 / 补给等运营数据——
-> 镜像是给内容分析用的，访客日志含加盐 IP 哈希（两边盐不同，本来也对不上）且体量大，不出服务器。
-> 所以本地后台「访客监控」显示的是本机测试流量；**看真实访客数据永远去线上后台**。
+> **pull 镜像三张内容表**：`events`（档案）、`supply`（作战室补给表）走公开接口；`posts`（编辑部的战报 /
+> 特稿，含 draft 态）走 `/api/posts` 需要管理密钥——`data/remote.json` 里有 `adminKey` 就一并镜像，没有则
+> 跳过并提示。**不同步**访问日志 / 收件箱 / 线报：访客日志含加盐 IP 哈希（两边盐不同，本来也对不上）且
+> 体量大，不出服务器；收件箱与线报是待处置队列，只在线上后台操作。所以本地后台「访客监控」显示的是本机
+> 测试流量；**看真实访客数据永远去线上后台**。
 
 站点地址与密钥按优先级取自：命令行参数（`--site` / `--key`）> 环境变量（`UMB_SITE` /
 `UMB_ADMIN_KEY`）> `data/remote.json`（`{"site": "…", "adminKey": "…"}`，data/ 已
@@ -87,9 +89,17 @@ gitignore 不会泄露）。`pull` 不需要密钥。
 ## 前台功能
 
 - **双线时间树**：正史（左，浅色官方档案）/ 野史（右，深色民间情报），最新在上，向下回溯。
-- **顶部筛选**：全部 / 只看正史 / 只看野史；报头实时显示收录总数与正史 · 野史分布。
+- **检索与筛选**（2026-09-02 起四维叠加）：报头检索框（`/` 键聚焦，匹配标题 / 摘要 / 详情 / 标签 /
+  线索 / 战区 / 日期，命中词高亮）× 全部 / 正史 / 野史 × 点卡片标签只看该标签 × 点线索徽标只看该线索；
+  任一生效时时间树顶部出现可逐项撤销的筛选条。状态同步到 URL 查询串（`/?q=fable&side=dark&tag=灭活`
+  可直接分享；404 页与首页 WebSite JSON-LD 的 SearchAction 都指向 `/?q=`）。报头统计行显示收录总数、
+  正史 · 野史分布与最新档案日期。
+- **年份导航轨**：桌面端右侧固定的年份列，随滚动高亮视口所在年份，点击平滑跳到该年闸门（`#y-YYYY`）。
+- **新入库徽标**：7 天内立档的卡片编号旁亮「● NEW」（按 `created_at` 在客户端推算，不受 SSR 缓存影响）。
 - **事件线索**：把漏洞/羊毛窗口的多条事件串成时间线（见下节）。
-- **调阅档案**：点卡片弹出详情（详细描述、图片、线索时间线、信源链接）。
+- **调阅档案**：点卡片弹出详情（详细描述、图片、线索时间线、**同日另一线**双线对照、信源链接）。
+  弹层内「‹ 较新 / 较旧 ›」或 ←→ 键沿当前筛选结果翻档；打开弹层会压一条浏览历史，**手机返回键 =
+  关闭弹层**而非离开本站（弹层内跳转不叠历史，一次返回全部收起）；`role="dialog"` + 焦点进出归还。
 - **分享定位**：每条档案有独立页面 `/ev/<id>`，弹层内「⧉ 链接」一键复制该地址，分享出去带
   事件专属标题与预览卡片；`#ev-<id>` 锚点仍可在时间树内直接定位。
 - **社交卡片**：内置 Open Graph / Twitter 卡片与分享图 `public/og.png`，分享到群聊 / 推特有预览。
@@ -117,16 +127,24 @@ gitignore 不会泄露）。`pull` 不需要密钥。
   不重复渲染。入场动画通过 `.js` 类门控——无 JS 环境下内容直接可见，不构成隐藏文本。
   canonical / og:url / 站长验证 meta / WebSite JSON-LD 由服务端按 `SITE_URL` 注入。
 - **独立档案页**：每条档案有可索引的 `/ev/<id>` 页面，含专属 title / description / canonical /
-  Open Graph 卡片 / Article + BreadcrumbList JSON-LD（日期、图片、信源 `isBasedOn`），并带
-  较新/较旧翻页、事件线索内链与线索聚合页链接，方便爬虫沿内链遍历全部档案。
+  Open Graph 卡片 / `article:tag` / Article + BreadcrumbList JSON-LD（日期、图片、信源 `isBasedOn`），
+  并带较新/较旧翻页、事件线索内链、**同日另一线**（双线对照）与**同类档案**（同标签最近 3 条）横向内链、
+  线索聚合页链接，方便爬虫沿内链遍历全部档案。页面顶部有与 BreadcrumbList 一致的可见面包屑
+  （列表页 / 刊物页同样由 JSON-LD 直接渲染，标记与内容不会漂移）。
 - **聚合着陆页**：文学化的档案标题拦不住搜索词，聚合页用搜索者的语言承接检索意图——
   `/s/<slug>` 事件线索页（如 `/s/funding` 承接「cursor 融资历史」、`/s/spacex` 承接
   「spacex 收购 cursor」；slug 与导语配置在 `server.js` 的 `SERIES_PAGES`，未配置的新线索
-  回退中文 URL）、`/y/<year>` 年份大事记页、`/about` 关于本站（查证纪律，E-E-A-T 信号 +
-  Organization JSON-LD）。全部带 CollectionPage/ItemList JSON-LD，首页页脚有索引导航入口。
+  回退中文 URL，已配置线索的中文路径 301 到 slug）、`/y/<year>` 年份大事记页、`/about` 关于本站
+  （查证纪律，E-E-A-T 信号 + Organization JSON-LD + **常见问题 FAQPage**：8 组用搜索者提问方式复述
+  库内已查证事实的问答，融资一问直接由 `FUNDING` 常量生成，是生成式引擎最常引用的块）。全部带
+  CollectionPage/ItemList JSON-LD，首页页脚有索引导航入口。首页 WebSite JSON-LD 带 `publisher`
+  与 `SearchAction`（`/?q={search_term_string}`，由客户端检索承接）。
 - **机器可读索引**：`/robots.txt`（含 Sitemap 声明、放行全部爬虫与 `/api/events`、屏蔽其余
-  `/api/`）、`/sitemap.xml`（首页 + 聚合页 + 全部档案页，带 lastmod）、`/feed.xml`（RSS 2.0）、
+  `/api/`）、`/sitemap.xml`（首页 + 聚合页 + 全部档案页，含年份页在内均带 lastmod）、`/feed.xml`
+  （RSS 2.0，`description` 纯文本摘要 + `content:encoded` 全文 HTML，阅读器内可读全文）、
   `/llms.txt` 与 `/llms-full.txt`（LLM 友好的 Markdown 目录 / 全文，含英文站点简介与线索页目录）。
+  全部 HTML 页面带 `max-image-preview:large`。404 是一页红后口吻的档案式页面（检索框 + 站内去路），
+  静态资源类路径仍回纯文本 404。
 - **百度主动推送**：配置 `BAIDU_PUSH_TOKEN` 后，档案增删改自动把受影响的 URL（档案页、首页、
   所属线索页与年份页）实时推送百度，境内收录缩短到分钟级。
 - **传输层**：文本响应 brotli/gzip + ETag/304；字体子集自托管（`public/fonts/`，已移除
@@ -147,7 +165,7 @@ gitignore 不会泄露）。`pull` 不需要密钥。
 | `image` | 图片（`/uploads/…` 或外链 URL，后台可直接上传） |
 | `series` | 事件线索（选填）。同一漏洞/羊毛窗口的多条事件填相同线索名，前台串成时间线并显示窗口跨度 |
 | `source` | 信源链接（选填）。原始报道/官方公告 URL，前台"调阅档案"可点击追溯 |
-| `front` | 战区代号（选填，2026-08-30 起）。空 = Cursor 主战线；邻圈档案填 `claude-code` / `codex` / `copilot` / `windsurf` / `cn-tools` / `model-labs` |
+| `front` | 战区代号（选填，2026-08-30 起）。空 = Cursor 主战线；邻圈档案填 `claude-code` / `codex` / `copilot` / `windsurf` / `devin` / `replit` / `cn-tools` / `model-labs`（名册在 `server.js` 的 `FRONTS`，前台经 `window.__FRONTS__` 注入，后台经 `/api/meta`） |
 | `created_at` / `updated_at` | 创建 / 最近修改时间（自动，后台列表可按其排序） |
 
 另有四张辅助表（建表语句在 `server.js`，老库升级跑一次 `node tools/migrate-2026-08-30.js`）：
@@ -179,7 +197,7 @@ gitignore 不会泄露）。`pull` 不需要密钥。
 
 ```
 server.js          零依赖服务端（静态资源 + REST API + SSR/SEO + 聚合页 + 作战室/刊物/数据页 + 百度推送 + 鉴权 + 访问记录）
-sync.js            线上 ⇄ 本地同步工具：pull 拉档案镜像+图片 / push-image 传图（线上库为唯一真源）
+sync.js            线上 ⇄ 本地同步工具：pull 拉档案 / 刊物 / 补给表镜像 + 图片，push-image 传图（线上库为唯一真源）
 GROWTH.md          增长作战手册：站长平台接入、社区分发、外链与复盘（站外动作清单）
 AUTOMATION.md      自动化手册：哨兵 / 侦察 / 战报 / 扇出的 agent 编辑部操作规程
 tools/
@@ -202,7 +220,7 @@ public/
 
 | 方法 | 路径 | 鉴权 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/api/events` | 否 | 事件列表。筛选 `side` `q` `series`；排序 `sort`(date/created_at/updated_at/title) `order`(asc/desc)；分页 `page` `pageSize`（不传 `page` 返回全部，供前台时间轴）。返回含 `total` |
+| GET | `/api/events` | 否 | 事件列表。筛选 `side` `q` `series` `tag` `front`；排序 `sort`(date/created_at/updated_at/title) `order`(asc/desc)；分页 `page` `pageSize`（不传 `page` 返回全部，供前台时间轴）。返回含 `total` |
 | GET | `/api/events/:id` | 否 | 单条事件 |
 | GET | `/api/meta` | 否 | 已用过的标签与线索概览（供后台下拉、前台线索） |
 | POST | `/api/events` | 是 | 新建 |

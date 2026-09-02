@@ -21,6 +21,7 @@
 <meta name="author" content="Cursor Warco · 战地记者">
 <meta property="og:locale" content="zh_CN">
 <link rel="alternate" type="application/rss+xml" title="UMBRELLA 4365 · 档案更新" href="/feed.xml">
+<link rel="preload" href="/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
 <!-- canonical / og:url / og:image / 站长验证 / WebSite JSON-LD 由服务端按 SITE_URL 注入（见 server.js homeHeadHTML） -->
 <!--SSR:HEAD-->
 <style>
@@ -161,7 +162,7 @@
   }
   .stationnav a.cdnav::before { content: "●"; margin-right: 5px; animation: blink 1.4s steps(1) infinite; }
 
-  /* 收录统计 + 筛选 */
+  /* 收录统计 + 检索 + 筛选 */
   .legend-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .legend .count { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--bone-dim); }
   .legend .count b { color: var(--umb-hi); }
@@ -174,6 +175,43 @@
   .filter button:first-child { border-left: none; }
   .filter button:hover { color: var(--bone); background: rgba(224,36,46,.1); }
   .filter button.on { background: var(--umb); color: #fff; font-weight: 700; }
+  /* 站内检索：红后终端输入行 */
+  .search { position: relative; display: inline-flex; align-items: center; border: 1px solid rgba(224,36,46,.4); background: rgba(10,11,14,.6); transition: border-color .2s ease, box-shadow .2s ease; }
+  .search:focus-within { border-color: var(--umb); box-shadow: 0 0 10px rgba(224,36,46,.25); }
+  .search::before { content: "⌕"; font-family: var(--mono); font-size: 13px; color: var(--umb-hi); padding: 0 0 0 8px; opacity: .8; }
+  .search input {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+    background: transparent; color: var(--bone); border: none; outline: none;
+    padding: 4px 8px; width: 168px;
+  }
+  .search input::placeholder { color: var(--steel); }
+  .search .clr { display: none; background: none; border: none; color: var(--bone-dim); font-size: 12px; cursor: pointer; padding: 0 8px; line-height: 1; }
+  .search .clr:hover { color: var(--umb-hi); }
+  .search.has .clr { display: inline-block; }
+
+  /* 标签可点击筛选 */
+  .card .tag { cursor: pointer; transition: box-shadow .2s ease; }
+  .card .tag:hover { box-shadow: 0 0 10px rgba(224,36,46,.35); }
+  .card mark { background: rgba(224,36,46,.22); color: inherit; padding: 0 1px; box-shadow: 0 1px 0 var(--umb); }
+  .card.c-dark mark { background: rgba(255,74,82,.25); }
+
+  /* 新入库徽标（客户端按 created_at 推算，7 天内；嵌在编号旁） */
+  .card .no .fresh { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; color: var(--umb-hi); opacity: 1; white-space: nowrap; margin-left: 8px; }
+  .card .no .fresh::before { content: "●"; margin-right: 4px; animation: blink 1.4s steps(1) infinite; }
+  .card.c-main .no .fresh { margin: 0 8px 0 0; }
+  .card .no:has(.fresh) { opacity: .85; }
+
+  /* 年份导航轨（桌面端右侧居中，随滚动高亮当前年份） */
+  .yearrail { position: fixed; right: 22px; top: 50%; transform: translateY(-50%); z-index: 55; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .yearrail a {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; color: var(--steel); text-decoration: none;
+    display: flex; align-items: center; gap: 8px; padding: 2px 0; transition: color .2s ease;
+  }
+  .yearrail a::after { content: ""; width: 6px; height: 6px; transform: rotate(45deg); border: 1px solid var(--steel); transition: all .2s ease; }
+  .yearrail a:hover { color: var(--bone); }
+  .yearrail a.on { color: var(--umb-hi); text-shadow: 0 0 8px rgba(224,36,46,.45); }
+  .yearrail a.on::after { background: var(--umb); border-color: var(--umb); box-shadow: 0 0 8px rgba(224,36,46,.8); }
+  .row.year { scroll-margin-top: 12px; }
 
   /* 战区徽标（卡片上，非 Cursor 主战线的档案标注） */
   .card .front-tag {
@@ -194,17 +232,42 @@
   .card.c-dark .series-tag { color: var(--umb-hi); }
   .card .series-tag:hover { opacity: 1; box-shadow: 0 0 10px rgba(224,36,46,.3); }
 
-  /* 线索筛选提示条 */
+  /* 筛选状态条：检索词 / 线索 / 标签 任一生效时出现，逐项可撤 */
   .thread-bar {
-    position: relative; z-index: 2; max-width: 700px; margin: 0 auto 10px;
-    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    position: relative; z-index: 2; max-width: 720px; margin: 0 auto 10px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap;
     border: 1px dashed var(--umb); background: rgba(224,36,46,.08);
     padding: 9px 14px; font-family: var(--mono); font-size: 11.5px; color: var(--bone);
   }
+  .thread-bar .chips { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
   .thread-bar b { color: var(--umb-hi); }
   .thread-bar .win { color: var(--bone-dim); }
-  .thread-bar .x { cursor: pointer; color: var(--umb-hi); border: 1px solid var(--umb); padding: 2px 9px; white-space: nowrap; }
+  .thread-bar .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(224,36,46,.45); padding: 2px 8px; white-space: nowrap; }
+  .thread-bar .chip button { background: none; border: none; color: var(--bone-dim); cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
+  .thread-bar .chip button:hover { color: var(--umb-hi); }
+  .thread-bar a { color: var(--umb-hi); text-decoration: none; border-bottom: 1px dashed rgba(224,36,46,.55); white-space: nowrap; }
+  .thread-bar .x { cursor: pointer; color: var(--umb-hi); border: 1px solid var(--umb); padding: 2px 9px; white-space: nowrap; background: none; font: inherit; }
   .thread-bar .x:hover { background: rgba(224,36,46,.18); }
+
+  /* 详情：同日另一线（双线互文） */
+  .dossier .xref { margin: 14px 0 0; padding: 12px 14px; border: 1px dashed rgba(224,36,46,.4); }
+  .dossier .xref .xh { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; margin-bottom: 8px; }
+  .dossier.d-main .xref .xh { color: #a01820; }
+  .dossier.d-dark .xref .xh { color: var(--umb-hi); }
+  .dossier .xref a { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; font-size: 12.5px; line-height: 1.5; color: inherit; text-decoration: none; }
+  .dossier .xref .xs { font-family: var(--mono); font-size: 9.5px; letter-spacing: .2em; padding: 0 5px; border: 1px solid currentColor; white-space: nowrap; opacity: .85; }
+  .dossier.d-main .xref .x-dark .xs { background: #a01820; border-color: #a01820; color: #edeae2; }
+  .dossier.d-dark .xref .x-main .xs { background: #e9e6df; border-color: #e9e6df; color: #140c10; }
+  .dossier .xref .d { font-family: var(--mono); white-space: nowrap; opacity: .65; }
+  .dossier .xref .xt { border-bottom: 1px dashed currentColor; }
+  .dossier.d-main .xref a:hover .xt { color: #a01820; border-bottom-style: solid; }
+  .dossier.d-dark .xref a:hover .xt { color: var(--umb-hi); border-bottom-style: solid; }
+
+  /* 详情 bar 翻档按钮 */
+  .dossier .bar .acts button.nav { opacity: .85; }
+  .dossier .bar .acts button.nav:disabled { opacity: .3; cursor: default; }
+  .dossier:focus { outline: none; }
+  .dossier:focus-visible { outline: 2px solid var(--umb-hi); outline-offset: 2px; }
 
   /* 详情：线索时间线 */
   .dossier .thread { margin: 14px 0; padding: 12px 14px; border: 1px dashed rgba(224,36,46,.4); }
@@ -232,8 +295,8 @@
   .dossier.d-dark .srcline { color: var(--umb-hi); }
 
   /* 详情 bar 按钮组 */
-  .dossier .bar .acts { display: flex; gap: 8px; align-items: center; }
-  .dossier .bar .acts button { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; padding: 0; }
+  .dossier .bar .acts { display: flex; gap: 10px; align-items: center; margin-left: auto; }
+  .dossier .bar .acts button { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; padding: 0; white-space: nowrap; }
 
   /* ================= 蜂巢（垂直时间树） ================= */
   .stage {
@@ -529,7 +592,7 @@
   }
   @keyframes dossierIn { from { opacity: 0; transform: translateY(18px) scale(.97); } }
   .dossier .bar {
-    display: flex; justify-content: space-between; align-items: center;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 12px;
     font-family: var(--mono); font-size: 10px; letter-spacing: .22em;
     padding: 8px 14px;
     background: var(--umb); color: #fff;
@@ -554,15 +617,22 @@
   .dossier .foot { margin-top: 14px; padding-top: 10px; border-top: 1px dashed rgba(224,36,46,.35); font-family: var(--mono); font-size: 10px; letter-spacing: .18em; opacity: .6; }
 
   /* ================= 移动端 ================= */
+  @media (max-width: 1000px) { .yearrail { display: none; } }
+
   @media (max-width: 860px) {
     .brow { justify-content: center; }
     .brow span:not(.mid) { display: none; }
     .legend { gap: 8px; }
     .legend .hint { display: none; }
+    .legend-right { width: 100%; gap: 8px 12px; }
+    .legend .count { order: 3; width: 100%; }
+    .search { flex: 1 1 160px; }
+    .search input { width: 100%; font-size: 12px; }
     .lr-d { display: none; }
     .lr-m { display: inline; }
     .mast-main { gap: 10px; padding: 7px 0 2px; }
     .mast-title { gap: 8px; }
+    .dossier .bar .clr { display: none; }
 
     .stage { background: linear-gradient(90deg, rgba(233,230,223,.04) 0%, transparent 42%, transparent 58%, rgba(224,36,46,.09) 100%); }
     .track { padding: 18px 14px 40px; }
@@ -626,6 +696,10 @@
     </div>
     <div class="legend-right">
       <span class="count" id="count"></span>
+      <form class="search" id="searchBox" role="search" action="/" method="get" onsubmit="return false">
+        <input id="q" name="q" type="search" placeholder="检索档案…" aria-label="检索档案" autocomplete="off" spellcheck="false">
+        <button type="button" class="clr" id="qClear" title="清除检索" aria-label="清除检索">✕</button>
+      </form>
       <div class="filter" id="filter">
         <button data-f="all" class="on">全部</button>
         <button data-f="main">正史</button>
@@ -651,6 +725,7 @@
   <div class="track" id="track"><!--SSR:TRACK--></div>
 </main>
 
+<nav class="yearrail" id="yearrail" aria-label="年份导航"></nav>
 <div class="jumpers">
   <button id="toTop" title="回到最新">⇡ 战况最新</button>
   <button id="toBottom" title="回溯起源">⇣ 溯源起点</button>
@@ -665,7 +740,7 @@
 
 <!-- ================= 档案调阅弹层 ================= -->
 <div class="overlay" id="overlay">
-  <article class="dossier" id="dossier"></article>
+  <article class="dossier" id="dossier" role="dialog" aria-modal="true" aria-label="档案调阅" tabindex="-1"></article>
 </div>
 
 <script>
@@ -682,40 +757,107 @@ const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 const dot = d => String(d || '').replaceAll('-', '.');
 
 let EVENTS = [];
-let currentFilter = 'all';   // all | main | dark
-let currentSeries = null;    // 线索名，非空时只看该线索
+/* 筛选状态四维：版面（全部/正史/野史）× 线索 × 标签 × 检索词，全部可叠加，并同步到 URL 查询串
+   （?side=dark&q=fable 可直接分享；SSR 首页的 canonical 始终是 /，查询串不影响收录） */
+const state = { side: 'all', series: null, tag: null, q: '' };
+const isPristine = () => state.side === 'all' && !state.series && !state.tag && !state.q.trim();
 
 const daysBetween = (d1, d2) => Math.round(Math.abs(new Date(d2) - new Date(d1)) / 864e5);
-const matchList = () => EVENTS.filter(ev =>
-  currentSeries ? ev.series === currentSeries
-    : currentFilter === 'main' ? ev.side === 'main'
-    : currentFilter === 'dark' ? ev.side === 'dark'
-    : true
-);
+const inField = () => /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
+const hayCache = new Map();
+function hay(ev) {
+  let h = hayCache.get(ev.id);
+  if (!h) {
+    h = [ev.title, ev.summary, ev.detail, ev.tag, ev.series, FRONTS[ev.front] || ev.front, ev.date, dot(ev.date)].join(' ').toLowerCase();
+    hayCache.set(ev.id, h);
+  }
+  return h;
+}
+function matchList() {
+  const q = state.q.trim().toLowerCase();
+  return EVENTS.filter(ev =>
+    (state.side === 'all' || ev.side === state.side) &&
+    (!state.series || ev.series === state.series) &&
+    (!state.tag || ev.tag === state.tag) &&
+    (!q || hay(ev).includes(q)));
+}
+/* 检索高亮：先转义再包 <mark>，检索词本身也走转义，保证只在文本层匹配 */
+function hl(text) {
+  const q = state.q.trim();
+  const safe = esc(text);
+  if (!q) return safe;
+  const needle = esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return safe.replace(new RegExp(needle, 'gi'), m => `<mark>${m}</mark>`);
+}
+
 function updateCount() {
   const m = EVENTS.filter(e => e.side === 'main').length;
+  const latest = EVENTS.reduce((mx, e) => (e.date > mx ? e.date : mx), '');
   const el = document.getElementById('count');
-  if (el) el.innerHTML = `已收录 <b>${EVENTS.length}</b> 条 · 正史 ${m} · 野史 ${EVENTS.length - m}`;
+  if (el) el.innerHTML = `已收录 <b>${EVENTS.length}</b> 条 · 正史 ${m} · 野史 ${EVENTS.length - m}${latest ? ` · 最新 ${dot(latest)}` : ''}`;
 }
 function syncFilterUI() {
-  document.querySelectorAll('#filter button').forEach(b => b.classList.toggle('on', b.dataset.f === currentFilter && !currentSeries));
+  document.querySelectorAll('#filter button').forEach(b => b.classList.toggle('on', b.dataset.f === state.side));
+  const qi = document.getElementById('q');
+  if (qi && qi.value !== state.q) qi.value = state.q;
+  document.getElementById('searchBox').classList.toggle('has', Boolean(state.q));
+}
+function syncURL() {
+  const p = new URLSearchParams();
+  if (state.q.trim()) p.set('q', state.q.trim());
+  if (state.side !== 'all') p.set('side', state.side);
+  if (state.tag) p.set('tag', state.tag);
+  if (state.series) p.set('series', state.series);
+  const qs = p.toString();
+  history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
+}
+function readURL() {
+  const p = new URLSearchParams(location.search);
+  state.q = p.get('q') || '';
+  state.side = ['main', 'dark'].includes(p.get('side')) ? p.get('side') : 'all';
+  state.tag = p.get('tag') || null;
+  state.series = p.get('series') || null;
+}
+/* 任何筛选变化的统一出口：重绘 + 同步 UI 与 URL；scroll=true 时回到顶部（切版面 / 选线索），检索时不跳 */
+function applyState(scroll) {
+  syncFilterUI(); syncURL(); render();
+  if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function bindFilter() {
   document.querySelectorAll('#filter button').forEach(b => {
-    b.onclick = () => { currentFilter = b.dataset.f; currentSeries = null; syncFilterUI(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    b.onclick = () => { state.side = b.dataset.f; applyState(true); };
+  });
+  const qi = document.getElementById('q');
+  let t = 0;
+  qi.addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(() => { state.q = qi.value; applyState(false); if (window.scrollY > 240) window.scrollTo({ top: 0 }); }, 180);
+  });
+  qi.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { qi.value = ''; state.q = ''; applyState(false); qi.blur(); }
+    if (e.key === 'Enter') qi.blur();
+  });
+  document.getElementById('qClear').onclick = () => { state.q = ''; applyState(false); qi.focus(); };
+  /* 快捷键 / 聚焦检索框（不在输入态时） */
+  window.addEventListener('keydown', e => {
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !inField() && !overlay.classList.contains('open')) { e.preventDefault(); qi.focus(); }
   });
 }
-function viewSeries(name) { currentSeries = name; currentFilter = 'all'; syncFilterUI(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function viewSeries(name) { state.series = name; state.tag = null; applyState(true); }
+function viewTag(tag) { state.tag = tag; state.series = null; applyState(true); }
 function bindThread() {
   const x = document.getElementById('clearThread');
-  if (x) x.onclick = () => { currentSeries = null; syncFilterUI(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  if (x) x.onclick = () => { state.series = null; state.tag = null; state.q = ''; applyState(true); };
+  track.querySelectorAll('.thread-bar .chip button').forEach(b => {
+    b.onclick = () => { state[b.dataset.k] = b.dataset.k === 'q' ? '' : null; applyState(false); };
+  });
 }
 function openFromHash() {
-  if (location.hash === '#memo') { setTimeout(openMemo, 400); return; }
-  if (location.hash === '#tip') { setTimeout(openTip, 400); return; }
-  if (location.hash === '#support') { setTimeout(openSupport, 400); return; }
+  if (location.hash === '#memo') { setTimeout(() => openMemo({ replace: true }), 400); return; }
+  if (location.hash === '#tip') { setTimeout(() => openTip({ replace: true }), 400); return; }
+  if (location.hash === '#support') { setTimeout(() => openSupport({ replace: true }), 400); return; }
   const m = location.hash.match(/^#ev-(\d+)$/);
-  if (m && EVENTS.some(e => e.id === Number(m[1]))) setTimeout(() => openDossier(Number(m[1])), 400);
+  if (m && EVENTS.some(e => e.id === Number(m[1]))) setTimeout(() => openDossier(Number(m[1]), { replace: true }), 400);
 }
 
 async function boot() {
@@ -727,10 +869,13 @@ async function boot() {
       if (!res.ok) throw new Error(res.status);
       EVENTS = (await res.json()).events || [];
     }
-    if (track.querySelector('.row')) wire();      // 服务端已直出（SEO）：只接管交互，不重绘
+    readURL();
+    bindFilter();
+    syncFilterUI();
+    if (!isPristine()) render();                  // 带筛选参数进站（分享链接 / 404 页检索）：客户端按条件重绘
+    else if (track.querySelector('.row')) wire();  // 服务端已直出（SEO）：只接管交互，不重绘
     else render();
     updateCount();
-    bindFilter();
     openFromHash();
   } catch (e) {
     console.error('档案库连接失败（本地开发请先运行 node server.js）', e);
@@ -740,7 +885,7 @@ async function boot() {
 
 function render() {
   track.innerHTML = '';
-  const pristine = !currentSeries && currentFilter === 'all';
+  const pristine = isPristine();
 
   /* 发刊词 + LIVE（仅完整视图显示，保持首屏叙事）；战地手记从发刊词末尾调阅 */
   if (pristine) {
@@ -757,22 +902,31 @@ function render() {
     `);
   }
 
-  /* 线索筛选提示条 */
-  if (currentSeries) {
-    const arr = EVENTS.filter(e => e.series === currentSeries).sort((a, b) => a.date < b.date ? -1 : 1);
-    const span = arr.length >= 2 ? daysBetween(arr[0].date, arr[arr.length - 1].date) : 0;
+  const list = matchList();
+
+  /* 筛选状态条：检索词 / 线索 / 标签任一生效即显示，逐项可撤；线索态附窗口跨度与专页入口 */
+  if (state.series || state.tag || state.q.trim()) {
+    const chips = [];
+    if (state.q.trim()) chips.push(`<span class="chip">⌕ 检索 <b>${esc(state.q.trim())}</b><button data-k="q" title="清除检索" aria-label="清除检索">✕</button></span>`);
+    if (state.series) {
+      const arr = EVENTS.filter(e => e.series === state.series).sort((a, b) => a.date < b.date ? -1 : 1);
+      const span = arr.length >= 2 ? daysBetween(arr[0].date, arr[arr.length - 1].date) : 0;
+      chips.push(`<span class="chip">◈ 线索 <b>${esc(state.series)}</b>${span ? ` <span class="win">· 跨度 ${span} 天</span>` : ''}<button data-k="series" title="取消线索筛选" aria-label="取消线索筛选">✕</button></span>`);
+      chips.push(`<a href="/s/${encodeURIComponent(state.series)}" title="该线索的聚合专页（含导语与全部节点）">线索专页 »</a>`);
+    }
+    if (state.tag) chips.push(`<span class="chip">⌗ 标签 <b>${esc(state.tag)}</b><button data-k="tag" title="取消标签筛选" aria-label="取消标签筛选">✕</button></span>`);
     track.insertAdjacentHTML('beforeend', `
-      <div class="thread-bar">
-        <span>◈ 事件线索：<b>${esc(currentSeries)}</b> · ${arr.length} 个节点${span ? ` · <span class="win">窗口跨度 ${span} 天</span>` : ''}</span>
-        <span class="x" id="clearThread">✕ 返回全部</span>
+      <div class="thread-bar" role="status">
+        <span class="chips">${chips.join('')}<span class="win">${list.length} 条档案</span></span>
+        <button class="x" id="clearThread">✕ 返回全部</button>
       </div>
     `);
   }
 
-  const list = matchList();
   if (!list.length) {
-    track.insertAdjacentHTML('beforeend', `<div class="sysmsg">该检索条件下无档案记录</div>`);
+    track.insertAdjacentHTML('beforeend', `<div class="sysmsg">该检索条件下无档案记录${state.q.trim() ? '<br><span style="opacity:.6;letter-spacing:.06em;font-size:11px">换个关键词，或试试模型名 / 公司名 / 标签词</span>' : ''}</div>`);
     bindThread();
+    buildYearRail();
     return;
   }
 
@@ -790,7 +944,7 @@ function render() {
   for (const [year, ylist] of byYear) {
     const ph = phaseOf(year);
     track.insertAdjacentHTML('beforeend', `
-      <div class="row year">
+      <div class="row year" id="y-${year}">
         <span class="ghost">${year}</span>
         <span class="evo-a">${esc(ph.a)}</span>
         <span class="evo-b">${esc(ph.b)}</span>
@@ -812,9 +966,9 @@ function render() {
           ${ev.side === 'dark' ? '<span class="stamp">野史</span>' : ''}
           <div class="head"><span class="tag">${esc(ev.tag) || '记录'}</span><span class="no">${no}</span></div>
           <time datetime="${esc(ev.date)}">${dot(ev.date)}</time>${frontTag}
-          <h3>${esc(ev.title)}</h3>
+          <h3>${hl(ev.title)}</h3>
           ${thumb}
-          <p>${esc(ev.summary)}</p>
+          <p>${hl(ev.summary)}</p>
           ${seriesTag}
           <a class="more" href="/ev/${ev.id}">调阅档案 »</a>
         </article>`;
@@ -843,34 +997,119 @@ function render() {
   wire();
 }
 
-/* 交互接线：服务端直出（SEO）与客户端渲染共用 —— 卡片入场、点击调阅、线索徽标、手记入口 */
+/* 交互接线：服务端直出（SEO）与客户端渲染共用 —— 卡片入场、点击调阅、线索 / 标签徽标、新入库徽标、年份轨 */
+const FRESH_MS = 7 * 864e5;
 function wire() {
   const ml = document.getElementById('memoLink');
-  if (ml) ml.onclick = openMemo;
+  if (ml) ml.onclick = () => openMemo();
   const io = new IntersectionObserver(entries => {
     for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
   }, { threshold: 0.12 });
+  const now = Date.now();
   document.querySelectorAll('.card').forEach(c => {
     io.observe(c);
+    /* 新入库徽标：以 created_at（服务器本地时间）推算，7 天内标「NEW」——SSR 有缓存，日期相关的判断放客户端 */
+    const ev = EVENTS.find(e => e.id === Number(c.dataset.id));
+    if (ev && ev.created_at && !c.querySelector('.fresh')) {
+      const t = new Date(String(ev.created_at).replace(' ', 'T')).getTime();
+      if (t && now - t < FRESH_MS) c.querySelector('.no').insertAdjacentHTML(ev.side === 'main' ? 'afterbegin' : 'beforeend', '<span class="fresh" title="7 天内立档">NEW</span>');
+    }
     c.addEventListener('click', e => {
       const st = e.target.closest('.series-tag');
       if (st) { e.stopPropagation(); viewSeries(st.dataset.series); return; }
+      const tg = e.target.closest('.tag');
+      if (tg && ev && ev.tag) { e.stopPropagation(); viewTag(ev.tag); return; }
       const a = e.target.closest('a.more');
       if (a) {
         if (e.ctrlKey || e.metaKey || e.shiftKey) return;   // 保留新标签页打开档案页的能力
         e.preventDefault();                                  // 普通点击仍走站内调阅弹层
       }
+      lastFocus = c.querySelector('a.more') || c;
       openDossier(Number(c.dataset.id));
     });
+    c.querySelectorAll('.tag').forEach(t => { t.title = `只看「${t.textContent}」标签`; });
   });
   bindThread();
+  buildYearRail();
 }
+
+/* 年份导航轨：从当前时间树里的年份闸门生成，滚动时高亮视口所在年份 */
+function buildYearRail() {
+  const rail = document.getElementById('yearrail');
+  const years = [...track.querySelectorAll('.row.year')].map(r => r.id.replace('y-', ''));
+  rail.innerHTML = years.length >= 2 ? years.map(y => `<a href="#y-${y}" data-y="${y}">${y}</a>`).join('') : '';
+  rail.querySelectorAll('a').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.getElementById('y-' + a.dataset.y);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  updateYearRail();
+}
+function updateYearRail() {
+  const rows = track.querySelectorAll('.row.year');
+  if (!rows.length) return;
+  let cur = rows[0].id;
+  for (const r of rows) if (r.getBoundingClientRect().top <= window.innerHeight * 0.4) cur = r.id;
+  document.querySelectorAll('#yearrail a').forEach(a => a.classList.toggle('on', 'y-' + a.dataset.y === cur));
+}
+let railTick = false;
+window.addEventListener('scroll', () => {
+  if (railTick) return;
+  railTick = true;
+  requestAnimationFrame(() => { updateYearRail(); railTick = false; });
+}, { passive: true });
 
 /* ============ 档案调阅 ============ */
 const overlay = document.getElementById('overlay');
 const dossier = document.getElementById('dossier');
+let lastFocus = null;        // 打开弹层前的焦点元素，关闭后归还
+let currentDossierId = null; // 当前弹层里的档案 id（←/→ 翻档用）
 
-function openDossier(id) {
+/* 弹层与浏览器历史：打开弹层 push 一条历史（手机上按返回键 = 关闭弹层，而不是离开本站）；
+   弹层内跳转（线索节点 / 同日另一线 / 翻档）只 replace，不堆历史；state.depth 记录本次弹层链 push 了几层，
+   关闭时一次 history.go(-depth) 回到时间树。从 URL hash 直达的首开用 replace（depth 0），关闭不动历史。 */
+let modalDepth = 0;
+function pushPanel(st, hash) { modalDepth += 1; history.pushState({ ...st, depth: modalDepth }, '', hash); }
+function replacePanel(st, hash) { history.replaceState({ ...st, depth: modalDepth }, '', hash); }
+function commitPanel(st, hash, opts) {
+  if (opts && opts.viaHistory) return;
+  if (opts && opts.replace) replacePanel(st, hash); else pushPanel(st, hash);
+}
+function showOverlay(opts) {
+  if (!overlay.classList.contains('open')) {
+    if (!(opts && opts.viaHistory) && !lastFocus) lastFocus = document.activeElement;
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  dossier.scrollTop = 0;
+  dossier.focus({ preventScroll: true });
+}
+function hideOverlay() {
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+  currentDossierId = null;
+  if (lastFocus && lastFocus.focus) { try { lastFocus.focus({ preventScroll: true }); } catch {} }
+  lastFocus = null;
+}
+function closeDossier() {
+  if (!overlay.classList.contains('open')) return;
+  if (modalDepth > 0) { history.go(-modalDepth); return; }   // popstate 负责真正收起
+  hideOverlay();
+  if (/^#(ev-|memo$|tip$|support$)/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+}
+window.addEventListener('popstate', e => {
+  const s = e.state;
+  if (s && s.dossier && EVENTS.some(ev => ev.id === s.dossier)) { modalDepth = s.depth || 0; openDossier(s.dossier, { viaHistory: true }); return; }
+  if (s && s.panel === 'memo') { modalDepth = s.depth || 0; openMemo({ viaHistory: true }); return; }
+  if (s && s.panel === 'tip') { modalDepth = s.depth || 0; openTip({ viaHistory: true }); return; }
+  if (s && s.panel === 'support') { modalDepth = s.depth || 0; openSupport({ viaHistory: true }); return; }
+  modalDepth = 0;
+  if (overlay.classList.contains('open')) hideOverlay();
+});
+
+const xrefItem = e => `<a class="x-${e.side}" href="/ev/${e.id}" data-jump="${e.id}" title="调阅该档案"><span class="xs">${e.side === 'main' ? '正史' : '野史'}</span><span class="d">${dot(e.date)}</span><span class="xt">${esc(e.title)}</span></a>`;
+
+function openDossier(id, opts) {
   const ev = EVENTS.find(e => e.id === id);
   if (!ev) return;
   const isMain = ev.side === 'main';
@@ -892,15 +1131,31 @@ function openDossier(id) {
         ${span ? `<div class="win">◷ 窗口跨度 ${span} 天（${dot(arr[0].date)} → ${dot(arr[arr.length - 1].date)}）</div>` : ''}
       </div>`;
   }
+  /* 双线互文：同一天另一线的档案——正史与野史的温差是本站叙事本体，弹层里直接给出去路 */
+  const sameDay = EVENTS.filter(e => e.date === ev.date && e.id !== ev.id && e.side !== ev.side);
+  const xrefHtml = sameDay.length ? `
+      <div class="xref">
+        <div class="xh">◐ 同日另一线 · 双线对照</div>
+        ${sameDay.map(xrefItem).join('')}
+      </div>` : '';
   const srcHtml = ev.source ? `<div class="srcline">信源 SOURCE · <a href="${esc(ev.source)}" target="_blank" rel="noopener">${esc(ev.source)}</a></div>` : '';
 
+  /* 翻档：沿当前筛选结果（时间倒序）前后移动 */
+  const list = matchList();
+  const idx = list.findIndex(e => e.id === ev.id);
+  const newer = idx > 0 ? list[idx - 1] : null;
+  const older = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
+
   dossier.className = `dossier ${isMain ? 'd-main' : 'd-dark'}`;
+  dossier.setAttribute('aria-label', `${isMain ? '正史' : '野史'}档案 ${no}：${ev.title}`);
   dossier.innerHTML = `
     <div class="bar">
-      <span>ARCHIVE ACCESS · ${no} · CLEARANCE LV.4</span>
+      <span>ARCHIVE ACCESS · ${no}<span class="clr"> · CLEARANCE LV.4</span></span>
       <span class="acts">
+        <button class="nav" id="prevD" title="较新一条（←）" ${newer ? `data-id="${newer.id}"` : 'disabled'}>‹ 较新</button>
+        <button class="nav" id="nextD" title="较旧一条（→）" ${older ? `data-id="${older.id}"` : 'disabled'}>较旧 ›</button>
         <button id="shareD" title="复制本条档案链接">⧉ 链接</button>
-        <button id="closeD" title="关闭">✕</button>
+        <button id="closeD" title="关闭（Esc）">✕</button>
       </span>
     </div>
     <div class="body">
@@ -915,13 +1170,14 @@ function openDossier(id) {
       <div class="sum">${esc(ev.summary)}</div>
       <div class="txt">${paras || '<p>（暂无详细描述）</p>'}</div>
       ${threadHtml}
+      ${xrefHtml}
       ${srcHtml}
-      <div class="foot">UMBRELLA 4365 ARCHIVE · 仅作记录 · 不构成立场</div>
+      <div class="foot">UMBRELLA 4365 ARCHIVE · 仅作记录 · 不构成立场 · <a href="/ev/${ev.id}" style="color:inherit">独立档案页 »</a></div>
     </div>
   `;
-  overlay.classList.add('open');
-  document.body.style.overflow = 'hidden';
-  history.replaceState(null, '', '#ev-' + ev.id);
+  currentDossierId = ev.id;
+  commitPanel({ dossier: ev.id }, '#ev-' + ev.id, opts);
+  showOverlay(opts);
   document.getElementById('closeD').onclick = closeDossier;
   document.getElementById('shareD').onclick = e => {
     const btn = e.currentTarget;
@@ -930,22 +1186,19 @@ function openDossier(id) {
     btn.textContent = '✓ 已复制';
     setTimeout(() => { btn.textContent = '⧉ 链接'; }, 1500);
   };
-  /* 线索节点站内跳转（Ctrl/Cmd/Shift 点击保留新标签页打开独立档案页的能力） */
-  dossier.querySelectorAll('.thread a[data-jump]').forEach(a => a.addEventListener('click', e => {
+  dossier.querySelectorAll('.bar .nav[data-id]').forEach(b => { b.onclick = () => openDossier(Number(b.dataset.id), { replace: true }); });
+  /* 线索节点 / 同日另一线 站内跳转（Ctrl/Cmd/Shift 点击保留新标签页打开独立档案页的能力） */
+  dossier.querySelectorAll('a[data-jump]').forEach(a => a.addEventListener('click', e => {
     if (e.ctrlKey || e.metaKey || e.shiftKey) return;
     e.preventDefault();
-    openDossier(Number(a.dataset.jump));
+    openDossier(Number(a.dataset.jump), { replace: true });
   }));
-}
-function closeDossier() {
-  overlay.classList.remove('open');
-  document.body.style.overflow = '';
-  if (/^#(ev-|memo$|tip$|support$)/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
 }
 
 /* ============ 战地手记：记者私话，按零号档案调阅 ============ */
-function openMemo() {
+function openMemo(opts) {
   dossier.className = 'dossier d-dark';
+  dossier.setAttribute('aria-label', '战地手记 · 记者私话');
   dossier.innerHTML = `
     <div class="bar">
       <span>FIELD NOTE · N-000 · OFF THE RECORD</span>
@@ -971,20 +1224,20 @@ function openMemo() {
       <div class="foot">UMBRELLA 4365 · FIELD NOTE · 私话仅代表记者本人</div>
     </div>
   `;
-  overlay.classList.add('open');
-  document.body.style.overflow = 'hidden';
-  history.replaceState(null, '', '#memo');
+  commitPanel({ panel: 'memo' }, '#memo', opts);
+  showOverlay(opts);
   document.getElementById('closeD').onclick = closeDossier;
   document.getElementById('shareD').onclick = e => {
     const btn = e.currentTarget;
-    try { navigator.clipboard.writeText(location.href); } catch {}
+    try { navigator.clipboard.writeText(location.origin + location.pathname + '#memo'); } catch {}
     btn.textContent = '✓ 已复制';
     setTimeout(() => { btn.textContent = '⧉ 链接'; }, 1500);
   };
 }
 /* ============ 线报投递：向红后收件箱匿名投稿 ============ */
-function openTip() {
+function openTip(opts) {
   dossier.className = 'dossier d-dark';
+  dossier.setAttribute('aria-label', '向红后投递线报');
   dossier.innerHTML = `
     <div class="bar">
       <span>INTEL DROP · 向红后投递线报</span>
@@ -1005,9 +1258,8 @@ function openTip() {
       <div class="foot">UMBRELLA 4365 · INTEL DROP · 仅作记录 · 不构成立场</div>
     </div>
   `;
-  overlay.classList.add('open');
-  document.body.style.overflow = 'hidden';
-  history.replaceState(null, '', '#tip');
+  commitPanel({ panel: 'tip' }, '#tip', opts);
+  showOverlay(opts);
   document.getElementById('closeD').onclick = closeDossier;
   document.getElementById('tipForm').onsubmit = async e => {
     e.preventDefault();
@@ -1031,7 +1283,7 @@ function openTip() {
 }
 
 /* ============ 联络与支援：订阅渠道 + 打赏（后台「系统」页配置，未配置的项自动隐藏） ============ */
-function openSupport() {
+function openSupport(opts) {
   const L = window.__LINKS__ || {};
   const chs = [
     `<div class="ch"><span class="k">RSS</span><a href="/feed.xml">/feed.xml —— 新档案与每周战报合流推送</a></div>`,
@@ -1045,6 +1297,7 @@ function openSupport() {
     ? `<a class="donate" href="${esc(L.donateUrl)}" target="_blank" rel="noopener">⛨ 支援本刊 · 为红后续电 »</a>`
     : `<p class="dim2">打赏通道筹备中——先把 RSS 订上，让战报找到你；有线报也是最好的支援。</p>`;
   dossier.className = 'dossier d-dark';
+  dossier.setAttribute('aria-label', '订阅与支援');
   dossier.innerHTML = `
     <div class="bar">
       <span>SUPPLY LINE · 订阅与支援</span>
@@ -1058,16 +1311,15 @@ function openSupport() {
       <div class="foot">UMBRELLA 4365 · SUPPLY LINE · 仅作记录 · 不构成立场</div>
     </div>
   `;
-  overlay.classList.add('open');
-  document.body.style.overflow = 'hidden';
-  history.replaceState(null, '', '#support');
+  commitPanel({ panel: 'support' }, '#support', opts);
+  showOverlay(opts);
   document.getElementById('closeD').onclick = closeDossier;
 }
 
 const tipLink = document.getElementById('tipLink');
-if (tipLink) tipLink.addEventListener('click', e => { e.preventDefault(); openTip(); });
+if (tipLink) tipLink.addEventListener('click', e => { e.preventDefault(); lastFocus = tipLink; openTip(); });
 const supportLink = document.getElementById('supportLink');
-if (supportLink) supportLink.addEventListener('click', e => { e.preventDefault(); openSupport(); });
+if (supportLink) supportLink.addEventListener('click', e => { e.preventDefault(); lastFocus = supportLink; openSupport(); });
 
 /* ============ 倒计时（后台「系统」页配置；D 数在客户端算，绕开首页 SSR 缓存的日期滞后） ============ */
 (function () {
@@ -1083,10 +1335,19 @@ if (supportLink) supportLink.addEventListener('click', e => { e.preventDefault()
 })();
 
 /* 报头署名同为手记暗门 */
-document.querySelector('.byline').addEventListener('click', openMemo);
+document.querySelector('.byline').addEventListener('click', () => openMemo());
 document.querySelector('.byline').title = '战地手记 · OFF THE RECORD';
 overlay.addEventListener('click', e => { if (e.target === overlay) closeDossier(); });
-window.addEventListener('keydown', e => { if (e.key === 'Escape') closeDossier(); });
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (overlay.classList.contains('open')) closeDossier(); return; }
+  /* 弹层内 ←/→ 沿当前筛选结果翻档（输入框内不拦截） */
+  if (!overlay.classList.contains('open') || currentDossierId === null) return;
+  if (inField()) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    const btn = document.getElementById(e.key === 'ArrowLeft' ? 'prevD' : 'nextD');
+    if (btn && !btn.disabled) { e.preventDefault(); btn.click(); }
+  }
+});
 
 /* ============ 滚动进度 & 跳转 ============ */
 const progress = document.getElementById('progress');

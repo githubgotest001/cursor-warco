@@ -24,7 +24,7 @@ description: 为 UMBRELLA 4365 / Cursor 战地纪实网站自动搜集并生成�
 ### 1. 刷新镜像并读库（永远第一步）
 
 ```powershell
-node sync.js pull   # 线上 → 本地：档案全量镜像 + 引用图片（线上库才是唯一真源）
+node sync.js pull   # 线上 → 本地：档案 + 刊物 + 补给表全量镜像，引用图片（线上库才是唯一真源）
 node -e "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('data/chronicle.db',{readOnly:true});const rows=db.prepare('SELECT id,side,date,tag,title,series,front FROM events ORDER BY date ASC').all();for(const r of rows){console.log([r.id,r.side,r.date,r.tag,r.title,r.series,r.front].join(' | '))};console.log('TOTAL:',rows.length)"
 ```
 

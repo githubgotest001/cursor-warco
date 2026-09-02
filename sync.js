@@ -5,16 +5,17 @@
  * 档案的增删改永远走线上（后台或 REST API 逐条），保证 /ev/:id 永久 URL 不变，
  * 并自动触发 SEO 缓存重建与百度推送。因此同步只有两个方向明确的动作：
  *
- *   node sync.js pull                    线上 → 本地：档案全量镜像 + 引用图片增量下载
+ *   node sync.js pull                    线上 → 本地：档案 + 刊物 + 补给表全量镜像，引用图片增量下载
  *   node sync.js push-image <图片路径>    本地 → 线上：上传图片到 /uploads/（需管理密钥）
  *
- * 注意：pull 只镜像 events（档案）与引用图片，不同步访问日志 / 刊物 / 收件箱 / 补给等运营数据——
- * 镜像供内容分析用；访客日志含加盐 IP 哈希（本地与线上盐不同）且体量大，设计上不出服务器。
- * 本地后台「访客监控」显示的因此是本机流量，看真实访客数据请去线上后台。
+ * pull 镜像三张内容表：events（档案，公开接口）、supply（模型补给表，公开接口）、
+ * posts（编辑部的战报 / 特稿，含 draft 态——/api/posts 需要管理密钥，没有密钥时跳过并提示）。
+ * 不同步访问日志 / 收件箱 / 线报等运营数据：访客日志含加盐 IP 哈希（本地与线上盐不同）且体量大，
+ * 设计上不出服务器，本地后台「访客监控」显示的因此是本机流量；收件箱与线报是待处置队列，只在线上后台操作。
  *
  * 站点地址与密钥的来源（按优先级）：
  *   site：    --site <url>  >  环境变量 UMB_SITE  >  data/remote.json 的 "site"  >  https://umbrella4365.com
- *   adminKey：--key <key>   >  环境变量 UMB_ADMIN_KEY  >  data/remote.json 的 "adminKey"（仅 push-image 需要）
+ *   adminKey：--key <key>   >  环境变量 UMB_ADMIN_KEY  >  data/remote.json 的 "adminKey"（push-image 必需；pull 有则多镜像刊物）
  *
  * data/remote.json 示例（data/ 已 gitignore，密钥不会入库）：
  *   { "site": "https://umbrella4365.com", "adminKey": "线上 ADMIN_KEY" }
@@ -96,6 +97,9 @@ async function pull() {
   const main = events.filter(e => e.side === 'main').length;
   console.log(`本地镜像已重建：${events.length} 条（正史 ${main} / 野史 ${events.length - main}）→ ${DB_PATH}`);
 
+  await pullSupply(db);
+  await pullPosts(db);
+
   /* 引用图片增量下载（只拉档案实际引用的 /uploads/*，已存在的跳过） */
   const wanted = [...new Set(events.map(e => e.image).filter(u => u && u.startsWith('/uploads/')))];
   let fetched = 0, missing = 0;
@@ -113,6 +117,96 @@ async function pull() {
   }
   console.log(`图片：引用 ${wanted.length} 张 · 新下载 ${fetched} 张${missing ? ` · 失败 ${missing} 张` : ''}`);
   console.log('提醒：本地库是只读镜像——改动请走后台或线上 API（逐条），不要改本地库再回推。');
+}
+
+/* ---- 补给表 supply：公开接口，作战室数据源 ---- */
+async function pullSupply(db) {
+  const res = await fetch(`${SITE}/api/supply`);
+  if (!res.ok) { console.warn(`  ⚠ 补给表拉取失败（HTTP ${res.status}），本地 supply 保持原样`); return; }
+  const { supply } = await res.json();
+  if (!Array.isArray(supply)) { console.warn('  ⚠ 补给表返回格式异常，跳过'); return; }
+  /* schema 与 server.js 一致 */
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS supply (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      model      TEXT NOT NULL,
+      provider   TEXT NOT NULL DEFAULT '',
+      tier       TEXT NOT NULL DEFAULT '',
+      price      TEXT NOT NULL DEFAULT '',
+      quota      TEXT NOT NULL DEFAULT '',
+      status     TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','watch','removed')),
+      note       TEXT NOT NULL DEFAULT '',
+      sort       INTEGER NOT NULL DEFAULT 100,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
+  `);
+  const ins = db.prepare(
+    `INSERT INTO supply (id, model, provider, tier, price, quota, status, note, sort, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM supply');
+    for (const s of supply) {
+      ins.run(s.id, s.model, s.provider || '', s.tier || '', s.price || '', s.quota || '',
+              s.status || 'active', s.note || '', Number.isInteger(s.sort) ? s.sort : 100, s.updated_at || '');
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw err;
+  }
+  const active = supply.filter(s => s.status === 'active').length;
+  console.log(`补给表已镜像：${supply.length} 行（在役 ${active} / 观察 ${supply.filter(s => s.status === 'watch').length} / 撤出 ${supply.length - active - supply.filter(s => s.status === 'watch').length}）`);
+}
+
+/* ---- 刊物 posts：战报 / 特稿（含 draft 态），/api/posts 需管理密钥 ---- */
+async function pullPosts(db) {
+  if (!ADMIN_KEY) {
+    console.warn('  ○ 刊物（战报 / 特稿）未镜像：/api/posts 需要管理密钥——配置 data/remote.json 的 "adminKey" 或 --key 后重跑即可');
+    return;
+  }
+  const res = await fetch(`${SITE}/api/posts`, { headers: { 'X-Admin-Key': ADMIN_KEY } });
+  if (res.status === 401 || res.status === 429) { console.warn(`  ⚠ 刊物拉取被拒（HTTP ${res.status}：密钥错误或已被限速），本地 posts 保持原样`); return; }
+  if (!res.ok) { console.warn(`  ⚠ 刊物拉取失败（HTTP ${res.status}），本地 posts 保持原样`); return; }
+  const { posts } = await res.json();
+  if (!Array.isArray(posts)) { console.warn('  ⚠ 刊物返回格式异常，跳过'); return; }
+  /* schema 与 server.js 一致（含期号 / slug 的部分唯一索引） */
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind       TEXT NOT NULL CHECK(kind IN ('weekly','feature')),
+      slug       TEXT NOT NULL DEFAULT '',
+      issue      INTEGER,
+      title      TEXT NOT NULL,
+      summary    TEXT NOT NULL DEFAULT '',
+      content    TEXT NOT NULL DEFAULT '',
+      date       TEXT NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','published')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_issue ON posts(issue) WHERE issue IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_slug  ON posts(slug)  WHERE slug <> '';
+  `);
+  const ins = db.prepare(
+    `INSERT INTO posts (id, kind, slug, issue, title, summary, content, date, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM posts');
+    for (const p of posts) {
+      ins.run(p.id, p.kind, p.slug || '', p.issue ?? null, p.title, p.summary || '', p.content || '',
+              p.date, p.status || 'draft', p.created_at || p.date, p.updated_at || p.date);
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw err;
+  }
+  const weekly = posts.filter(p => p.kind === 'weekly').length;
+  const pub = posts.filter(p => p.status === 'published').length;
+  console.log(`刊物已镜像：${posts.length} 篇（战报 ${weekly} / 特稿 ${posts.length - weekly}；已发布 ${pub} / 草稿 ${posts.length - pub}）`);
 }
 
 /* ---- push-image：本地图片 → 线上 uploads ---- */
@@ -139,7 +233,7 @@ async function pushImage(file) {
     else if (cmd === 'push-image') await pushImage(argv[1] && !argv[1].startsWith('--') ? argv[1] : '');
     else {
       console.log('UMBRELLA 4365 · 同步工具（线上库为唯一真源）');
-      console.log('  node sync.js pull                    线上 → 本地：档案镜像 + 引用图片');
+      console.log('  node sync.js pull                    线上 → 本地：档案 + 刊物 + 补给表镜像，引用图片');
       console.log('  node sync.js push-image <图片路径>    本地图片 → 线上 /uploads/（需密钥）');
       console.log('  可选参数：--site <url>  --key <adminKey>');
       process.exitCode = cmd ? 1 : 0;
