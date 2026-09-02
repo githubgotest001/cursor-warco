@@ -20,6 +20,7 @@
 | `AUTOMATION.md` | 自动化手册：哨兵 / 侦察 / 战报 / 扇出的 agent 编辑部规程与人工闸口 |
 | `.cursor/skills/warco-chronicler/`（含 `references/fields-and-voice.md`） | 档案撰写执行规范：逐字段规则、正史/野史文风范例、术语纪律 |
 | `.cursor/skills/warco-scout/`（含 `references/sources.md`） | 档案侦察执行规范：信源分级清单、查缺/增量两种搜集模式 |
+| `.cursor/skills/warco-strain/`（含 `references/registry-and-sources.md`） | 毒株谱系数据规范：按实验室名册逐家查缺 / 增量 / 补分三种模式，models / scores 字段口径、各家 L0 信源、第三方 tracker 记法、API 载荷 |
 | `.cursor/skills/warco-dispatch/` | 每周战报汇编规范：战报体、固定结构、期号纪律 |
 | `.cursor/skills/warco-herald/` | 分发文案规范：各渠道口音、不教唆红线、链接纪律 |
 | `drafts/README.md` | drafts/ 目录索引：待办 / 工作草稿 / 渲染源 / 决策存档四类的清单与处置纪律 |
@@ -68,6 +69,7 @@
 | 编号体系 | 卡片右上角与弹层 | 正史 `A-<id 补零 3 位>`，野史 `X-<id>`；战地手记固定 `N-000` |
 | LIVE 脉冲 | 时间轴顶端 | 「未完待续 · 记录进行中」＋「LIVE · 战地记者在线」，闪烁光标即 Cursor 本尊 |
 | 野史印章 | 野史卡片右上角手写体「野史」斜印 | 用手写字体盖章，标记非官方档案 |
+| 毒株谱系 STRAIN LINEAGE | 专栏 `/m`（2026-09-02 起）、导航条「⌬ 毒株谱系」 | 模型总榜与发展史专栏：模型 = 毒株，实验室 = 谱系，评测 = 毒力检测（页面上叫「能力评测 CAPABILITY ASSAY」）；首页第一屏是「总排名 OVERALL RANKING」（综合分 + 维度分），历史最高分的阶梯线叫「前沿线 FRONTIER」，单个模型的页面叫「毒株档案 STRAIN DOSSIER」、顶部是「评分卡 SCORECARD」。把 PHASES 里「始祖毒株 / 变异体横行」的词系补成完整的病毒学谱系图 |
 
 ### 2.3 双线：正史 / 野史
 
@@ -212,6 +214,24 @@ Cursor Warco，战地记者。核心身份感：**是 Cursor 重度用户，正�
 除档案外另有**刊物**（`posts` 表）：`kind=weekly` 每周战报（`/w/期号`，文体与结构见 warco-dispatch skill）、
 `kind=feature` 专题特稿（`/t/slug`，特稿体长文）。刊物走后台「编辑部」管理，draft 态不对外，与档案合流进 RSS。
 
+**毒株谱系**（`models` / `scores` 表，2026-09-02 起）是档案之外的第三种内容：结构化的模型登记与评测记录，
+不是叙事。登记纪律：
+- **一株一行**：同一模型家族同日发布的不同档位（Opus 4 / Sonnet 4；Sol / Terra / Luna）各登记一行，`family` 相同才会串成谱系链；
+  受限通道的模型（Mythos）照登，`status=preview`。
+- **数字必须有出处**：2026 年的模型与分数只认站内已查证档案（`ev` 回链 + 分数信源填档案页 URL）；更早的只认官方发布页 /
+  系统卡 / 第三方评测机构的公开数字。SWE-bench Verified 取官方主报数，并行计算 / 自定义脚手架的加成写进 `note`。
+- **口径写进 note**：版本（CursorBench 3.2）、算力档（满力档 / xhigh）、脚手架、官方自报还是第三方——曲线上两点能不能比，全靠这一栏。
+- **题库不可比就分基准名**：Terminal-Bench 2.0 / 4.0 各是一条曲线，不混画；`BENCHES` 名册已按版本登记。
+- **撤榜的成绩不收录**（Grok 4.5 的 CursorBench）；模型没有分数也照登——登记表记「问世」，评分表记「毒力」，两件事。
+- `summary` 用正史特稿体一段（先事实，反讽藏在排列里），同样禁文字交叉引用与写作时点词；模型在 Cursor 前线的进场 /
+  登顶 / 换防仍以档案为正文，专栏只放摘要与回链。
+- **新实验室 / 新基准先登名册**：`server.js` 的 `LABS`（代号 + 展示名）与 `BENCHES`（slug + 搜索友好标题 + 导语），
+  后台下拉与 `/b/:slug` 页面自动跟随；未登记的基准名能用但无导语、URL 是原名编码。新基准想进总榜，还要挂进 `DIMENSIONS`
+  的某个维度（或新开维度），且累计 ≥3 条成绩才生效。
+- **总榜口径（2026-09-02 定稿，改动需慎重）**：综合分 = 各已测维度「相对前沿分」的平均（每维取该模型**最近一次**公开成绩 ÷
+  该维度当前最高分 × 100），≥2 维才入榜、仅 1 维的另列不计分；单点成绩的基准不参与（防止孤例自动得 100）。这是唯一一处
+  由本站自算的数字，页面上必须始终带方法说明——本站记录别人的分数，不发明自己的榜。
+
 ### 4.2 文体（2026-08-28 定稿，不再重开讨论）
 
 - **正史 = 杂志特稿体**：彭博商业周刊腔。先事实（时间/主体/数字/引语），反讽藏在事实的排列里，收束句冷静有余味；禁网络梗、禁感叹号情绪、禁「战地记者按」。
@@ -262,7 +282,7 @@ tools/sentinel.js 哨兵（定时轮询信源，diff 新信号 → data/sentinel
 
 - **录入永远是站长的动作**。AI 默认只交草稿/字段代码块，不写库；仅当明确说「帮我录」时才 `POST <线上地址>/api/events`（请求头 `X-Admin-Key`，地址与密钥在 `data/remote.json`）——**录到线上，不写本地库**。
 - **线上库是唯一真源，本地库只是只读镜像**：scout/分析类工作第一步 `node sync.js pull` 刷新镜像再读（`data/chronicle.db` 只读打开）；改动回写走线上 API 逐条（id 稳定、自动触发 SEO 缓存重建与百度推送），图片用 `node sync.js push-image <文件>` 上传。镜像范围（2026-09-02 起）：档案 `events` + 补给表 `supply` + 刊物 `posts`（含 draft，需 `data/remote.json` 有密钥）——dispatch 汇编战报前可直接读本地 `posts` 看往期期号与体例；收件箱 / 线报 / 访问日志不镜像。（seed.js 种子快照已于 2026-08-30 退役删除——静态快照必然过期，且对 AI 分析构成干扰源。）
-- 单条新闻直接说「写一条正史/野史」→ 走 warco-chronicler；批量搜集/查缺补漏 → 走 warco-scout。
+- 单条新闻直接说「写一条正史/野史」→ 走 warco-chronicler；批量搜集/查缺补漏 → 走 warco-scout；模型登记 / 评分补录 / 谱系查缺 → 走 warco-strain（模型发布类事件三件一起：立档 + 登记一株 + 录成绩）。
 - 配图：外网截图被反爬拦截时，chronicler 可用本地渲染生成「官方公告存证卡」（做法同 `drafts/og-render.html`：写一个定尺寸 HTML 本地渲染后截图）。
 - `drafts/` 内容物与处置纪律见 **[drafts/README.md](drafts/README.md)**（待办 / 工作草稿 / 渲染源 / 决策存档四类索引，本文档不再重复维护清单）。
 
@@ -321,6 +341,11 @@ tools/sentinel.js 哨兵（定时轮询信源，diff 新信号 → data/sentinel
   404，被收录后慎用。
 - **补给线**：作战室「模型补给表」的行编辑（模型 / 厂商 / 覆盖 / 价格 / 额度 / 状态 / 排序）；
   断供倒计时类用 `watch` 观察态，撤出用 `removed`（划线显示）。
+- **毒株谱系**（2026-09-02 起）：上半是模型登记表（按实验室筛选 + 搜索；「登记毒株」表单：名称 / slug / 实验室下拉
+  / 谱系 / 发布日 / 定位 / 上下文 / 价格 / 状态 / 权重 / 摘要 / 信源 / 回链档案 id），下半是能力评测记录（按基准 /
+  模型筛选；「录入成绩」表单：模型 / 基准（datalist：名册 + 已用）/ 分数 / 单位 / 日期 / 口径备注 / 信源）。行内
+  「＋成绩」直接给该模型录分，评分列的「N 条」点开即筛到该模型。删除模型会级联销毁其全部成绩且 `/m/<slug>` 变 404，
+  已被收录后慎用——补给线管「现在 Cursor 里能用什么、什么价」，毒株谱系管「这个模型是谁、何时问世、考了多少分」，两表各司其职。
 - 设计边界（不用担心它撑爆或泄露）：静态资源命中不落库（4xx 一律记录）；同 IP 同路径 60 秒去重；内存攒 50 条或 5 秒批量落库；仅保留 90 天、总量上限 20 万行；**IP 只存加盐哈希不落明文**（盐在 `data/config.json`），路径/UA/Referer 截断 200 字符且渲染全转义（防存储型 XSS）。
 
 ---
@@ -332,6 +357,7 @@ tools/sentinel.js 哨兵（定时轮询信源，diff 新信号 → data/sentinel
 - **API**：读公开（`GET /api/events`、`/api/events/:id`、`/api/meta`、`/api/supply`；`POST /api/tips` 公开限速投递），写需 `X-Admin-Key`（events / posts / drafts / tips 管理 / supply 写 / upload / stats / settings；`POST /api/drafts/:id/publish` 为审核发布）。
 - **SEO/GEO 已内置**：首页 SSR 直出＋`window.__EVENTS__` 内联、档案独立页 `/ev/:id`（含 JSON-LD、翻页、线索内链）、robots/sitemap/RSS/`llms.txt`/`llms-full.txt`、gzip+ETag、动态产物内存缓存（增删改自动失效）。分享定位：独立页 `/ev/<id>`、站内锚点 `#ev-<id>`、手记 `#memo`、线报 `#tip`、支援 `#support`。
 - **情报站页面（2026-08-30 起）**：作战室 `/warroom`（存活窗口 / 最近灭活 / 补给表 / 战线状态，5 分钟缓存）、刊物 `/w`·`/w/:issue`·`/t/:slug`、数据页 `/d/versions`·`/d/funding`（curated 常量在 server.js，更新要补行）·`/d/windows`（全自动推导）。全部进 sitemap 与 llms.txt。
+- **毒株谱系（2026-09-02 起）**：`/m` 专栏首页（总排名表 + 维度榜 + 能力曲线 SVG + 发布时间线）、`/m/:slug` 毒株档案（评分卡）、`/b/:slug` 基准页（当前榜 + 前沿刷新记录）；数据表 `models` / `scores`，公开接口 `/api/models` `/api/scores`，名册 `LABS` / `BENCHES` / 总榜维度 `DIMENSIONS` 在 server.js。曲线由服务端拼 SVG（零依赖）：灰点成绩、红菱纪录、红色前沿线（不破三色）；缓存键带当日日期（今日虚线随日历走），写入即失效。`sync.js pull` 一并镜像。
 - **生产架构**：`用户 → Nginx（443，HTTPS 终止，www 301 到裸域）→ Node（127.0.0.1:4365）→ SQLite`；systemd 低权限用户 `umbrella` 守护；每日 4 点 cron 备份 `data/` + `uploads/` 保留 30 份。
 
 ---
@@ -362,6 +388,7 @@ tools/sentinel.js 哨兵（定时轮询信源，diff 新信号 → data/sentinel
 | 2026-08-29 | 行文纪律定稿：档案正文禁用「见 YYYY-MM-DD 档案」式文字引用与跨档案窗口天数计算，关联全部交给 series；库内 89 条全量清理（约 70 处） |
 | 2026-09-02 | **全站体检与提升**：前台四维检索筛选（检索框 / 版面 / 标签 / 线索叠加，URL 可分享）、年份导航轨、NEW 徽标、弹层返回键关闭 + ←→ 翻档 + 同日另一线（双线互文产品化）+ a11y；`/ev` 页加同日另一线 / 同类档案内链与可见面包屑，About 页 FAQPage，首页 SearchAction，RSS 全文，404 档案式页面；`SERIES_PAGES` 补 4 条（欠费续命 / 伪装观测 / edu 通道 / 试用续杯），`FRONTS` 补 devin / replit；全库 112 条通读修订 21 处（补写空详情、孤线补挂、引用与时点词清理，见第 8 节） |
 | 2026-09-02 | **立档惯例简化：检出即挂线索，废止「（存活）」标记**。作战室 / `/d/windows` 改按线索最后一个状态节点判态（无灭活或灭活后复燃 = 存活；`·复燃` `·变异` 节点首次进入判定），灭活时检出条不再回头改题。`SERIES_PAGES` 预配 `借道`（bot-lane）与 `全员回血`（quota-reset）。同日第二批侦察 8 条投收件箱（含站长线报：全员二次回血、Sand 换道版检出） |
+| 2026-09-02 | **新专栏「毒株谱系 STRAIN LINEAGE」（模型总榜与发展史）**：`models` / `scores` 两表 + `LABS` / `BENCHES` / `DIMENSIONS` 名册；`/m` 首页（总排名表：综合分 + 六个维度分 → 维度榜 → 服务端 SVG 能力曲线 + 前沿线 → 全球发布时间线）、`/m/:slug` 毒株档案（评分卡 / 身份卡 / 全部成绩 / 上一代下一代 / 自动关联档案）、`/b/:slug` 基准页（当前榜 + 前沿刷新记录 · 榜首的保质期）；后台「毒株谱系」标签页、`/api/models` `/api/scores`、`sync.js pull` 镜像、`tools/seed-models.js` 幂等种子（95 株 / 104 条 / 16 家：2023 起全球主线 + 国产九家逐家核到最新一代——千问 Qwen3 → Coder → 3-Max → 3.5 → 3.6 → 3.7-Max → 3.8-Max、Kimi K2 → K2 Thinking → K2.5 → K2.6 → K2.7 Code → K3、DeepSeek V3 → R1 → V3.1 → V3.2 → V4-Pro / Flash、智谱 GLM-4.5 → 4.6 → 4.7 → 5 → 5.1 → 5.2 → 5.3 / 5.3-Flash、MiniMax M1 → M2 → M2.1 → M2.5 → M2.7 → M3、豆包 Seed 1.6 → 2.0 → 2.1、混元 Hy3 → Hy4 preview、文心 5.1、Step 3.7 Flash；西方补 Haiku 4.5、Opus 4.6、Mythos Preview、Gemini 3.1 Pro 与 3.5 / 3.6 / 3.7 Flash、GPT-5.2 / 5.4、Muse Spark、Mistral Large 3；成绩另取 Kimi K3 技术报告对照表，口径出自站内档案、官方发布页、技术报告、权威媒体与第三方评测 tracker，待站长核对后写线上）；首页导航条与页脚、数据页导航、作战室补给表、sitemap / llms.txt / 404 页接入口。三处同日返工：① 首版「厂商形状标记 + 谱系链」的曲线优先布局站长看不懂，改为总榜优先、曲线只标纪录点；② 首版种子国产实验室只有 Qwen3 与 Kimi K2 两株——来源偏差（站内档案以 Cursor 在售模型为主 + 未针对国产实验室查证）；③ 第二批仍漏了 GLM-5.2 / 5.3 等下半年版本——改为按实验室名册逐家核「最新一代」，Llama 4 顺带反查（两家聚合站写 2026，官方为 2025-04-05，原记录正确） |
 
 ---
 
@@ -411,4 +438,7 @@ tools/sentinel.js 哨兵（定时轮询信源，diff 新信号 → data/sentinel
 - [ ] 现役 series 清单（4.4 节）与线索分布（8 节）以线上 DB 为准，本文档记录的是 2026-08-29 口径。
 - [ ] **2026-08-30 情报站升级待部署**：按 `drafts/launch-runbook-2026-08-30.md` 一次跑完（备份 → git pull → 全删全增 → 迁移 → 重启 → 补给表初始化 → 创刊内容发布 → 站长平台 → 哨兵定时 → 社区首发）。执行完勾掉本项与上面的全删全增项。
 - [ ] **数据页 curated 维护点**：新版本发布 / 新一轮融资 → 立档之外记得补 `server.js` 的 `VERSIONS` / `FUNDING` 常量各一行（部署生效）；模型上架 / 停供 / 调价 → 后台「补给线」改行。
+- [ ] **毒株谱系上线两步**（2026-09-02 开发完成，待部署）：① 部署新版（两表由 `server.js` 启动自动建出，无需迁移脚本）；② 逐行核对 `tools/seed-models.js` 的 95 株 / 104 条——尤其 2023–2025 年模型的 `status`（退役时间按官方弃用公告）、几处「记不十分准」的分数与日期（o1 48.9、GPT-4.5 38.0、GPT-5 HLE 24.8、Qwen3-Coder 69.6、Kimi K2 Thinking 11-06、Haiku 4.5 73.3）、几条信源只有聚合站的行（GPT-5.2 / Gemini 3.7 Flash 取自 okamomedia 年表，Opus 4.6 / Gemini 3.1 Pro / GPT-5.4 取自 ofox，Mistral Large 3 / Muse Spark 取自 futureagi / buildfastwithai——能换官方发布页就换）、MiniMax M2.7 与混元 Hy3 是否开放权重（未核实，暂记闭源）、以及标注「第三方 tracker」的成绩（llm-stats / Vals AI / llmreference 与官方自报口径不同，note 已注明）——然后 `node tools/seed-models.js`（读 `data/remote.json` 写线上；幂等，可反复跑）。此后每逢模型发布：立档（chronicler）+ 后台「毒株谱系」登记一株 + 录成绩，三件事一起做；新实验室 / 新基准先补 `LABS` / `BENCHES` 名册，想进总榜再挂 `DIMENSIONS`。
+- [ ] **毒株谱系待补的历史点**：国产线——Step 3.5 Flash（2026-02，精确日期待查）、GLM-5.1 / 5.2 的 SWE-bench Pro 62.1 等数字待核、豆包 Seed 与 MiniMax 各代的定价与 SWE-bench 数字待补、MiniMax H3 多模态线未收；西方线——Claude Sonnet 4.6 / 4.8（2026，日期待查）、GPT-5.4-mini / nano、Gemini 3.5 Flash-Lite、Gemma 4（2026-04-02，Apache 2.0）、Grok 4.3 Beta 等小版本未收，Gemini 3.5 Pro 与 Grok 5 截至 9 月初尚未发布（不登记传闻）；Fable 5.1「8 项霸榜」的逐项数字（含 SWE-bench Verified）官方表未录，Qwen3.8-Max / Kimi K2.6 / K3 / GLM-5.3 / Hy4 的 SWE-bench 数字待补；LMArena Elo 名册已登记但暂无成绩。**总榜的可信度完全取决于成绩覆盖**——优先把入榜模型缺的维度补齐，比多登记模型更要紧。
+- [ ] **收录偏差自查**（2026-09-02 教训）：站内档案以 Cursor 在售模型为主，AI 凭档案 + 自身知识出的种子天然偏 Anthropic / OpenAI / xAI；以后扩谱系时按实验室名册逐家查证，别按「想得起谁」补。
 - [ ] **渠道注册**（注册完把链接填进后台「系统 → 频道与支援链接」）：TG 频道、X 账号、即刻、公众号（可选）、爱发电（可选）。

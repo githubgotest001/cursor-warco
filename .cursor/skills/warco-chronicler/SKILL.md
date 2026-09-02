@@ -71,6 +71,12 @@ description: 为 UMBRELLA 4365 / Cursor 战地纪实网站（umbrella4365.com）
 - **直接录入**（用户明确说「帮我录」）：`POST <线上>/api/events`，请求头 `X-Admin-Key: <ADMIN_KEY>`，body 为上述字段的 JSON。
   配图先 `node sync.js push-image <本地文件>` 上传拿到 `/uploads/…` 路径，再填进 `image` 字段。
 
+**模型发布类档案的附带产出**（2026-09-02 起，专栏「毒株谱系」`/m`）：档案写的是模型发布 / 登顶 / 换防时，在字段代码块之后
+另附一段「毒株登记」草稿——`models` 行（name / lab 代号 / family / date / tier / context / price / status / summary 一句 / source /
+ev 待回填）与该模型可查证的 `scores` 行（bench / score / unit / date / note 口径 / source）。数字只取官方发布材料与第三方评测机构
+公开数字，口径（版本 · 算力档 · 脚手架 · 自报 / 第三方）写进 note；撤榜的成绩不录。仍是草稿：站长在后台「毒株谱系」登记，
+或明确说「帮我录」时 `POST <线上>/api/models` → 拿到 id 后 `POST <线上>/api/scores`。字段口径见 README「毒株谱系」小节。
+
 ## 常见坑
 
 - 别编日期 / 金额 / 轮次——查不到就模糊化。

@@ -272,6 +272,7 @@
     <button id="tabInbox">收件箱<span class="tabbadge" id="inboxBadge"></span></button>
     <button id="tabPress">编辑部</button>
     <button id="tabSupply">补给线</button>
+    <button id="tabStrains">毒株谱系</button>
     <button id="tabVisits">访客监控</button>
     <button id="tabSystem">系统</button>
   </div>
@@ -362,6 +363,36 @@
       <tbody id="sBody"></tbody>
     </table>
     <div class="empty" id="sEmpty" style="display:none">SUPPLY LINE EMPTY · 补给表为空</div>
+  </section>
+
+  <!-- ===== 毒株谱系：模型登记表 + 能力评测记录（/m 专栏数据源） ===== -->
+  <section id="panelStrains" style="display:none">
+    <div class="toolbar">
+      <select id="mLab" style="width:auto"><option value="">全部实验室</option></select>
+      <input type="search" id="mQ" placeholder="搜索模型名 / 谱系 / 摘要…">
+      <button class="primary" id="newModelBtn">＋ 登记毒株</button>
+      <a class="btn" href="/m" target="_blank">查看专栏 ↗</a>
+      <span class="stat" id="mStat"></span>
+    </div>
+    <table>
+      <thead><tr><th>发布日</th><th>实验室 / 谱系</th><th style="width:38%">模型 / 摘要</th><th>价格 · 上下文</th><th>评分</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody id="mBody"></tbody>
+    </table>
+    <div class="empty" id="mEmpty" style="display:none">REGISTRY EMPTY · 登记表为空</div>
+
+    <div class="box2" style="margin-top:22px">
+      <div class="toolbar" style="margin-bottom:10px">
+        <h3 style="margin:0;font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--umb-hi);font-weight:400">能力评测记录 <span id="scCount" style="color:var(--dim)"></span></h3>
+        <select id="scBench" style="width:auto"><option value="">全部基准</option></select>
+        <select id="scModel" style="width:auto"><option value="">全部模型</option></select>
+        <button class="primary" id="newScoreBtn">＋ 录入成绩</button>
+      </div>
+      <table>
+        <thead><tr><th>日期</th><th>模型</th><th>基准</th><th>分数</th><th style="width:30%">口径 / 备注</th><th>信源</th><th>操作</th></tr></thead>
+        <tbody id="scBody"></tbody>
+      </table>
+      <div class="empty" id="scEmpty" style="display:none">NO ASSAYS · 暂无评测记录</div>
+    </div>
   </section>
 
   <!-- ===== 访客监控 ===== -->
@@ -687,8 +718,130 @@
   </div>
 </div>
 
+<!-- ===== 毒株登记弹层 ===== -->
+<div class="modal" id="modelModal">
+  <div class="form">
+    <h2 id="modelFormTitle">STRAIN · 登记毒株</h2>
+    <div class="grid">
+      <div>
+        <label>模型名 NAME *</label>
+        <input type="text" id="moName" maxlength="80" placeholder="Claude Opus 4.5">
+      </div>
+      <div>
+        <label>SLUG（URL，留空按名称生成）</label>
+        <input type="text" id="moSlug" maxlength="60" placeholder="claude-opus-4-5" pattern="[a-z0-9-]*">
+      </div>
+      <div>
+        <label>实验室 LAB *</label>
+        <select id="moLab"></select>
+      </div>
+      <div>
+        <label>谱系 FAMILY（同族串成链）</label>
+        <input type="text" id="moFamily" maxlength="40" list="familyList" placeholder="Claude / GPT / Gemini / Composer">
+      </div>
+      <div>
+        <label>发布日 RELEASE *</label>
+        <input type="date" id="moDate">
+      </div>
+      <div>
+        <label>定位 TIER</label>
+        <input type="text" id="moTier" maxlength="40" list="tierList" placeholder="旗舰 / 主力 / 走量 / 编码专用 / 推理">
+      </div>
+      <div>
+        <label>上下文 CONTEXT</label>
+        <input type="text" id="moContext" maxlength="40" placeholder="200K / 1M">
+      </div>
+      <div>
+        <label>价格 PRICE（每百万 token 输入 / 输出）</label>
+        <input type="text" id="moPrice" maxlength="80" placeholder="$5 / $25">
+      </div>
+      <div>
+        <label>状态 STATUS</label>
+        <select id="moStatus">
+          <option value="active">在役 active</option>
+          <option value="preview">预览 preview（限量 / 匿名公测）</option>
+          <option value="retired">退役 retired（下架 / 停供）</option>
+        </select>
+      </div>
+      <div>
+        <label>权重 WEIGHTS</label>
+        <select id="moOpen">
+          <option value="0">闭源 closed</option>
+          <option value="1">开放权重 open</option>
+        </select>
+      </div>
+      <div class="full">
+        <label>摘要 SUMMARY（60–90 字，特稿体：先事实，反讽藏在排列里）</label>
+        <textarea id="moSummary" rows="3" maxlength="400" placeholder="发布时的定位、关键数字、在 Cursor 前线的角色……"></textarea>
+      </div>
+      <div>
+        <label>信源 SOURCE（官方发布页 URL）</label>
+        <input type="url" id="moSource" maxlength="500" placeholder="https://www.anthropic.com/news/…">
+      </div>
+      <div>
+        <label>回链档案 ARCHIVE（站内档案 id，选填）</label>
+        <input type="number" id="moEv" min="1" placeholder="如 68（对应 /ev/68）">
+      </div>
+    </div>
+    <div class="acts">
+      <span class="msg" id="modelFormMsg"></span>
+      <button id="modelCancelBtn">取消</button>
+      <button class="primary" id="modelSaveBtn">保 存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 成绩录入弹层 ===== -->
+<div class="modal" id="scoreModal">
+  <div class="form">
+    <h2 id="scoreFormTitle">ASSAY · 录入成绩</h2>
+    <div class="grid">
+      <div class="full">
+        <label>模型 MODEL *</label>
+        <select id="sfModel"></select>
+      </div>
+      <div>
+        <label>基准 BENCH *（下拉选已有或手输）</label>
+        <input type="text" id="sfBench" maxlength="60" list="benchList" placeholder="SWE-bench Verified">
+      </div>
+      <div>
+        <label>分数 SCORE *</label>
+        <input type="number" id="sfScore" step="any" placeholder="72.5">
+      </div>
+      <div>
+        <label>单位 UNIT</label>
+        <select id="sfUnit">
+          <option value="%">%（百分比）</option>
+          <option value="分">分（指数 / 综合分）</option>
+          <option value="Elo">Elo</option>
+        </select>
+      </div>
+      <div>
+        <label>日期 DATE（留空 = 模型发布日）</label>
+        <input type="date" id="sfDate">
+      </div>
+      <div class="full">
+        <label>口径 / 备注 NOTE（版本 · 算力档 · 脚手架 · 官方自报 / 第三方）</label>
+        <input type="text" id="sfNote" maxlength="200" placeholder="官方自报 · high 档 · bash-only 脚手架">
+      </div>
+      <div class="full">
+        <label>信源 SOURCE（成绩出处 URL）</label>
+        <input type="url" id="sfSource" maxlength="500" placeholder="https://…">
+      </div>
+    </div>
+    <div class="acts">
+      <span class="msg" id="scoreFormMsg"></span>
+      <button id="scoreCancelBtn">取消</button>
+      <button class="primary" id="scoreSaveBtn">保 存</button>
+    </div>
+  </div>
+</div>
+
 <datalist id="tagList"></datalist>
 <datalist id="seriesList"></datalist>
+<datalist id="familyList"></datalist>
+<datalist id="tierList"></datalist>
+<datalist id="benchList"></datalist>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -703,8 +856,9 @@ let recentPage = 1;
 const RECENT_SIZE = 30;
 const fmtTs = s => { s = String(s || ''); return s ? s.slice(5, 16) : '—'; };
 
-/* 战区名册：登录后由 /api/meta 下发（见 loadMeta），与 server.js 单一来源，避免各存一份 */
+/* 战区 / 实验室名册：登录后由 /api/meta 下发（见 loadMeta），与 server.js 单一来源，避免各存一份 */
 let FRONTS = {};
+let LABS = {};
 
 const headers = () => ({ 'Content-Type': 'application/json', 'X-Admin-Key': KEY });
 
@@ -823,6 +977,15 @@ async function loadMeta() {
     initFrontOptions();
     $('tagList').innerHTML = (d.tags || []).map(t => `<option value="${escapeHtml(t)}">`).join('');
     $('seriesList').innerHTML = (d.series || []).map(s => `<option value="${escapeHtml(s.series)}">${s.n} 节点 · ${s.first}→${s.last}</option>`).join('');
+    /* 毒株谱系的名册与已用取值：实验室下拉（表单 + 筛选）、谱系 / 定位 / 基准 datalist */
+    LABS = d.labs || {};
+    const labOpts = Object.entries(LABS).map(([k, n]) => `<option value="${k}">${escapeHtml(n)}</option>`).join('');
+    $('moLab').innerHTML = labOpts;
+    $('mLab').innerHTML = '<option value="">全部实验室</option>' + labOpts;
+    $('familyList').innerHTML = (d.families || []).map(f => `<option value="${escapeHtml(f)}">`).join('');
+    $('tierList').innerHTML = (d.tiers || []).map(t => `<option value="${escapeHtml(t)}">`).join('');
+    $('benchList').innerHTML = (d.benches || []).map(b => `<option value="${escapeHtml(b)}">`).join('');
+    $('scBench').innerHTML = '<option value="">全部基准</option>' + (d.benches || []).map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
   } catch {}
 }
 
@@ -941,6 +1104,7 @@ const TABS = {
   inbox: ['tabInbox', 'panelInbox'],
   press: ['tabPress', 'panelPress'],
   supply: ['tabSupply', 'panelSupply'],
+  strains: ['tabStrains', 'panelStrains'],
   visits: ['tabVisits', 'panelVisits'],
   system: ['tabSystem', 'panelSystem'],
 };
@@ -954,6 +1118,7 @@ $('tabArchive').onclick = () => { showTab('archive'); history.replaceState(null,
 $('tabInbox').onclick = () => { showTab('inbox'); history.replaceState(null, '', '#inbox'); loadDrafts(); loadTips(); };
 $('tabPress').onclick = () => { showTab('press'); history.replaceState(null, '', '#press'); loadPosts(); };
 $('tabSupply').onclick = () => { showTab('supply'); history.replaceState(null, '', '#supply'); loadSupply(); };
+$('tabStrains').onclick = () => { showTab('strains'); history.replaceState(null, '', '#strains'); loadStrains(); };
 $('tabVisits').onclick = () => { showTab('visits'); history.replaceState(null, '', '#visits'); loadStats(); };
 $('tabSystem').onclick = () => { showTab('system'); history.replaceState(null, '', '#system'); loadSettings(); };
 $('vRefresh').onclick = () => { recentPage = 1; loadStats(); };
@@ -1187,6 +1352,155 @@ window.delSupply = async id => {
   if (res.ok) { toast('已删除'); loadSupply(); }
 };
 
+/* ===== 毒株谱系：模型登记表 + 能力评测记录 ===== */
+let modelRows = [], scoreRows = [], editingModelId = null, editingScoreId = null;
+const labLabel = k => LABS[k] || k || '—';
+const statusPill = s => `<span class="state-pill ${s === 'active' ? 'published' : s === 'preview' ? 'pending' : 'dismissed'}">${s === 'active' ? '在役' : s === 'preview' ? '预览' : '退役'}</span>`;
+const fmtScore = (v, u) => `${v}${u === '%' ? '%' : u ? ' ' + u : ''}`;
+
+async function loadStrains() {
+  await Promise.all([loadModels(), loadScores()]);
+}
+async function loadModels() {
+  const d = await (await fetch('/api/models')).json();
+  if (!d.ok) return;
+  modelRows = d.models || [];
+  const lab = $('mLab').value, q = $('mQ').value.trim().toLowerCase();
+  const shown = modelRows.filter(m => (!lab || m.lab === lab) && (!q || `${m.name} ${m.family} ${m.summary} ${m.slug}`.toLowerCase().includes(q)));
+  $('mBody').innerHTML = shown.map(m => `
+    <tr>
+      <td class="mono">${m.date}</td>
+      <td style="font-size:12px">${escapeHtml(labLabel(m.lab))}${m.family ? `<div class="sum-cell">${escapeHtml(m.family)}</div>` : ''}</td>
+      <td><div class="title-cell">${escapeHtml(m.name)} <span class="badge b-tag">/m/${escapeHtml(m.slug)}</span>${m.tier ? ` <span class="badge b-tag">${escapeHtml(m.tier)}</span>` : ''}${m.open_weights ? ' <span class="badge b-tag">开放权重</span>' : ''}${m.ev ? ` <a class="badge b-series" href="/ev/${m.ev}" target="_blank">档案 #${m.ev}</a>` : ''}</div>${m.summary ? `<div class="sum-cell">${escapeHtml(m.summary)}</div>` : ''}</td>
+      <td class="mono" style="font-size:11px">${escapeHtml(m.price || '—')}${m.context ? `<div class="sum-cell">${escapeHtml(m.context)}</div>` : ''}</td>
+      <td class="mono">${m.scores_n ? `<a href="#" onclick="filterScores(${m.id});return false" style="color:var(--umb-hi)">${m.scores_n} 条</a>` : '<span style="color:var(--dim)">0</span>'}</td>
+      <td>${statusPill(m.status)}</td>
+      <td><div class="ops"><button onclick="editModel(${m.id})">编辑</button><button onclick="openScoreForm(null, ${m.id})">＋成绩</button><button class="danger" onclick="delModel(${m.id})">删除</button></div></td>
+    </tr>`).join('');
+  $('mEmpty').style.display = shown.length ? 'none' : 'block';
+  $('mStat').textContent = `登记 ${modelRows.length} 株${shown.length !== modelRows.length ? ` · 显示 ${shown.length}` : ''}`;
+  /* 成绩筛选与录入表单的模型下拉 */
+  const opts = modelRows.map(m => `<option value="${m.id}">${escapeHtml(m.name)} · ${m.date}</option>`).join('');
+  const keep = $('scModel').value;
+  $('scModel').innerHTML = '<option value="">全部模型</option>' + opts;
+  $('scModel').value = keep;
+  $('sfModel').innerHTML = opts;
+}
+$('mLab').onchange = loadModels;
+let mqTimer;
+$('mQ').oninput = () => { clearTimeout(mqTimer); mqTimer = setTimeout(loadModels, 250); };
+
+async function loadScores() {
+  const params = new URLSearchParams();
+  if ($('scModel').value) params.set('model_id', $('scModel').value);
+  if ($('scBench').value) params.set('bench', $('scBench').value);
+  const d = await (await fetch('/api/scores?' + params)).json();
+  if (!d.ok) return;
+  scoreRows = d.scores || [];
+  $('scBody').innerHTML = scoreRows.map(s => `
+    <tr>
+      <td class="mono">${s.date}</td>
+      <td><b>${escapeHtml(s.model_name)}</b><div class="sum-cell">${escapeHtml(labLabel(s.model_lab))}</div></td>
+      <td style="font-size:12px">${escapeHtml(s.bench)}</td>
+      <td class="mono"><b>${fmtScore(s.score, s.unit)}</b></td>
+      <td style="font-size:12px">${s.note ? escapeHtml(s.note) : '<span style="color:var(--dim)">—</span>'}</td>
+      <td>${s.source ? `<a class="badge b-tag" href="${escapeHtml(s.source)}" target="_blank" rel="noopener">原文 ↗</a>` : '<span style="color:var(--dim)">—</span>'}</td>
+      <td><div class="ops"><button onclick="editScore(${s.id})">编辑</button><button class="danger" onclick="delScore(${s.id})">删除</button></div></td>
+    </tr>`).join('');
+  $('scEmpty').style.display = scoreRows.length ? 'none' : 'block';
+  $('scCount').textContent = `· ${scoreRows.length} 条`;
+}
+$('scModel').onchange = loadScores;
+$('scBench').onchange = loadScores;
+window.filterScores = id => { $('scModel').value = String(id); loadScores(); $('scBody').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+
+function openModelForm(row) {
+  editingModelId = row ? row.id : null;
+  $('modelFormTitle').textContent = row ? `STRAIN · 编辑毒株 #${row.id}` : 'STRAIN · 登记毒株';
+  $('moName').value = row ? row.name : '';
+  $('moSlug').value = row ? row.slug : '';
+  $('moLab').value = row ? row.lab : (Object.keys(LABS)[0] || 'other');
+  $('moFamily').value = row ? row.family : '';
+  $('moDate').value = row ? row.date : '';
+  $('moTier').value = row ? row.tier : '';
+  $('moContext').value = row ? row.context : '';
+  $('moPrice').value = row ? row.price : '';
+  $('moStatus').value = row ? row.status : 'active';
+  $('moOpen').value = row ? String(row.open_weights ? 1 : 0) : '0';
+  $('moSummary').value = row ? row.summary : '';
+  $('moSource').value = row ? row.source : '';
+  $('moEv').value = row && row.ev ? row.ev : '';
+  $('modelFormMsg').textContent = '';
+  $('modelModal').classList.add('open');
+  $('moName').focus();
+}
+$('newModelBtn').onclick = () => openModelForm(null);
+$('modelCancelBtn').onclick = () => $('modelModal').classList.remove('open');
+$('modelModal').addEventListener('click', e => { if (e.target === $('modelModal')) $('modelModal').classList.remove('open'); });
+$('modelSaveBtn').onclick = async () => {
+  const body = {
+    name: $('moName').value.trim(), slug: $('moSlug').value.trim(), lab: $('moLab').value, family: $('moFamily').value.trim(),
+    date: $('moDate').value, tier: $('moTier').value.trim(), context: $('moContext').value.trim(), price: $('moPrice').value.trim(),
+    status: $('moStatus').value, open_weights: Number($('moOpen').value), summary: $('moSummary').value.trim(),
+    source: $('moSource').value.trim(), ev: $('moEv').value ? Number($('moEv').value) : null,
+  };
+  if (!body.name) { $('modelFormMsg').textContent = '模型名必填'; return; }
+  if (!body.date) { $('modelFormMsg').textContent = '发布日必填'; return; }
+  const res = await fetch(editingModelId ? '/api/models/' + editingModelId : '/api/models', {
+    method: editingModelId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(body),
+  });
+  const d = await res.json();
+  if (d.ok) { $('modelModal').classList.remove('open'); toast(editingModelId ? '毒株已更新' : '毒株已登记'); loadStrains(); loadMeta(); }
+  else $('modelFormMsg').textContent = d.error || '保存失败';
+};
+window.editModel = id => { const m = modelRows.find(x => x.id === id); if (m) openModelForm(m); };
+window.delModel = async id => {
+  const m = modelRows.find(x => x.id === id);
+  if (!confirm(`确认删除「${m ? m.name : '#' + id}」？其全部评测记录（${m ? m.scores_n : '?'} 条）一并销毁，且 /m/${m ? m.slug : ''} 页面将 404。`)) return;
+  const res = await fetch('/api/models/' + id, { method: 'DELETE', headers: headers() });
+  if (res.ok) { toast('毒株已销毁'); loadStrains(); }
+};
+
+function openScoreForm(row, presetModelId) {
+  editingScoreId = row ? row.id : null;
+  $('scoreFormTitle').textContent = row ? `ASSAY · 编辑成绩 #${row.id}` : 'ASSAY · 录入成绩';
+  $('sfModel').value = row ? String(row.model_id) : presetModelId ? String(presetModelId) : ($('scModel').value || (modelRows[0] ? String(modelRows[0].id) : ''));
+  $('sfBench').value = row ? row.bench : ($('scBench').value || '');
+  $('sfScore').value = row ? row.score : '';
+  $('sfUnit').value = row ? row.unit : '%';
+  $('sfDate').value = row ? row.date : '';
+  $('sfNote').value = row ? row.note : '';
+  $('sfSource').value = row ? row.source : '';
+  $('scoreFormMsg').textContent = '';
+  $('scoreModal').classList.add('open');
+  (row ? $('sfScore') : $('sfBench')).focus();
+}
+window.openScoreForm = openScoreForm;
+$('newScoreBtn').onclick = () => { if (!modelRows.length) { toast('先登记至少一株毒株'); return; } openScoreForm(null); };
+$('scoreCancelBtn').onclick = () => $('scoreModal').classList.remove('open');
+$('scoreModal').addEventListener('click', e => { if (e.target === $('scoreModal')) $('scoreModal').classList.remove('open'); });
+$('scoreSaveBtn').onclick = async () => {
+  const body = {
+    model_id: Number($('sfModel').value), bench: $('sfBench').value.trim(), score: $('sfScore').value === '' ? NaN : Number($('sfScore').value),
+    unit: $('sfUnit').value, date: $('sfDate').value, note: $('sfNote').value.trim(), source: $('sfSource').value.trim(),
+  };
+  if (!body.model_id) { $('scoreFormMsg').textContent = '请选择模型'; return; }
+  if (!body.bench) { $('scoreFormMsg').textContent = '基准必填'; return; }
+  if (!Number.isFinite(body.score)) { $('scoreFormMsg').textContent = '分数必须是数字'; return; }
+  const res = await fetch(editingScoreId ? '/api/scores/' + editingScoreId : '/api/scores', {
+    method: editingScoreId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(body),
+  });
+  const d = await res.json();
+  if (d.ok) { $('scoreModal').classList.remove('open'); toast(editingScoreId ? '成绩已更新' : '成绩已录入'); loadStrains(); loadMeta(); }
+  else $('scoreFormMsg').textContent = d.error || '保存失败';
+};
+window.editScore = id => { const s = scoreRows.find(x => x.id === id); if (s) openScoreForm(s); };
+window.delScore = async id => {
+  if (!confirm(`确认删除成绩 #${id}？`)) return;
+  const res = await fetch('/api/scores/' + id, { method: 'DELETE', headers: headers() });
+  if (res.ok) { toast('已删除'); loadStrains(); }
+};
+
 /* ===== 系统：SEO 接入配置 + 频道与支援链接 ===== */
 const SETTING_FIELDS = {
   baiduPushToken: 'sBaiduPushToken',
@@ -1340,6 +1654,7 @@ $('opStatus').onclick = async () => {
     `数据库 ${d.dbMb} MB（含 WAL）· 图片 ${d.uploads} 张 / ${d.uploadsMb} MB · 访问日志 ${d.counts.visits} 行`,
     `档案 ${d.counts.events} 条 · 刊物 已发布 ${d.counts.postsPublished} / 草稿 ${d.counts.postsDraft}`,
     `收件箱 待审草稿 ${d.counts.draftsPending} · 未读线报 ${d.counts.tipsUnread} · 补给表 ${d.counts.supply} 行`,
+    `毒株谱系 模型 ${d.counts.models ?? '?'} 株 · 评测记录 ${d.counts.scores ?? '?'} 条`,
   ].join('\n'));
 };
 
@@ -1492,6 +1807,7 @@ async function loadStats() {
     else if (location.hash === '#inbox') { showTab('inbox'); loadDrafts(); loadTips(); }
     else if (location.hash === '#press') { showTab('press'); loadPosts(); }
     else if (location.hash === '#supply') { showTab('supply'); loadSupply(); }
+    else if (location.hash === '#strains') { showTab('strains'); loadStrains(); }
   } else {
     localStorage.removeItem(KEY_STORE);
   }

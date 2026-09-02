@@ -245,6 +245,43 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
   );
 
+  /* 毒株谱系（模型发展史专栏 /m）：models = 毒株登记表（每个模型一行），scores = 能力评测记录
+     （模型 × 基准 × 分数 × 日期，一对多——同一模型在同一基准上允许多条，note 区分口径），
+     后台「毒株谱系」标签页维护。lab 取值限 server.js 的 LABS 名册；ev 回链站内档案 id */
+  CREATE TABLE IF NOT EXISTS models (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug         TEXT NOT NULL UNIQUE,
+    name         TEXT NOT NULL,
+    lab          TEXT NOT NULL DEFAULT 'other',
+    family       TEXT NOT NULL DEFAULT '',
+    date         TEXT NOT NULL,
+    tier         TEXT NOT NULL DEFAULT '',
+    open_weights INTEGER NOT NULL DEFAULT 0,
+    context      TEXT NOT NULL DEFAULT '',
+    price        TEXT NOT NULL DEFAULT '',
+    status       TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','preview','retired')),
+    summary      TEXT NOT NULL DEFAULT '',
+    source       TEXT NOT NULL DEFAULT '',
+    ev           INTEGER,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_models_date ON models(date DESC);
+
+  CREATE TABLE IF NOT EXISTS scores (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id   INTEGER NOT NULL,
+    bench      TEXT NOT NULL,
+    score      REAL NOT NULL,
+    unit       TEXT NOT NULL DEFAULT '%',
+    date       TEXT NOT NULL,
+    note       TEXT NOT NULL DEFAULT '',
+    source     TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_scores_model ON scores(model_id);
+  CREATE INDEX IF NOT EXISTS idx_scores_bench ON scores(bench, date);
+
   CREATE TABLE IF NOT EXISTS visits (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,
     ts      TEXT NOT NULL,
@@ -510,6 +547,180 @@ const FRONTS = {
 };
 const frontName = f => FRONTS[f] || '';
 
+/* 毒株谱系 · 实验室名册（models.lab 的合法取值 → 展示名）。新实验室在此登记一行，后台下拉自动同步。 */
+const LABS = {
+  anthropic: { name: 'Anthropic' },
+  openai:    { name: 'OpenAI' },
+  google:    { name: 'Google DeepMind' },
+  xai:       { name: 'xAI / SpaceXAI' },
+  anysphere: { name: 'Anysphere（Cursor）' },
+  meta:      { name: 'Meta' },
+  deepseek:  { name: 'DeepSeek' },
+  alibaba:   { name: '阿里 · Qwen' },
+  moonshot:  { name: '月之暗面 · Kimi' },
+  zhipu:     { name: '智谱 · GLM' },
+  minimax:   { name: 'MiniMax' },
+  bytedance: { name: '字节 · 豆包 Seed' },
+  tencent:   { name: '腾讯 · 混元' },
+  baidu:     { name: '百度 · 文心' },
+  stepfun:   { name: '阶跃星辰 · Step' },
+  mistral:   { name: 'Mistral' },
+  other:     { name: '其他实验室' },
+};
+const labName = k => (LABS[k] || LABS.other).name;
+
+/* 毒株谱系 · 基准名册（scores.bench 是自由文本，此处只登记「已知基准」的 slug 与导语，供 /b/:slug 页面
+   用搜索者的语言承接——未登记的基准名回退 encodeURIComponent 的 URL，能用但无导语（同 SERIES_PAGES 逻辑）。
+   全部按「越高越好」处理；unit 是该基准的默认单位。 */
+const BENCHES = {
+  'SWE-bench Verified': {
+    slug: 'swe-bench-verified', unit: '%',
+    title: 'SWE-bench Verified 历年分数演进：各大模型成绩全表',
+    lead: 'SWE-bench Verified 是由 OpenAI 人工核验的 500 道真实 GitHub 问题修复题，考察模型在真实代码库里独立完成修复的能力，是编码模型最常被引用的成绩单。本页汇总各实验室模型在该基准上的公开成绩，并标出「前沿线」——历史最高分每一次被刷新的时刻。',
+  },
+  'SWE-bench Pro': {
+    slug: 'swe-bench-pro', unit: '%',
+    title: 'SWE-bench Pro 分数演进：更难的真实工程题成绩全表',
+    lead: 'SWE-bench Pro 是 Scale AI 推出的加难版：题目更长、跨文件更多、含商业代码库私有集，用来区分「刷穿 Verified」之后的前沿模型。本页汇总公开成绩与前沿刷新记录。',
+  },
+  /* Terminal-Bench 版本间题库不同、分数不可比，因此按版本分成独立基准名各画一条曲线 */
+  'Terminal-Bench': {
+    slug: 'terminal-bench', unit: '%',
+    title: 'Terminal-Bench（初版）分数演进：终端 agent 任务成绩全表',
+    lead: 'Terminal-Bench 让模型在真实终端环境里完成端到端任务（编译、部署、排障、数据处理），是衡量 agent 自主执行能力的主流基准。本页收录 2025 年初版题库的成绩；题库改版后的 2.0 / 4.0 因不可比而分列独立页面。',
+  },
+  'Terminal-Bench 2.0': {
+    slug: 'terminal-bench-2', unit: '%',
+    title: 'Terminal-Bench 2.0 分数演进：终端 agent 任务成绩全表',
+    lead: 'Terminal-Bench 2.0 是 2025 年末改版的终端 agent 题库，题目更长、验证更严，前沿模型发布材料自 Gemini 3 起普遍引用。本页收录该版本的公开成绩与前沿刷新记录。',
+  },
+  'Terminal-Bench 3.0': {
+    slug: 'terminal-bench-3', unit: '%',
+    title: 'Terminal-Bench 3.0 分数演进：终端 agent 任务成绩全表',
+    lead: 'Terminal-Bench 3.0 是 2026 年中改版的终端 agent 题库，难度陡增——前沿开源模型的首批成绩多在个位数到二三十分之间。本页收录该版本的公开成绩与前沿刷新记录。',
+  },
+  'Terminal-Bench 4.0': {
+    slug: 'terminal-bench-4', unit: '%',
+    title: 'Terminal-Bench 4.0 分数演进：终端 agent 任务成绩全表',
+    lead: 'Terminal-Bench 4.0 是 2026 年的终端 agent 题库版本，Fable 5.1 与 Mythos 5.1 的发布材料以它为主战场之一。本页收录该版本的公开成绩与前沿刷新记录。',
+  },
+  'Terminal-Bench-Science 0.1': {
+    slug: 'terminal-bench-science', unit: '%',
+    title: 'Terminal-Bench-Science 分数演进：科研 agent 任务成绩全表',
+    lead: 'Terminal-Bench-Science 测试 agent 能否在命令行环境里完成科学研究任务（数据处理、建模、复现），以通过率计分，是 2026 年随 Fable 5.1 发布进入公众视野的新基准。本页收录公开成绩与前沿刷新记录。',
+  },
+  'CursorBench': {
+    slug: 'cursorbench', unit: '%',
+    title: 'CursorBench 分数演进：Cursor 自家考卷上的模型成绩全表',
+    lead: 'CursorBench 是 Cursor 的内部评测套件，取自真实用户的 agent 任务。自 Opus 4.8 起，模型厂商的官方发布材料开始直接引用它——一家编辑器公司的考卷成了行业度量衡。本页汇总公开披露过的成绩，版本与算力档位见备注；因训练数据污染撤榜的成绩不收录。',
+  },
+  'AA Intelligence Index': {
+    slug: 'aa-intelligence-index', unit: '分',
+    title: 'Artificial Analysis 智能指数演进：前沿模型综合得分全表',
+    lead: 'Artificial Analysis 智能指数是第三方评测机构对多项基准的综合加权分，常被媒体用作「谁是当前最强模型」的单一数字。本页按时间汇总各前沿模型的公开指数。',
+  },
+  'AA Coding Agent Index': {
+    slug: 'aa-coding-agent-index', unit: '分',
+    title: 'Artificial Analysis 编码 Agent 指数演进：模型成绩全表',
+    lead: 'Artificial Analysis 编码 Agent 指数聚焦 agent 式编码任务的综合表现，Composer 2.5「坐三望二」、GPT-5.6 Sol 80 分夺榜等站内档案引用的都是这个口径。本页汇总公开成绩与前沿刷新记录。',
+  },
+  'HLE': {
+    slug: 'hle', unit: '%',
+    title: "Humanity's Last Exam（HLE）分数演进：前沿模型成绩全表",
+    lead: "Humanity's Last Exam 由数千名领域专家出题，题目刻意设计为搜索引擎与现有模型都答不出，是衡量前沿推理能力天花板的基准之一。本页汇总公开成绩。",
+  },
+  'LMArena Elo': {
+    slug: 'lmarena-elo', unit: 'Elo',
+    title: 'LMArena（Chatbot Arena）Elo 演进：模型人类偏好排名全表',
+    lead: 'LMArena 由匿名对战的人类投票得出 Elo 分，反映的是「人更喜欢哪个回答」而非解题正确率。本页按时间汇总各模型的公开 Elo，与能力基准对照阅读。',
+  },
+};
+const benchBySlug = new Map(Object.entries(BENCHES).map(([name, c]) => [c.slug, name]));
+const benchPath = name => `/b/${(BENCHES[name] && BENCHES[name].slug) || encodeURIComponent(name)}`;
+
+/* 总榜维度：每个维度由若干基准按优先级组成（新版本题库优先）。某模型在一个维度的得分 = 它在列表里第一个有成绩的
+   基准上的**最近一次**公开成绩（指数类基准会随版本重算，取最近而非最高），相对该基准各模型最近成绩的最高分归一
+   （最高 = 100，即「相对前沿分」）；综合分 = 各已测维度相对前沿分的平均，≥2 个维度才入总榜。
+   只有累计 ≥ DIM_MIN_N 条成绩的基准才参与，避免单点成绩自动得 100 把榜单撑歪。 */
+const DIMENSIONS = [
+  { key: 'coding',    name: '编码',        benches: ['SWE-bench Verified', 'SWE-bench Pro', 'AA Coding Agent Index'] },
+  { key: 'agent',     name: '终端 Agent',  benches: ['Terminal-Bench 4.0', 'Terminal-Bench 3.0', 'Terminal-Bench 2.1', 'Terminal-Bench 2.0', 'Terminal-Bench'] },
+  { key: 'science',   name: '科研 Agent',  benches: ['Terminal-Bench-Science 0.1'] },
+  { key: 'cursor',    name: 'Cursor 考卷', benches: ['CursorBench'] },
+  { key: 'general',   name: '综合智能',    benches: ['AA Intelligence Index'] },
+  { key: 'reasoning', name: '前沿推理',    benches: ['HLE'] },
+  { key: 'human',     name: '人类偏好',    benches: ['LMArena Elo'] },
+];
+const DIM_MIN_N = 3;
+
+/* 模型 slug：名称转小写连字符；非拉丁名称退化为空时由调用方兜底 */
+const slugify = s => String(s || '').toLowerCase().normalize('NFKD')
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+
+function validateModel(b, { partial = false } = {}) {
+  const errors = [];
+  if (!partial || b.name !== undefined) { if (!String(b.name || '').trim()) errors.push('name 必填'); }
+  if (!partial || b.date !== undefined) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date || '') || Number.isNaN(Date.parse(b.date))) errors.push('date 必须是 YYYY-MM-DD');
+  }
+  if (b.lab !== undefined && b.lab !== '' && !LABS[b.lab]) errors.push(`lab 未登记（可用：${Object.keys(LABS).join(' / ')}）`);
+  if (b.status !== undefined && !['active', 'preview', 'retired'].includes(b.status)) errors.push('status 必须是 active / preview / retired');
+  if (b.slug !== undefined && b.slug !== '' && !/^[a-z0-9-]{1,60}$/.test(b.slug)) errors.push('slug 只能是小写字母、数字与连字符');
+  if (b.ev !== undefined && b.ev !== null && b.ev !== '' && !Number.isInteger(Number(b.ev))) errors.push('ev 必须是档案 id');
+  return errors;
+}
+
+function validateScore(b, { partial = false } = {}) {
+  const errors = [];
+  if (!partial || b.model_id !== undefined) { if (!Number.isInteger(Number(b.model_id))) errors.push('model_id 必填'); }
+  if (!partial || b.bench !== undefined) { if (!String(b.bench || '').trim()) errors.push('bench 必填'); }
+  if (!partial || b.score !== undefined) { if (!Number.isFinite(Number(b.score))) errors.push('score 必须是数字'); }
+  if (b.date !== undefined && b.date !== '' && (!/^\d{4}-\d{2}-\d{2}$/.test(b.date) || Number.isNaN(Date.parse(b.date)))) errors.push('date 必须是 YYYY-MM-DD');
+  return errors;
+}
+
+/* 入库前的字段归一化（截断长度、收敛枚举），与 supply 的写法一致 */
+function modelFields(b) {
+  const cutS = (v, n) => String(v ?? '').trim().slice(0, n);
+  return {
+    name: cutS(b.name, 80),
+    lab: LABS[b.lab] ? b.lab : 'other',
+    family: cutS(b.family, 40),
+    date: b.date,
+    tier: cutS(b.tier, 40),
+    open_weights: Number(b.open_weights) ? 1 : 0,
+    context: cutS(b.context, 40),
+    price: cutS(b.price, 80),
+    status: ['active', 'preview', 'retired'].includes(b.status) ? b.status : 'active',
+    summary: cutS(b.summary, 400),
+    source: cutS(b.source, 500),
+    ev: b.ev === '' || b.ev === null || b.ev === undefined ? null : Number(b.ev),
+  };
+}
+function scoreFields(b, model) {
+  const cutS = (v, n) => String(v ?? '').trim().slice(0, n);
+  const bench = cutS(b.bench, 60);
+  return {
+    model_id: model.id,
+    bench,
+    score: Number(b.score),
+    unit: cutS(b.unit, 10) || (BENCHES[bench] && BENCHES[bench].unit) || '%',
+    date: b.date || model.date,   // 未填评测日期时取模型发布日
+    note: cutS(b.note, 200),
+    source: cutS(b.source, 500),
+  };
+}
+/* slug 唯一化：重名追加 -2 / -3；非拉丁名称转不出 slug 时用时间戳兜底（后台可改） */
+function uniqueModelSlug(base, excludeId) {
+  const root = slugify(base) || `model-${Date.now().toString(36)}`;
+  let s = root, n = 2;
+  for (;;) {
+    const r = db.prepare('SELECT id FROM models WHERE slug = ?').get(s);
+    if (!r || r.id === excludeId) return s;
+    s = `${root}-${n++}`;
+  }
+}
+
 function validateEvent(b) {
   const errors = [];
   if (!['main', 'dark'].includes(b.side)) errors.push('side 必须是 main（正史）或 dark（野史）');
@@ -750,7 +961,7 @@ function footNavHTML() {
   const links = getLinks();
   const sponsor = links.sponsorText && links.sponsorUrl
     ? `<div class="foot-sponsor">补给线 SUPPLY LINE · <a href="${escHtml(links.sponsorUrl)}" target="_blank" rel="noopener sponsored">${escHtml(links.sponsorText)}</a></div>` : '';
-  return `<nav class="foot-nav" aria-label="档案索引">情报站：<a href="/warroom">红后作战室</a> · <a href="/w">战报周刊</a> · <a href="/d/windows">套利窗口全史</a> · <a href="/d/versions">版本史全表</a> · <a href="/d/funding">融资估值全史</a>${feats ? `<br>专题特稿：${feats}` : ''}<br>事件线索：${s}<br>年度大事记：${y} · <a href="/about">关于本站</a></nav>${sponsor}`;
+  return `<nav class="foot-nav" aria-label="档案索引">情报站：<a href="/warroom">红后作战室</a> · <a href="/m">毒株谱系</a> · <a href="/w">战报周刊</a> · <a href="/d/windows">套利窗口全史</a> · <a href="/d/versions">版本史全表</a> · <a href="/d/funding">融资估值全史</a>${feats ? `<br>专题特稿：${feats}` : ''}<br>事件线索：${s}<br>年度大事记：${y} · <a href="/about">关于本站</a></nav>${sponsor}`;
 }
 
 function serveHome(req, res) {
@@ -1873,7 +2084,7 @@ function warroomPageHTML(status) {
             <td><span class="st ${s.status}">${s.status === 'active' ? '在役' : s.status === 'watch' ? '观察' : '撤出'}</span></td>
           </tr>`).join('')}</tbody>
       </table></div>
-      <div class="wr-note">价格为每百万 token 计（输入 / 输出）；口径以 <a href="https://cursor.com/docs" target="_blank" rel="noopener">官方文档</a> 为准，此表随档案更新维护。</div>`
+      <div class="wr-note">价格为每百万 token 计（输入 / 输出）；口径以 <a href="https://cursor.com/docs" target="_blank" rel="noopener">官方文档</a> 为准，此表随档案更新维护。各模型的发布史、评测分数与能力曲线见<a href="/m">毒株谱系 »</a></div>`
     : '<div class="wr-empty">补给表待录入 · 后台「补给线」维护</div>';
 
   let statusHtml;
@@ -2010,7 +2221,7 @@ function dataPageShell({ slug, pageTitle, h1, lead, bodyHtml }) {
     bodyHtml: bodyHtml + `
     <nav class="othernav" aria-label="更多速查表">
       <div class="oh">◈ 更多速查表与情报页</div>
-      <div class="links"><a href="/d/versions">版本史全表</a><span class="sep">·</span><a href="/d/funding">融资估值全史</a><span class="sep">·</span><a href="/d/windows">套利窗口全史</a><span class="sep">·</span><a href="/warroom">红后作战室</a><span class="sep">·</span><a href="/w">战报周刊</a></div>
+      <div class="links"><a href="/d/versions">版本史全表</a><span class="sep">·</span><a href="/d/funding">融资估值全史</a><span class="sep">·</span><a href="/d/windows">套利窗口全史</a><span class="sep">·</span><a href="/m">毒株谱系</a><span class="sep">·</span><a href="/warroom">红后作战室</a><span class="sep">·</span><a href="/w">战报周刊</a></div>
     </nav>`,
     ldBlocks: [breadcrumbLD(h1, url)],
     extraCss: DATA_CSS,
@@ -2099,6 +2310,579 @@ function serveDataPage(req, res, slug) {
   sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
 }
 
+/* ==================================================================
+   毒株谱系 STRAIN LINEAGE：模型发展史专栏
+   - /m          专栏首页：总排名（综合分 + 各维度分）+ 维度榜 + 能力曲线（服务端 SVG）+ 全球发布时间线
+   - /m/:slug    毒株档案：评分卡 + 身份卡 + 全部评分 + 同谱系上一代/下一代 + 自动关联站内档案
+   - /b/:slug    基准页：当前榜 + 单基准完整曲线 + 前沿刷新记录（榜首的保质期）
+   世界观：模型 = 毒株，厂商 = 谱系，评测 = 毒力检测；Cursor 始终是坐标（每株回链站内档案）。
+   零依赖约束下图表由服务端拼 SVG；红白黑基调不破：灰点 = 公开成绩，红菱 = 刷新纪录，红线 = 前沿。
+   ================================================================== */
+const STRAIN_CSS = `
+  .wrap { max-width:1000px; }
+  .curve { width:100%; height:auto; display:block; margin-top:4px; }
+  .curve .grid { stroke:rgba(224,36,46,.16); stroke-dasharray:2 4; }
+  .curve .axis { stroke:rgba(233,230,223,.22); }
+  .curve .tick { font-family:var(--mono); font-size:9.5px; fill:#9aa0a8; }
+  .curve .frontier { fill:none; stroke:#e0242e; stroke-width:1.6; filter:url(#stglow); }
+  .curve .pt { fill:#6b7280; stroke:#0a0b0e; stroke-width:1; }
+  .curve .rec { fill:#ff4a52; stroke:#0a0b0e; stroke-width:1.2; }
+  .curve a:hover .pt, .curve a:hover .rec { stroke:#fff; stroke-width:2; }
+  .curve .flabel { font-family:var(--mono); font-size:8.5px; fill:#ffd9d4; letter-spacing:.02em; }
+  .curve .today { stroke:rgba(255,74,82,.5); stroke-dasharray:3 3; }
+  .curve .todaylbl { font-family:var(--mono); font-size:8.5px; fill:var(--umb-hi); letter-spacing:.14em; }
+  .lgd { display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:10px; font-family:var(--mono); font-size:10.5px; color:var(--bone-dim); letter-spacing:.06em; }
+  .lgd .pt { color:#8b93a0; } .lgd .rec, .lgd .fr { color:var(--umb-hi); }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chips a { font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; color:var(--bone-dim); text-decoration:none; border:1px solid rgba(224,36,46,.4); padding:3px 9px; white-space:nowrap; }
+  .chips a:hover, .chips a.on { color:var(--umb-hi); border-color:var(--umb-hi); }
+  .st-stat { display:flex; gap:6px 16px; flex-wrap:wrap; font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:var(--umb-hi); margin-top:12px; }
+  .sec { font-family:var(--mono); font-size:11.5px; letter-spacing:.2em; color:var(--umb-hi); margin:24px 0 10px; font-weight:400; }
+  .sec small { color:var(--bone-dim); letter-spacing:.06em; margin-left:10px; font-size:10.5px; }
+  .note { font-size:11.5px; line-height:1.9; color:var(--bone-dim); margin:8px 0 4px; }
+  .note a { color:var(--umb-hi); text-decoration:none; }
+  table.dtable td.rk { font-family:var(--mono); font-weight:700; color:#a01820; width:34px; text-align:right; }
+  table.dtable td.mdl a { color:#1d1e22; text-decoration:none; font-weight:700; }
+  table.dtable td.mdl a:hover { color:#a01820; }
+  table.dtable td.mdl .sub { font-family:var(--mono); font-size:10px; color:#7a7c84; margin-top:2px; letter-spacing:.04em; }
+  table.dtable td.num { font-family:var(--mono); text-align:right; white-space:nowrap; }
+  table.dtable td.num .u { color:#7a7c84; font-size:9.5px; margin-left:3px; }
+  table.dtable td.tot { font-family:var(--mono); white-space:nowrap; min-width:132px; }
+  table.dtable td.tot b { color:#a01820; font-size:14px; }
+  table.dtable td.tot .cov { color:#7a7c84; font-size:10px; margin-left:5px; }
+  table.dtable .bar { display:block; height:3px; background:rgba(160,24,32,.14); margin-top:5px; }
+  table.dtable .bar i { display:block; height:100%; background:#a01820; }
+  table.dtable th.dim { text-align:right; }
+  table.dtable th.dim small { display:block; font-size:8.5px; letter-spacing:.04em; color:#7a7c84; margin-top:1px; }
+  table.dtable tr.sep td { font-family:var(--mono); font-size:10px; letter-spacing:.14em; color:#7a7c84; background:rgba(160,24,32,.05); padding:6px 12px; }
+  table.dtable tr.yr td { font-family:var(--mono); font-size:10px; letter-spacing:.2em; color:#a01820; background:rgba(160,24,32,.05); padding:6px 12px; }
+  table.dtable td.none { color:#b3b5bc; text-align:right; font-family:var(--mono); }
+  .dimgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:12px; }
+  .dimgrid .wr-box { margin-bottom:0; }
+  .dimgrid .wr-row { padding:6px 0; font-size:12px; }
+  .dimgrid .rk { font-family:var(--mono); color:var(--umb-hi); font-weight:700; display:inline-block; width:22px; }
+  .bn { font-family:var(--mono); font-size:9.5px; color:var(--bone-dim); letter-spacing:.04em; margin-left:6px; }
+  .tierchip { display:inline-block; font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; color:#7a7c84; border:1px solid rgba(122,124,132,.45); padding:0 6px; margin-left:6px; vertical-align:1px; white-space:nowrap; }
+  .lineage { line-height:2; color:#c7a8a6; font-size:12px; }
+  .lineage a { color:#ffd9d4; text-decoration:none; border-bottom:1px dashed rgba(224,36,46,.5); }
+  .lineage a:hover { color:var(--umb-hi); }
+  .lineage a.cur { color:var(--umb-hi); border-bottom-style:solid; }
+  .lineage .arrow { color:rgba(224,36,46,.7); margin:0 6px; }
+  .stnav { display:flex; justify-content:space-between; gap:10px; margin:0 0 14px; font-family:var(--mono); font-size:11px; letter-spacing:.08em; flex-wrap:wrap; }
+  .stnav a, .stnav span { color:var(--bone-dim); text-decoration:none; border:1px solid rgba(224,36,46,.4); padding:6px 10px; }
+  .stnav a:hover { color:var(--umb-hi); }
+  .stnav span { color:#58606e; border-color:rgba(88,96,110,.4); }
+  table.dtable td.k { font-family:var(--mono); font-size:10px; letter-spacing:.14em; color:#a01820; white-space:nowrap; width:118px; }
+  table.dtable .delta { font-family:var(--mono); font-size:11px; color:#a01820; }
+  .card-total { display:flex; gap:26px; align-items:flex-start; flex-wrap:wrap; padding:14px 16px; margin-bottom:12px; background:linear-gradient(175deg,#edeae2 0%,#d9d5c9 100%); color:#1d1e22; border-right:3px solid var(--umb); box-shadow:0 10px 26px rgba(0,0,0,.5); }
+  .card-total .big { font-family:var(--mono); font-size:30px; font-weight:800; color:#a01820; line-height:1; }
+  .card-total .lbl { font-family:var(--mono); font-size:9.5px; letter-spacing:.16em; color:#7a7c84; display:block; margin-bottom:6px; }
+  .card-total .rk { font-family:var(--mono); font-size:22px; font-weight:700; color:#1d1e22; line-height:1.3; }
+  .card-total .txt { font-size:11.5px; color:#44464c; line-height:1.8; flex:1 1 240px; }
+`;
+
+const r1 = n => Math.round(n * 10) / 10;
+const allModels = () => db.prepare('SELECT * FROM models ORDER BY date DESC, id DESC').all();
+/* 某基准的全部成绩，按日期升序、同日分数降序——前沿扫描时同一天只让最高分登记为一次刷新 */
+const scoresOfBench = bench => db.prepare(
+  `SELECT s.*, m.name AS model_name, m.slug AS model_slug, m.lab AS model_lab
+   FROM scores s JOIN models m ON m.id = s.model_id WHERE s.bench = ? ORDER BY s.date ASC, s.score DESC, s.id ASC`
+).all(bench);
+const benchRows = () => db.prepare(
+  `SELECT bench, COUNT(*) AS n, MIN(date) AS first, MAX(date) AS last FROM scores GROUP BY bench ORDER BY n DESC, bench`
+).all();
+const unitOf = (bench, rows) => (rows.find(r => r.unit) || {}).unit || (BENCHES[bench] && BENCHES[bench].unit) || '';
+const fmtScore = (v, unit) => `${Number.isInteger(v) ? v : String(r1(v))}${unit === '%' ? '%' : unit ? ' ' + unit : ''}`;
+const benchShort = b => b.replace('SWE-bench Verified', 'SWE-bench V.').replace('AA Intelligence Index', 'AA 智能指数').replace('AA Coding Agent Index', 'AA 编码 Agent').replace('Terminal-Bench-Science 0.1', 'TB-Science').replace('Terminal-Bench', 'TB');
+
+/* 前沿线：按日期升序扫描，分数首次超过历史最高即为一次「前沿刷新」 */
+function frontierOf(rows) {
+  const out = []; let best = -Infinity;
+  for (const s of rows) if (s.score > best) { best = s.score; out.push(s); }
+  return out;
+}
+function niceStep(range, n) {
+  const raw = Math.max(range, 1e-9) / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+}
+
+/* 评分卡：按 DIMENSIONS 把散落的成绩折成「维度分 → 综合分 → 总排名」（口径见 DIMENSIONS 注释） */
+function buildScorecard() {
+  const rows = db.prepare(
+    `SELECT s.model_id, s.bench, s.score, s.unit, s.date FROM scores s ORDER BY s.date ASC, s.score ASC, s.id ASC`
+  ).all();
+  const benchN = new Map();
+  for (const r of rows) benchN.set(r.bench, (benchN.get(r.bench) || 0) + 1);
+  const latest = new Map();                       // model|bench → 最近一次成绩（同日取高）
+  for (const r of rows) latest.set(`${r.model_id}|${r.bench}`, r);
+  const benchMax = new Map();                     // 归一化基准：各模型最近成绩里的最高分
+  for (const r of latest.values()) benchMax.set(r.bench, Math.max(benchMax.get(r.bench) ?? -Infinity, r.score));
+  const dims = DIMENSIONS
+    .map(d => ({ ...d, benches: d.benches.filter(b => (benchN.get(b) || 0) >= DIM_MIN_N) }))
+    .filter(d => d.benches.length);
+  const cards = allModels().map(m => {
+    const cells = {};
+    for (const d of dims) {
+      for (const b of d.benches) {
+        const r = latest.get(`${m.id}|${b}`);
+        if (r) { cells[d.key] = { bench: b, score: r.score, unit: r.unit, date: r.date, rel: r.score / benchMax.get(b) * 100 }; break; }
+      }
+    }
+    const rels = Object.values(cells).map(c => c.rel);
+    return { m, cells, n: rels.length, total: rels.length ? rels.reduce((a, b) => a + b, 0) / rels.length : null };
+  });
+  const ranked = cards.filter(c => c.n >= 2).sort((a, b) => b.total - a.total || (a.m.date < b.m.date ? 1 : -1));
+  ranked.forEach((c, i) => { c.rank = i + 1; });
+  const single = cards.filter(c => c.n === 1).sort((a, b) => b.total - a.total || (a.m.date < b.m.date ? 1 : -1));
+  const unscored = cards.filter(c => c.n === 0);
+  return { dims, cards, ranked, single, unscored, benchMax, latest };
+}
+
+/* 能力曲线：单基准全部成绩（灰点）+ 刷新纪录（红菱 + 标签）+ 红色前沿阶梯线 + 今日虚线。
+   rows 需按日期升序；点击任一点进入该模型档案；<title> 提供悬停读数 */
+function capabilityChartSVG(rows, unit, todayStr) {
+  if (rows.length < 2) return '<div class="wr-empty">评测记录不足两条 · 曲线待绘</div>';
+  const W = 760, H = 320, L = 46, R = 18, T = 18, B = 34;
+  const iw = W - L - R, ih = H - T - B;
+  const ms = d => new Date(d + 'T00:00:00Z').getTime();
+  const DAY = 864e5;
+  const ts = rows.map(r => ms(r.date));
+  let t0 = Math.min(...ts), t1 = Math.max(Math.max(...ts), ms(todayStr));
+  const minSpan = 240 * DAY;
+  if (t1 - t0 < minSpan) { const mid = (t0 + t1) / 2; t0 = mid - minSpan / 2; t1 = mid + minSpan / 2; }
+  const pad = (t1 - t0) * 0.05; t0 -= pad; t1 += pad;
+  const x = t => L + (t - t0) / (t1 - t0) * iw;
+
+  const vals = rows.map(r => r.score);
+  let lo0 = Math.min(...vals), hi0 = Math.max(...vals);
+  if (hi0 - lo0 < 1e-9) { lo0 -= 5; hi0 += 5; }
+  const range = hi0 - lo0, step = niceStep(range * 1.25, 5);
+  let lo = Math.floor((lo0 - range * 0.1) / step) * step, hi = Math.ceil((hi0 + range * 0.18) / step) * step;
+  if (unit === '%') { lo = Math.max(0, lo); hi = Math.min(100, hi); if (hi <= lo) hi = lo + step; }
+  const y = v => T + ih - (v - lo) / (hi - lo) * ih;
+
+  let g = '';
+  for (let v = lo; v <= hi + 1e-9; v += step) {
+    const py = r1(y(v));
+    g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${py}" y2="${py}"/><text class="tick" x="${L - 6}" y="${py + 3}" text-anchor="end">${String(r1(v))}</text>`;
+  }
+  const d0 = new Date(t0), d1 = new Date(t1);
+  const spanMonths = (d1.getUTCFullYear() - d0.getUTCFullYear()) * 12 + d1.getUTCMonth() - d0.getUTCMonth();
+  const mstep = spanMonths <= 8 ? 1 : spanMonths <= 16 ? 2 : spanMonths <= 26 ? 3 : spanMonths <= 52 ? 6 : 12;
+  let ty = d0.getUTCFullYear(), tm = Math.ceil(d0.getUTCMonth() / mstep) * mstep;
+  if (tm >= 12) { ty++; tm -= 12; }
+  for (;;) {
+    const t = Date.UTC(ty, tm, 1);
+    if (t > t1) break;
+    if (t >= t0) {
+      const px = r1(x(t));
+      g += `<line class="grid" x1="${px}" x2="${px}" y1="${T}" y2="${T + ih}"/><text class="tick" x="${px}" y="${H - 12}" text-anchor="middle">${mstep >= 12 ? ty : `${ty}.${String(tm + 1).padStart(2, '0')}`}</text>`;
+    }
+    tm += mstep; if (tm >= 12) { ty += Math.floor(tm / 12); tm %= 12; }
+  }
+  const tx = ms(todayStr);
+  if (tx >= t0 && tx <= t1) {
+    g += `<line class="today" x1="${r1(x(tx))}" x2="${r1(x(tx))}" y1="${T}" y2="${T + ih}"/><text class="todaylbl" x="${r1(x(tx) - 4)}" y="${T + 9}" text-anchor="end">今日</text>`;
+  }
+  g += `<line class="axis" x1="${L}" x2="${W - R}" y1="${T + ih}" y2="${T + ih}"/><line class="axis" x1="${L}" x2="${L}" y1="${T}" y2="${T + ih}"/>`;
+  g += `<text class="tick" x="${L - 6}" y="${T - 6}" text-anchor="end">${escHtml(unit || '')}</text>`;
+
+  const front = frontierOf(rows);
+  const frontIds = new Set(front.map(s => s.id));
+  if (front.length) {
+    let d = `M${r1(x(ms(front[0].date)))} ${r1(y(front[0].score))}`;
+    for (let i = 1; i < front.length; i++) d += ` H${r1(x(ms(front[i].date)))} V${r1(y(front[i].score))}`;
+    d += ` H${r1(x(Math.max(t1 - pad, tx)))}`;
+    g += `<path class="frontier" d="${d}"/>`;
+  }
+  let pts = '';
+  for (const s of rows) {
+    const px = x(ms(s.date)), py = y(s.score);
+    const tip = `<title>${escHtml(`${s.model_name} · ${fmtScore(s.score, unit)} · ${s.date}${s.note ? ' · ' + s.note : ''}`)}</title>`;
+    const shape = frontIds.has(s.id)
+      ? `<path class="rec" d="M${r1(px)} ${r1(py - 5.6)} L${r1(px + 5.6)} ${r1(py)} L${r1(px)} ${r1(py + 5.6)} L${r1(px - 5.6)} ${r1(py)} Z"/>`
+      : `<circle class="pt" cx="${r1(px)}" cy="${r1(py)}" r="3.4"/>`;
+    pts += `<a href="/m/${escHtml(s.model_slug)}">${tip}${shape}</a>`;
+  }
+  /* 前沿点标签：横向挤在一起（<56px）的一簇只标最后一个——簇里最终站住的那个纪录 */
+  const picked = [];
+  for (const s of front) {
+    const px = x(ms(s.date));
+    if (picked.length && px - picked[picked.length - 1].px < 56) picked.pop();
+    picked.push({ s, px });
+  }
+  const labels = picked.map(({ s, px }) => {
+    const py = y(s.score);
+    const above = py > T + 16;
+    const anchor = px > L + iw * 0.72 ? 'end' : 'start';
+    const dx = anchor === 'end' ? -8 : 8;
+    return `<text class="flabel" x="${r1(px + dx)}" y="${r1(above ? py - 8 : py + 15)}" text-anchor="${anchor}">${escHtml(clip(s.model_name, 22))} ${fmtScore(s.score, unit)}</text>`;
+  }).join('');
+
+  return `<svg class="curve" viewBox="0 0 ${W} ${H}" role="img" aria-label="能力曲线：${escHtml(rows[0].bench)} 各模型成绩随时间的分布与前沿线">
+  <defs><filter id="stglow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  ${g}${pts}${labels}</svg>
+  <div class="lgd"><span class="pt">● 公开成绩（悬停看读数，点击进档案）</span><span class="rec">◆ 刷新纪录的成绩</span><span class="fr">— 前沿线（历史最高分的阶梯）</span></div>`;
+}
+
+/* 专栏首页曲线优先展示的基准：名册顺序里第一个有 ≥3 条记录的；都不够时取记录最多的 */
+function primaryBench(rows) {
+  const counts = new Map(rows.map(r => [r.bench, r.n]));
+  for (const name of Object.keys(BENCHES)) if ((counts.get(name) || 0) >= 3) return name;
+  return rows.length ? rows[0].bench : '';
+}
+const strainCrumb = (name, url) => ({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'UMBRELLA 4365 · 时间树', item: `${SITE_URL}/` },
+    { '@type': 'ListItem', position: 2, name: '毒株谱系', item: `${SITE_URL}/m` },
+    { '@type': 'ListItem', position: 3, name, item: url },
+  ],
+});
+const strainFootNav = `
+    <nav class="othernav" aria-label="更多情报页">
+      <div class="oh">◈ 更多情报页与速查表</div>
+      <div class="links"><a href="/m">毒株谱系总榜</a><span class="sep">·</span><a href="/s/model-arms">模型军备线索</a><span class="sep">·</span><a href="/s/supply">供给线线索</a><span class="sep">·</span><a href="/warroom">红后作战室</a><span class="sep">·</span><a href="/d/versions">版本史全表</a><span class="sep">·</span><a href="/d/funding">融资估值全史</a><span class="sep">·</span><a href="/w">战报周刊</a></div>
+    </nav>`;
+const STRAIN_DISCLAIMER = '数字全部取自官方发布材料、第三方评测机构与站内已查证档案，评测口径（版本 / 算力档 / 脚手架）标在备注里；因训练数据污染撤榜的成绩不收录。仅作记录，不构成选型建议。';
+const METHOD_NOTE = '综合分 = 各已测维度「相对前沿分」的平均：每个维度取该模型最近一次公开成绩，除以该维度当前最高分（最高 = 100）。至少两个维度有成绩才入总榜，覆盖维度数标在分数旁；未测不等于不行，只是没人公开考过。';
+
+const modelCellHTML = m => `<td class="mdl"><a href="/m/${escHtml(m.slug)}">${escHtml(m.name)}</a>${m.status === 'preview' ? '<span class="tierchip">受限</span>' : ''}<div class="sub">${escHtml(labName(m.lab))} · ${dotDate(m.date)}</div></td>`;
+const dimCellHTML = (c, multi) => c
+  ? `<td class="num" title="${escHtml(`${c.bench} ${fmtScore(c.score, c.unit)} · ${c.date} · 相对前沿 ${r1(c.rel)}`)}"><b>${fmtScore(c.score, c.unit)}</b>${multi ? `<span class="u">${escHtml(benchShort(c.bench))}</span>` : ''}</td>`
+  : '<td class="none">—</td>';
+
+/* ---- /m 专栏首页 ---- */
+function strainIndexHTML() {
+  const models = allModels();
+  const benches = benchRows();
+  const todayStr = localNow().slice(0, 10);
+  const scoresN = benches.reduce((a, r) => a + r.n, 0);
+  const labsUsed = new Set(models.map(m => m.lab));
+  const sc = buildScorecard();
+  const url = `${SITE_URL}/m`;
+  const pageTitle = 'AI 大模型排行榜与发展史：综合评分、各维度成绩与全球发布时间线';
+  const desc = `毒株谱系：${models.length} 个模型、${labsUsed.size} 家实验室、${scoresN} 条公开评测成绩折成一张总榜——综合分与编码 / 终端 Agent / 综合智能 / 前沿推理等维度分，附全球发布时间线与前沿刷新曲线。`;
+  const lead = '大模型纪元里，每一株新毒株的问世都改写一次前线的战况。本专栏把全球主要实验室的模型与它们的公开评测成绩收在一处：先看总排名与各维度得分，再看谁在何时把纪录抬到多少，最后是逐年的发布时间线。' + STRAIN_DISCLAIMER;
+  const latest = models[0];
+  const statHtml = `<div class="st-stat"><span>模型 ${models.length} 株</span><span>实验室 ${labsUsed.size} 家</span><span>评测成绩 ${scoresN} 条</span><span>入榜 ${sc.ranked.length} 株</span>${latest ? `<span>最新登记 ${dotDate(latest.date)} · ${escHtml(latest.name)}</span>` : ''}</div>`;
+
+  /* 1. 总排名 */
+  const dimHead = sc.dims.map(d => `<th class="dim">${escHtml(d.name)}<small>${escHtml(d.benches.map(benchShort).join(' / '))}</small></th>`).join('');
+  const rowHTML = (c, rank) => `
+        <tr>
+          <td class="rk">${rank}</td>
+          ${modelCellHTML(c.m)}
+          <td class="tot">${c.rank ? `<b>${c.total.toFixed(1)}</b>` : `<b style="color:#7a7c84">${c.total.toFixed(1)}</b><span class="cov">单维</span>`}<span class="cov">${c.n}/${sc.dims.length} 维</span><span class="bar"><i style="width:${r1(c.total)}%"></i></span></td>
+          ${sc.dims.map(d => dimCellHTML(c.cells[d.key], d.benches.length > 1)).join('')}
+        </tr>`;
+  const rankHtml = sc.dims.length ? `<div class="dtable-wrap"><table class="dtable">
+      <thead><tr><th>#</th><th>模型</th><th>综合分 <small style="color:#7a7c84;letter-spacing:.04em">相对前沿 · 100 = 各维度最高</small></th>${dimHead}</tr></thead>
+      <tbody>
+        ${sc.ranked.map(c => rowHTML(c, c.rank)).join('')}
+        ${sc.single.length ? `<tr class="sep"><td colspan="${3 + sc.dims.length}">以下仅一个维度有公开成绩 · 不计综合分 · 按该维度相对前沿分排列</td></tr>${sc.single.map(c => rowHTML(c, '—')).join('')}` : ''}
+      </tbody>
+    </table></div>
+    <div class="note">${escHtml(METHOD_NOTE)}${sc.unscored.length ? ` 另有 ${sc.unscored.length} 株登记在册但尚无可比成绩，见下方发布时间线。` : ''}</div>`
+    : '<div class="wr-box"><div class="wr-empty">评测成绩不足 · 同一基准登记三条以上成绩后自动成榜</div></div>';
+
+  /* 2. 维度榜 */
+  const dimBoards = sc.dims.map(d => {
+    const top = sc.cards.filter(c => c.cells[d.key]).sort((a, b) => b.cells[d.key].rel - a.cells[d.key].rel).slice(0, 5);
+    const multi = d.benches.length > 1;
+    return `
+      <div class="wr-box">
+        <h2>◈ ${escHtml(d.name)}<span class="bn">${escHtml(d.benches.join(' / '))}</span></h2>
+        ${top.map((c, i) => { const cell = c.cells[d.key]; return `
+        <div class="wr-row">
+          <span class="t"><span class="rk">${String(i + 1).padStart(2, '0')}</span><a href="/m/${escHtml(c.m.slug)}">${escHtml(c.m.name)}</a></span>
+          <span class="m"><b>${fmtScore(cell.score, cell.unit)}</b>${multi ? `<span class="bn">${escHtml(benchShort(cell.bench))}</span>` : ''} · ${dotDate(cell.date)}</span>
+        </div>`; }).join('')}
+        <div class="wr-note">${d.benches.map(b => `<a href="${benchPath(b)}">${escHtml(b)} 全表与刷新记录 »</a>`).join('<br>')}</div>
+      </div>`;
+  }).join('');
+
+  /* 3. 能力曲线（主基准） */
+  const prime = primaryBench(benches);
+  let curveHtml = '';
+  if (prime) {
+    const rows = scoresOfBench(prime);
+    const front = frontierOf(rows);
+    const reigns = front.slice(0, -1).map((s, i) => Math.round((new Date(front[i + 1].date) - new Date(s.date)) / 864e5));
+    const avgReign = reigns.length ? Math.round(reigns.reduce((a, b) => a + b, 0) / reigns.length) : 0;
+    curveHtml = `
+    <h2 class="sec">◈ 能力曲线 CAPABILITY CURVE<small>${escHtml(prime)} · 前沿共刷新 ${front.length} 次${avgReign ? ` · 纪录平均在位 ${avgReign} 天` : ''}</small></h2>
+    <div class="wr-box">
+      ${capabilityChartSVG(rows, unitOf(prime, rows), todayStr)}
+      <div class="chips">${benches.map(b => `<a href="${benchPath(b.bench)}"${b.bench === prime ? ' class="on"' : ''}>${escHtml(b.bench)} · ${b.n}</a>`).join('')}</div>
+      <div class="wr-note">每个基准一条曲线，点上方标签切换；基准页另有「前沿刷新记录」——谁在哪天把纪录抬到多少、在位了几天。</div>
+    </div>`;
+  }
+
+  /* 4. 发布时间线（紧凑表） */
+  const byYear = new Map();
+  for (const m of models) { const yk = m.date.slice(0, 4); if (!byYear.has(yk)) byYear.set(yk, []); byYear.get(yk).push(m); }
+  const timelineHtml = models.length ? `<div class="dtable-wrap"><table class="dtable">
+      <thead><tr><th>发布日</th><th>模型</th><th>实验室</th><th>定位</th><th>上下文</th><th>价格（每百万 token）</th><th>综合分</th><th>档案</th></tr></thead>
+      <tbody>${[...byYear.entries()].map(([yk, arr]) => `
+        <tr class="yr"><td colspan="8">${yk} · ${arr.length} 株</td></tr>
+        ${arr.map(m => { const c = sc.cards.find(x => x.m.id === m.id); return `
+        <tr>
+          <td class="mono"><time datetime="${escHtml(m.date)}">${dotDate(m.date)}</time></td>
+          <td><a href="/m/${escHtml(m.slug)}"><b>${escHtml(m.name)}</b></a>${m.open_weights ? '<span class="tierchip">开放权重</span>' : ''}${m.status === 'preview' ? '<span class="tierchip">受限 / 预览</span>' : m.status === 'retired' ? '<span class="tierchip">已退役</span>' : ''}</td>
+          <td>${escHtml(labName(m.lab))}</td>
+          <td>${m.tier ? escHtml(m.tier) : '<span class="dim">—</span>'}</td>
+          <td class="mono">${m.context ? escHtml(m.context) : '—'}</td>
+          <td class="mono">${m.price ? escHtml(m.price) : '—'}</td>
+          <td class="mono">${c && c.rank ? `<b>${c.total.toFixed(1)}</b><span class="dim"> · #${c.rank}</span>` : c && c.n ? `<span class="dim">单维 ${r1(c.total)}</span>` : '<span class="dim">—</span>'}</td>
+          <td>${m.ev ? `<a href="/ev/${m.ev}">档案 »</a>` : '<span class="dim">—</span>'}</td>
+        </tr>`; }).join('')}`).join('')}</tbody>
+    </table></div>` : '<div class="wr-box"><div class="wr-empty">登记表为空 · 后台「毒株谱系」维护</div></div>';
+
+  const bodyHtml = `
+    <h2 class="sec">◈ 总排名 OVERALL RANKING<small>综合分 + 各维度最近一次公开成绩</small></h2>
+    ${rankHtml}
+    ${sc.dims.length ? `<h2 class="sec">◈ 维度榜 DIMENSION BOARDS<small>每个维度前五 · 相对前沿排序</small></h2><div class="dimgrid">${dimBoards}</div>` : ''}
+    ${curveHtml}
+    <h2 class="sec">◈ 发布时间线 RELEASE TIMELINE<small>由新到旧 · 发布日取公开可用日或首发日</small></h2>
+    ${timelineHtml}
+    <div class="note">${escHtml(STRAIN_DISCLAIMER)} 模型在 Cursor 前线的进场、登顶、换防以档案为正文，见<a href="/s/model-arms">模型军备线索 »</a>。观测到新模型、新成绩、新口径？<a href="/#tip">向红后投递线报 »</a>。机器可读数据：<a href="/api/models">/api/models</a> · <a href="/api/scores">/api/scores</a>。</div>
+    ${strainFootNav}`;
+
+  const collection = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: pageTitle, description: desc, url, inLanguage: 'zh-CN',
+    isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: `${SITE_URL}/` },
+    mainEntity: {
+      '@type': 'ItemList', numberOfItems: sc.ranked.length,
+      itemListElement: sc.ranked.slice(0, 60).map(c => ({ '@type': 'ListItem', position: c.rank, url: `${SITE_URL}/m/${c.m.slug}`, name: `${c.m.name}（综合分 ${c.total.toFixed(1)}）` })),
+    },
+  };
+  return listPageHTML({
+    url, pageTitle, desc,
+    kicker: 'STRAIN LINEAGE · 毒株谱系',
+    h1: '毒株谱系 · 大模型总榜与发展史',
+    lead,
+    metaHtml: statHtml,
+    bodyHtml,
+    ldBlocks: [breadcrumbLD('毒株谱系', url), collection],
+    extraCss: WARROOM_CSS + DATA_CSS + STRAIN_CSS,
+  });
+}
+
+/* ---- /m/:slug 毒株档案 ---- */
+function strainModelHTML(m) {
+  const url = `${SITE_URL}/m/${m.slug}`;
+  const scores = db.prepare('SELECT * FROM scores WHERE model_id = ? ORDER BY bench ASC, date DESC, id DESC').all(m.id);
+  const sc = buildScorecard();
+  const card = sc.cards.find(c => c.m.id === m.id);
+  const kin = db.prepare(m.family
+    ? 'SELECT id, slug, name, date FROM models WHERE lab = ? AND family = ? ORDER BY date ASC, id ASC'
+    : 'SELECT id, slug, name, date FROM models WHERE lab = ? AND family = \'\' ORDER BY date ASC, id ASC'
+  ).all(...(m.family ? [m.lab, m.family] : [m.lab]));
+  const idx = kin.findIndex(k => k.id === m.id);
+  const prev = idx > 0 ? kin[idx - 1] : null, next = idx >= 0 && idx < kin.length - 1 ? kin[idx + 1] : null;
+  /* 相关档案：按全名检索，另加去掉谱系前缀的短名（档案标题多写「Fable 5」而非「Claude Fable 5」）；
+     两个字符以内的名字（o1 / o3）只认全名，避免子串误中 */
+  const terms = [m.name];
+  if (m.family && m.name.startsWith(m.family + ' ') && m.name.length > m.family.length + 3) terms.push(m.name.slice(m.family.length + 1));
+  const likes = terms.filter(t => t.length >= 3).map(t => `%${t}%`);
+  const cond = likes.map(() => '(title LIKE ? OR summary LIKE ?)').join(' OR ');
+  const related = db.prepare(
+    `SELECT id, side, date, tag, title, summary, front FROM events
+     WHERE id = ?${cond ? ' OR ' + cond : ''} ORDER BY (id = ?) DESC, date DESC LIMIT 6`
+  ).all(m.ev || 0, ...likes.flatMap(l => [l, l]), m.ev || 0);
+  const lab = labName(m.lab);
+  const bestLine = scores.length ? `在 ${new Set(scores.map(s => s.bench)).size} 项基准上留有 ${scores.length} 条公开成绩` : '暂无公开评测记录';
+  const pageTitle = `${m.name} 评分与档案：综合排名、各维度成绩、发布日期与定价`;
+  const desc = clip(`${m.name}（${lab}${m.family ? ` · ${m.family} 谱系` : ''}）${dotDate(m.date)} 发布${m.price ? `，定价 ${m.price}` : ''}${card && card.rank ? `，毒株谱系总榜第 ${card.rank} 位（综合分 ${card.total.toFixed(1)}）` : ''}；${bestLine}。${m.summary}`, 150);
+  const statusName = m.status === 'preview' ? '受限 / 预览 PREVIEW' : m.status === 'retired' ? '已退役 RETIRED' : '在役 ACTIVE';
+
+  /* 评分卡 */
+  let cardHtml = '';
+  if (card && card.n) {
+    const cells = sc.dims.filter(d => card.cells[d.key]);
+    cardHtml = `
+    <div class="card-total">
+      <div><span class="lbl">综合分 · 相对前沿</span><span class="big">${card.rank ? card.total.toFixed(1) : '—'}</span></div>
+      <div><span class="lbl">总排名</span><span class="rk">${card.rank ? `#${card.rank} / ${sc.ranked.length}` : '未入榜'}</span></div>
+      <div><span class="lbl">已测维度</span><span class="rk">${card.n} / ${sc.dims.length}</span></div>
+      <div class="txt">${card.rank ? '' : '仅一个维度有公开成绩，不计综合分。'}${escHtml(METHOD_NOTE)}</div>
+    </div>
+    <div class="dtable-wrap"><table class="dtable">
+      <thead><tr><th>维度</th><th>基准</th><th>成绩</th><th>相对前沿</th><th>该维度当前最高</th><th>日期</th></tr></thead>
+      <tbody>${cells.map(d => { const c = card.cells[d.key]; const top = sc.cards.filter(x => x.cells[d.key]).sort((a, b) => b.cells[d.key].rel - a.cells[d.key].rel)[0]; return `
+        <tr>
+          <td><b>${escHtml(d.name)}</b></td>
+          <td><a href="${benchPath(c.bench)}">${escHtml(c.bench)}</a></td>
+          <td class="mono"><b>${fmtScore(c.score, c.unit)}</b></td>
+          <td class="mono">${r1(c.rel)}<span class="bar" style="width:120px"><i style="width:${r1(c.rel)}%"></i></span></td>
+          <td>${top && top.m.id !== m.id ? `<a href="/m/${escHtml(top.m.slug)}">${escHtml(top.m.name)}</a> <span class="dim">${fmtScore(top.cells[d.key].score, top.cells[d.key].unit)}</span>` : '<span class="chip live">本模型</span>'}</td>
+          <td class="mono">${dotDate(c.date)}</td>
+        </tr>`; }).join('')}</tbody>
+    </table></div>`;
+  }
+
+  const idRows = [
+    ['实验室 LAB', escHtml(lab)],
+    ['谱系 FAMILY', m.family ? escHtml(m.family) : '—'],
+    ['发布日 RELEASE', `<time datetime="${escHtml(m.date)}">${dotDate(m.date)}</time>`],
+    ['定位 TIER', m.tier ? escHtml(m.tier) : '—'],
+    ['上下文 CONTEXT', m.context ? escHtml(m.context) : '—'],
+    ['价格 PRICE', m.price ? `${escHtml(m.price)} <span class="dim">每百万 token 输入 / 输出</span>` : '—'],
+    ['权重 WEIGHTS', m.open_weights ? '开放权重 OPEN' : '闭源 CLOSED'],
+    ['状态 STATUS', statusName],
+    ['信源 SOURCE', m.source ? `<a href="${escHtml(m.source)}" target="_blank" rel="noopener nofollow">${escHtml(clip(m.source.replace(/^https?:\/\//, ''), 60))}</a>` : '—'],
+    ['站内档案 ARCHIVE', m.ev ? `<a href="/ev/${m.ev}">档案 #${m.ev} »</a>` : '—'],
+  ];
+  const idHtml = `<div class="dtable-wrap"><table class="dtable"><tbody>${idRows.map(([k, v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join('')}</tbody></table></div>`;
+
+  const scoresHtml = scores.length ? `<div class="dtable-wrap"><table class="dtable">
+      <thead><tr><th>基准</th><th>分数</th><th>日期</th><th>口径 / 备注</th><th>信源</th></tr></thead>
+      <tbody>${scores.map(s => `
+        <tr>
+          <td><a href="${benchPath(s.bench)}">${escHtml(s.bench)}</a></td>
+          <td class="mono"><b>${fmtScore(s.score, s.unit)}</b></td>
+          <td class="mono"><time datetime="${escHtml(s.date)}">${dotDate(s.date)}</time></td>
+          <td>${s.note ? escHtml(s.note) : '<span class="dim">—</span>'}</td>
+          <td>${s.source ? `<a href="${escHtml(s.source)}" target="_blank" rel="noopener nofollow">原文 ↗</a>` : '<span class="dim">—</span>'}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>` : '<div class="wr-box"><div class="wr-empty">暂无公开评测记录</div></div>';
+
+  const navHtml = `<nav class="stnav" aria-label="谱系翻阅">${prev ? `<a href="/m/${escHtml(prev.slug)}">‹ 上一代 · ${escHtml(prev.name)}</a>` : '<span>‹ 谱系起点</span>'}<a href="/m">⇱ 返回总榜</a>${next ? `<a href="/m/${escHtml(next.slug)}">下一代 · ${escHtml(next.name)} ›</a>` : '<span>谱系最新 ›</span>'}</nav>`;
+  const kinHtml = kin.length > 1 ? `
+    <h2 class="sec">◈ 同谱系 LINEAGE<small>${escHtml(lab)}${m.family ? ` · ${escHtml(m.family)}` : ''} · 由旧到新</small></h2>
+    <div class="wr-box"><div class="lineage">${kin.map(k => `<a href="/m/${escHtml(k.slug)}"${k.id === m.id ? ' class="cur"' : ''}>${escHtml(k.name)}</a>`).join('<span class="arrow">→</span>')}</div></div>` : '';
+  const relatedHtml = related.length ? `
+    <h2 class="sec">◈ 相关档案 RELATED RECORDS<small>按模型名在档案库检索 · 含正史与野史</small></h2>
+    <div class="list" style="margin-top:4px">${related.map(listItemHTML).join('')}</div>` : '';
+
+  const bodyHtml = `${navHtml}
+    ${m.summary ? `<div class="txtcard"><p>${escHtml(m.summary)}</p></div>` : ''}
+    ${cardHtml ? `<h2 class="sec">◈ 评分卡 SCORECARD</h2>${cardHtml}` : ''}
+    <h2 class="sec">◈ 身份卡 IDENTITY</h2>
+    ${idHtml}
+    <h2 class="sec">◈ 全部公开成绩 ALL RESULTS<small>${scores.length} 条</small></h2>
+    ${scoresHtml}${kinHtml}${relatedHtml}${strainFootNav}`;
+
+  const software = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: m.name, url,
+    applicationCategory: 'AI model',
+    datePublished: m.date,
+    description: clip(m.summary || desc, 200),
+    author: { '@type': 'Organization', name: lab },
+    ...(m.source ? { sameAs: m.source } : {}),
+  };
+  return listPageHTML({
+    url, pageTitle, desc,
+    kicker: `STRAIN DOSSIER · 毒株档案 · ${escHtml(lab)}`,
+    h1: m.name,
+    lead: `${lab}${m.family ? ` · ${m.family} 谱系` : ''} · ${dotDate(m.date)} 发布 · ${bestLine}。${STRAIN_DISCLAIMER}`,
+    metaHtml: '',
+    bodyHtml,
+    ldBlocks: [strainCrumb(m.name, url), software],
+    extraCss: WARROOM_CSS + DATA_CSS + STRAIN_CSS,
+  });
+}
+
+/* ---- /b/:slug 基准页 ---- */
+function strainBenchHTML(name) {
+  const cfg = BENCHES[name] || {};
+  const rows = scoresOfBench(name);
+  const unit = unitOf(name, rows);
+  const todayStr = localNow().slice(0, 10);
+  const url = `${SITE_URL}${benchPath(name)}`;
+  const pageTitle = cfg.title || `${name} 分数演进：各模型成绩全表与前沿刷新记录`;
+  const front = frontierOf(rows);
+  const modelsN = new Set(rows.map(r => r.model_id)).size;
+  const desc = clip(cfg.lead || `${name} 基准上 ${modelsN} 个模型的 ${rows.length} 条公开成绩，按时间排列，并标出历史最高分每次被刷新的时刻。`, 150);
+  const lead = (cfg.lead || `${name} 基准上各模型的公开成绩，按时间排列。`) + STRAIN_DISCLAIMER;
+
+  /* 当前榜：每个模型的最近一次成绩 */
+  const latest = new Map();
+  for (const s of rows) latest.set(s.model_id, s);
+  const board = [...latest.values()].sort((a, b) => b.score - a.score || (a.date < b.date ? -1 : 1));
+  const boardHtml = board.length ? `<div class="dtable-wrap"><table class="dtable">
+      <thead><tr><th>#</th><th>模型</th><th>成绩</th><th>相对前沿</th><th>日期</th><th>口径 / 备注</th></tr></thead>
+      <tbody>${board.map((s, i) => `
+        <tr>
+          <td class="rk">${i + 1}</td>
+          <td class="mdl"><a href="/m/${escHtml(s.model_slug)}">${escHtml(s.model_name)}</a><div class="sub">${escHtml(labName(s.model_lab))}</div></td>
+          <td class="mono"><b>${fmtScore(s.score, unit)}</b></td>
+          <td class="mono">${r1(s.score / board[0].score * 100)}<span class="bar" style="width:110px"><i style="width:${r1(s.score / board[0].score * 100)}%"></i></span></td>
+          <td class="mono"><time datetime="${escHtml(s.date)}">${dotDate(s.date)}</time></td>
+          <td>${s.note ? escHtml(s.note) : '<span class="dim">—</span>'}${s.source ? ` <a href="${escHtml(s.source)}" target="_blank" rel="noopener nofollow">原文 ↗</a>` : ''}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>` : '<div class="wr-box"><div class="wr-empty">尚无成绩记录</div></div>';
+
+  const frontHtml = front.length ? `<div class="dtable-wrap"><table class="dtable">
+      <thead><tr><th>日期</th><th>刷新者</th><th>分数</th><th>提升</th><th>在位</th></tr></thead>
+      <tbody>${front.map((s, i) => {
+        const nxt = front[i + 1];
+        const reign = nxt ? Math.round((new Date(nxt.date) - new Date(s.date)) / 864e5) : Math.round((new Date(todayStr) - new Date(s.date)) / 864e5);
+        const delta = i ? s.score - front[i - 1].score : 0;
+        return `
+        <tr>
+          <td class="mono"><time datetime="${escHtml(s.date)}">${dotDate(s.date)}</time></td>
+          <td><a href="/m/${escHtml(s.model_slug)}"><b>${escHtml(s.model_name)}</b></a> <span class="dim">${escHtml(labName(s.model_lab))}</span></td>
+          <td class="mono"><b>${fmtScore(s.score, unit)}</b></td>
+          <td class="delta">${i ? `+${delta.toFixed(1)}` : '首个记录'}</td>
+          <td class="mono">${nxt ? `${reign} 天` : `<span class="chip live">在位中 · ${reign} 天</span>`}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>` : '<div class="wr-empty">尚无成绩记录</div>';
+
+  const others = benchRows().filter(b => b.bench !== name);
+  const bodyHtml = `
+    <h2 class="sec">◈ 当前榜 CURRENT BOARD<small>每个模型取最近一次公开成绩</small></h2>
+    ${boardHtml}
+    <h2 class="sec">◈ 能力曲线 CAPABILITY CURVE</h2>
+    <div class="wr-box">
+      ${capabilityChartSVG(rows, unit, todayStr)}
+      ${others.length ? `<div class="chips">${others.map(b => `<a href="${benchPath(b.bench)}">${escHtml(b.bench)} · ${b.n}</a>`).join('')}</div>` : ''}
+    </div>
+    <h2 class="sec">◈ 前沿刷新记录 FRONTIER BREAKS<small>榜首的保质期</small></h2>
+    ${frontHtml}
+    ${strainFootNav}`;
+
+  return listPageHTML({
+    url, pageTitle, desc,
+    kicker: 'CAPABILITY ASSAY · 能力评测',
+    h1: name,
+    lead,
+    metaHtml: `<div class="st-stat"><span>模型 ${modelsN} 个</span><span>成绩 ${rows.length} 条</span><span>前沿刷新 ${front.length} 次</span>${rows.length ? `<span>${dotDate(rows[0].date)} → ${dotDate(rows[rows.length - 1].date)}</span>` : ''}</div>`,
+    bodyHtml,
+    ldBlocks: [strainCrumb(name, url)],
+    extraCss: WARROOM_CSS + DATA_CSS + STRAIN_CSS,
+  });
+}
+
+function serveStrainIndex(req, res) {
+  const doc = seoDoc(`m:${localNow().slice(0, 10)}`, strainIndexHTML);   // 今日虚线随日历走，缓存键带日期
+  sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
+}
+function serveStrainModel(req, res, slug) {
+  const m = db.prepare('SELECT * FROM models WHERE slug = ?').get(slug);
+  if (!m) return serveNotFound(res, '毒株未登记');
+  const doc = seoDoc(`m:${slug}`, () => strainModelHTML(m));
+  sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
+}
+function serveStrainBench(req, res, rawSlug) {
+  let key;
+  try { key = decodeURIComponent(rawSlug); } catch { return serveNotFound(res, '基准不存在'); }
+  const name = benchBySlug.get(key) || (db.prepare('SELECT 1 FROM scores WHERE bench = ? LIMIT 1').get(key) ? key : '');
+  if (!name) return serveNotFound(res, '基准不存在或尚无成绩');
+  /* 已登记 slug 的基准，中文 / 原名路径 301 到 slug（同线索页逻辑） */
+  if (BENCHES[name] && key !== BENCHES[name].slug) { res.writeHead(301, { Location: benchPath(name) }); return res.end(); }
+  const doc = seoDoc(`b:${name}:${localNow().slice(0, 10)}`, () => strainBenchHTML(name));
+  sendDoc(req, res, doc, 'text/html; charset=utf-8', 'no-cache, must-revalidate');
+}
+
 function serveNotFound(res, msg) {
   /* 404 也是一页档案：红后口吻 + 站内去路（时间树 / 检索 / 作战室），别让迷路的访客直接关标签 */
   sendBody(res, 404, { 'Content-Type': 'text/html; charset=utf-8', 'X-Robots-Tag': 'noindex', 'Cache-Control': 'no-cache' },
@@ -2122,7 +2906,7 @@ ${PAGE_BASE_CSS}
   <h1>${escHtml(msg || '档案不存在或已销毁')}</h1>
   <p>本系统不删除记录——但这个地址上从来没有记录。可能是链接抄错，也可能是该页尚未立档。</p>
   <form action="/" method="get" role="search"><input name="q" placeholder="检索档案：模型 / 融资 / 套利 / 事故…" aria-label="检索档案"><button type="submit">检索</button></form>
-  <nav class="go"><a href="/">⇱ 完整时间树</a><a href="/warroom">◈ 红后作战室</a><a href="/w">战报周刊</a><a href="/about">关于本站</a></nav>
+  <nav class="go"><a href="/">⇱ 完整时间树</a><a href="/warroom">◈ 红后作战室</a><a href="/m">毒株谱系</a><a href="/w">战报周刊</a><a href="/about">关于本站</a></nav>
 </div></body></html>`);
 }
 
@@ -2182,7 +2966,10 @@ function buildSitemap() {
     `  <url><loc>${SITE_URL}/d/windows</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`,
     `  <url><loc>${SITE_URL}/d/versions</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`,
     `  <url><loc>${SITE_URL}/d/funding</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
+    `  <url><loc>${SITE_URL}/m</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`,
     `  <url><loc>${SITE_URL}/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>`,
+    ...benchRows().map(b => `  <url><loc>${escHtml(SITE_URL + benchPath(b.bench))}</loc><lastmod>${b.last}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>`),
+    ...allModels().map(m => `  <url><loc>${SITE_URL}/m/${escHtml(m.slug)}</loc><lastmod>${String(m.updated_at).slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>`),
     ...posts.map(p => `  <url><loc>${escHtml(SITE_URL + postPath(p))}</loc><lastmod>${String(p.updated_at).slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`),
     ...allSeriesRows().map(r => `  <url><loc>${escHtml(SITE_URL + seriesPath(r.series))}</loc><lastmod>${r.last}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`),
     ...allYearRows().map(r => `  <url><loc>${SITE_URL}/y/${r.y}</loc>${r.last ? `<lastmod>${r.last}</lastmod>` : ''}<changefreq>weekly</changefreq><priority>0.6</priority></url>`),
@@ -2257,6 +3044,12 @@ function buildLlms() {
 - [套利窗口全史](${SITE_URL}/d/windows)：每个套利/漏洞窗口的检出日、灭活日与存活天数
 - [Cursor 版本史全表](${SITE_URL}/d/versions)：各版本发布日期与关键功能
 - [Cursor 融资估值全史](${SITE_URL}/d/funding)：历轮融资金额、估值、投资方与 ARR 里程碑
+
+## 毒株谱系（AI 大模型发展史专栏）
+
+- [毒株谱系首页](${SITE_URL}/m)：全球大模型发布时间线、能力曲线、排行榜快照与各家谱系链（JSON：${SITE_URL}/api/models · ${SITE_URL}/api/scores）
+${benchRows().map(b => `- [${(BENCHES[b.bench] || {}).title || `${b.bench} 分数演进`}](${SITE_URL}${benchPath(b.bench)})：${b.n} 条成绩（${b.first} → ${b.last}），含前沿刷新记录`).join('\n') || '-（评测记录整理中）'}
+${allModels().map(m => `- [${m.name}](${SITE_URL}/m/${m.slug})：${labName(m.lab)} · ${m.date} 发布${m.price ? ` · ${m.price}` : ''}${m.summary ? ` · ${clip(m.summary, 80)}` : ''}`).join('\n') || '-（模型登记中）'}
 
 ## 刊物（每周战报与专题特稿）
 
@@ -2375,6 +3168,23 @@ function handleSEO(req, res, url) {
   if (md) {
     if (p.endsWith('/')) { res.writeHead(301, { Location: `/d/${md[1]}` }); res.end(); return true; }
     serveDataPage(req, res, md[1]);
+    return true;
+  }
+  if (p === '/m' || p === '/m/') {
+    if (p.endsWith('/')) { res.writeHead(301, { Location: '/m' }); res.end(); return true; }
+    serveStrainIndex(req, res);
+    return true;
+  }
+  const mm = p.match(/^\/m\/([a-z0-9-]+)\/?$/);
+  if (mm) {
+    if (p.endsWith('/')) { res.writeHead(301, { Location: `/m/${mm[1]}` }); res.end(); return true; }
+    serveStrainModel(req, res, mm[1]);
+    return true;
+  }
+  const mb = p.match(/^\/b\/([^/]+?)\/?$/);
+  if (mb) {
+    if (p.endsWith('/')) { res.writeHead(301, { Location: `/b/${mb[1]}` }); res.end(); return true; }
+    serveStrainBench(req, res, mb[1]);
     return true;
   }
   if (p === '/robots.txt') { sendDoc(req, res, seoDoc('robots', buildRobots), 'text/plain; charset=utf-8', 'public, max-age=600'); return true; }
@@ -2599,6 +3409,8 @@ async function handleAPI(req, res, url) {
         draftsPending: c(`SELECT COUNT(*) AS c FROM drafts WHERE state='pending'`),
         tipsUnread: c(`SELECT COUNT(*) AS c FROM tips WHERE state='new'`),
         supply: c('SELECT COUNT(*) AS c FROM supply'),
+        models: c('SELECT COUNT(*) AS c FROM models'),
+        scores: c('SELECT COUNT(*) AS c FROM scores'),
         visits: c('SELECT COUNT(*) AS c FROM visits'),
       },
     });
@@ -2669,8 +3481,14 @@ async function handleAPI(req, res, url) {
       `SELECT series, COUNT(*) AS n, MIN(date) AS first, MAX(date) AS last
        FROM events WHERE series <> '' GROUP BY series ORDER BY last DESC`
     ).all();
-    /* fronts 下发给后台（admin.html 不走 SSR 注入），与 server.js 的 FRONTS 保持单一来源 */
-    return sendJSON(res, 200, { ok: true, tags, series, fronts: FRONTS });
+    /* fronts / labs / benches 下发给后台（admin.html 不走 SSR 注入），与 server.js 的名册保持单一来源；
+       benches 与 families 合并「名册登记 + 库内已用」两路取值供下拉 */
+    const labs = Object.fromEntries(Object.entries(LABS).map(([k, v]) => [k, v.name]));
+    const usedBench = db.prepare(`SELECT DISTINCT bench FROM scores ORDER BY bench`).all().map(r => r.bench);
+    const benches = [...new Set([...Object.keys(BENCHES), ...usedBench])];
+    const families = db.prepare(`SELECT DISTINCT family FROM models WHERE family <> '' ORDER BY family`).all().map(r => r.family);
+    const tiers = db.prepare(`SELECT DISTINCT tier FROM models WHERE tier <> '' ORDER BY tier`).all().map(r => r.tier);
+    return sendJSON(res, 200, { ok: true, tags, series, fronts: FRONTS, labs, benches, families, tiers });
   }
 
   /* 事件集合 */
@@ -2978,6 +3796,117 @@ async function handleAPI(req, res, url) {
     }
   }
 
+  /* ============ 毒株谱系 models / scores：读公开（/m 数据源、sync.js 镜像），写需鉴权 ============ */
+  if (url.pathname === '/api/models' && req.method === 'GET') {
+    const rows = db.prepare(
+      `SELECT m.*, (SELECT COUNT(*) FROM scores s WHERE s.model_id = m.id) AS scores_n
+       FROM models m ORDER BY m.date DESC, m.id DESC`
+    ).all();
+    return sendJSON(res, 200, { ok: true, models: rows });
+  }
+  if (url.pathname === '/api/models' && req.method === 'POST') {
+    if (!requireAuth(req, res)) return;
+    const b = await readJSON(req);
+    const errors = validateModel(b);
+    if (errors.length) return sendJSON(res, 400, { ok: false, error: errors.join('；') });
+    const m = modelFields(b);
+    const slug = uniqueModelSlug(b.slug || m.name, null);
+    const info = db.prepare(
+      `INSERT INTO models (slug, name, lab, family, date, tier, open_weights, context, price, status, summary, source, ev)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(slug, m.name, m.lab, m.family, m.date, m.tier, m.open_weights, m.context, m.price, m.status, m.summary, m.source, m.ev);
+    invalidateDynamic();
+    const saved = db.prepare('SELECT * FROM models WHERE id = ?').get(info.lastInsertRowid);
+    baiduPush([`${SITE_URL}/m`, `${SITE_URL}/m/${saved.slug}`]);
+    return sendJSON(res, 201, { ok: true, row: saved });
+  }
+  if (parts[1] === 'models' && parts.length === 3) {
+    const id = Number(parts[2]);
+    if (!Number.isInteger(id)) return sendJSON(res, 400, { ok: false, error: 'bad id' });
+    const row = db.prepare('SELECT * FROM models WHERE id = ?').get(id);
+    if (req.method === 'GET') {
+      if (!row) return sendJSON(res, 404, { ok: false, error: 'not found' });
+      const scores = db.prepare('SELECT * FROM scores WHERE model_id = ? ORDER BY date DESC, id DESC').all(id);
+      return sendJSON(res, 200, { ok: true, model: row, scores });
+    }
+    if (!requireAuth(req, res)) return;
+    if (!row) return sendJSON(res, 404, { ok: false, error: 'not found' });
+    if (req.method === 'PUT') {
+      const b = await readJSON(req);
+      const errors = validateModel(b, { partial: true });
+      if (errors.length) return sendJSON(res, 400, { ok: false, error: errors.join('；') });
+      const m = modelFields({ ...row, ...b });
+      const slug = b.slug !== undefined && String(b.slug).trim() !== '' ? uniqueModelSlug(b.slug, id) : row.slug;
+      db.prepare(
+        `UPDATE models SET slug=?, name=?, lab=?, family=?, date=?, tier=?, open_weights=?, context=?, price=?, status=?, summary=?, source=?, ev=?,
+         updated_at=datetime('now','localtime') WHERE id=?`
+      ).run(slug, m.name, m.lab, m.family, m.date, m.tier, m.open_weights, m.context, m.price, m.status, m.summary, m.source, m.ev, id);
+      invalidateDynamic();
+      const saved = db.prepare('SELECT * FROM models WHERE id = ?').get(id);
+      baiduPush([`${SITE_URL}/m`, `${SITE_URL}/m/${saved.slug}`]);
+      return sendJSON(res, 200, { ok: true, row: saved });
+    }
+    if (req.method === 'DELETE') {
+      db.prepare('DELETE FROM scores WHERE model_id = ?').run(id);
+      db.prepare('DELETE FROM models WHERE id = ?').run(id);
+      invalidateDynamic();
+      return sendJSON(res, 200, { ok: true });
+    }
+  }
+  if (url.pathname === '/api/scores' && req.method === 'GET') {
+    const modelId = Number(url.searchParams.get('model_id'));
+    const bench = (url.searchParams.get('bench') || '').trim();
+    const cond = [], args = [];
+    if (Number.isInteger(modelId) && modelId > 0) { cond.push('s.model_id = ?'); args.push(modelId); }
+    if (bench) { cond.push('s.bench = ?'); args.push(bench); }
+    const where = cond.length ? ' WHERE ' + cond.join(' AND ') : '';
+    const rows = db.prepare(
+      `SELECT s.*, m.name AS model_name, m.slug AS model_slug, m.lab AS model_lab
+       FROM scores s JOIN models m ON m.id = s.model_id${where} ORDER BY s.date DESC, s.id DESC`
+    ).all(...args);
+    return sendJSON(res, 200, { ok: true, scores: rows });
+  }
+  if (url.pathname === '/api/scores' && req.method === 'POST') {
+    if (!requireAuth(req, res)) return;
+    const b = await readJSON(req);
+    const errors = validateScore(b);
+    if (errors.length) return sendJSON(res, 400, { ok: false, error: errors.join('；') });
+    const model = db.prepare('SELECT id, date, slug FROM models WHERE id = ?').get(Number(b.model_id));
+    if (!model) return sendJSON(res, 400, { ok: false, error: '模型不存在' });
+    const s = scoreFields(b, model);
+    const info = db.prepare(
+      'INSERT INTO scores (model_id, bench, score, unit, date, note, source) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(s.model_id, s.bench, s.score, s.unit, s.date, s.note, s.source);
+    invalidateDynamic();
+    baiduPush([`${SITE_URL}/m/${model.slug}`, `${SITE_URL}${benchPath(s.bench)}`]);
+    return sendJSON(res, 201, { ok: true, row: db.prepare('SELECT * FROM scores WHERE id = ?').get(info.lastInsertRowid) });
+  }
+  if (parts[1] === 'scores' && parts.length === 3) {
+    const id = Number(parts[2]);
+    if (!Number.isInteger(id)) return sendJSON(res, 400, { ok: false, error: 'bad id' });
+    if (!requireAuth(req, res)) return;
+    const row = db.prepare('SELECT * FROM scores WHERE id = ?').get(id);
+    if (!row) return sendJSON(res, 404, { ok: false, error: 'not found' });
+    if (req.method === 'PUT') {
+      const b = await readJSON(req);
+      const errors = validateScore(b, { partial: true });
+      if (errors.length) return sendJSON(res, 400, { ok: false, error: errors.join('；') });
+      const merged = { ...row, ...b };
+      const model = db.prepare('SELECT id, date, slug FROM models WHERE id = ?').get(Number(merged.model_id));
+      if (!model) return sendJSON(res, 400, { ok: false, error: '模型不存在' });
+      const s = scoreFields(merged, model);
+      db.prepare('UPDATE scores SET model_id=?, bench=?, score=?, unit=?, date=?, note=?, source=? WHERE id=?')
+        .run(s.model_id, s.bench, s.score, s.unit, s.date, s.note, s.source, id);
+      invalidateDynamic();
+      return sendJSON(res, 200, { ok: true, row: db.prepare('SELECT * FROM scores WHERE id = ?').get(id) });
+    }
+    if (req.method === 'DELETE') {
+      db.prepare('DELETE FROM scores WHERE id = ?').run(id);
+      invalidateDynamic();
+      return sendJSON(res, 200, { ok: true });
+    }
+  }
+
   /* 图片上传：{ name, data }，data 为 dataURL 或 base64 */
   if (url.pathname === '/api/upload' && req.method === 'POST') {
     if (!requireAuth(req, res)) return;
@@ -3092,5 +4021,6 @@ server.listen(PORT, () => {
   console.log(`  防爆破   同 IP 密钥错 ${FAIL_MAX} 次封禁 ${BLOCK_MS / 60000} 分钟${TRUST_PROXY ? ' · 反代模式(X-Forwarded-For)' : ''}`);
   console.log(`  访问记录 IP 仅存哈希 · 保留 ${LOG_KEEP_DAYS} 天 · 上限 ${LOG_MAX_ROWS} 行 · 后台「访客监控」查看`);
   console.log(`  SEO/GEO  首页 SSR + /ev/:id + /s/:slug 线索页 + /y/:year 年份页 + /about · robots/sitemap/RSS/llms.txt · 站点地址 ${SITE_URL}`);
+  console.log(`  毒株谱系 /m 模型发展史专栏 · /m/:slug 毒株档案 · /b/:slug 基准页 · 后台「毒株谱系」维护`);
   console.log(`  百度推送 ${getSettings().baiduPushToken ? '已启用（档案增删改实时推送）' : '未启用（后台「系统」页或环境变量 BAIDU_PUSH_TOKEN 配置后开启）'}`);
 });

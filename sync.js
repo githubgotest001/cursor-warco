@@ -5,10 +5,11 @@
  * 档案的增删改永远走线上（后台或 REST API 逐条），保证 /ev/:id 永久 URL 不变，
  * 并自动触发 SEO 缓存重建与百度推送。因此同步只有两个方向明确的动作：
  *
- *   node sync.js pull                    线上 → 本地：档案 + 刊物 + 补给表全量镜像，引用图片增量下载
+ *   node sync.js pull                    线上 → 本地：档案 + 刊物 + 补给表 + 毒株谱系全量镜像，引用图片增量下载
  *   node sync.js push-image <图片路径>    本地 → 线上：上传图片到 /uploads/（需管理密钥）
  *
- * pull 镜像三张内容表：events（档案，公开接口）、supply（模型补给表，公开接口）、
+ * pull 镜像五张内容表：events（档案，公开接口）、supply（模型补给表，公开接口）、
+ * models / scores（毒株谱系：模型登记表与评测记录，公开接口）、
  * posts（编辑部的战报 / 特稿，含 draft 态——/api/posts 需要管理密钥，没有密钥时跳过并提示）。
  * 不同步访问日志 / 收件箱 / 线报等运营数据：访客日志含加盐 IP 哈希（本地与线上盐不同）且体量大，
  * 设计上不出服务器，本地后台「访客监控」显示的因此是本机流量；收件箱与线报是待处置队列，只在线上后台操作。
@@ -98,6 +99,7 @@ async function pull() {
   console.log(`本地镜像已重建：${events.length} 条（正史 ${main} / 野史 ${events.length - main}）→ ${DB_PATH}`);
 
   await pullSupply(db);
+  await pullStrains(db);
   await pullPosts(db);
 
   /* 引用图片增量下载（只拉档案实际引用的 /uploads/*，已存在的跳过） */
@@ -157,6 +159,77 @@ async function pullSupply(db) {
   }
   const active = supply.filter(s => s.status === 'active').length;
   console.log(`补给表已镜像：${supply.length} 行（在役 ${active} / 观察 ${supply.filter(s => s.status === 'watch').length} / 撤出 ${supply.length - active - supply.filter(s => s.status === 'watch').length}）`);
+}
+
+/* ---- 毒株谱系 models / scores：公开接口，/m 专栏数据源 ---- */
+async function pullStrains(db) {
+  const rm = await fetch(`${SITE}/api/models`);
+  if (rm.status === 404) { console.warn('  ○ 毒株谱系未镜像：线上尚未部署 /api/models'); return; }
+  if (!rm.ok) { console.warn(`  ⚠ 模型表拉取失败（HTTP ${rm.status}），本地 models / scores 保持原样`); return; }
+  const { models } = await rm.json();
+  const rs = await fetch(`${SITE}/api/scores`);
+  if (!rs.ok) { console.warn(`  ⚠ 评测记录拉取失败（HTTP ${rs.status}），本地 models / scores 保持原样`); return; }
+  const { scores } = await rs.json();
+  if (!Array.isArray(models) || !Array.isArray(scores)) { console.warn('  ⚠ 毒株谱系返回格式异常，跳过'); return; }
+  /* schema 与 server.js 一致 */
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS models (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug         TEXT NOT NULL UNIQUE,
+      name         TEXT NOT NULL,
+      lab          TEXT NOT NULL DEFAULT 'other',
+      family       TEXT NOT NULL DEFAULT '',
+      date         TEXT NOT NULL,
+      tier         TEXT NOT NULL DEFAULT '',
+      open_weights INTEGER NOT NULL DEFAULT 0,
+      context      TEXT NOT NULL DEFAULT '',
+      price        TEXT NOT NULL DEFAULT '',
+      status       TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','preview','retired')),
+      summary      TEXT NOT NULL DEFAULT '',
+      source       TEXT NOT NULL DEFAULT '',
+      ev           INTEGER,
+      created_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      updated_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_models_date ON models(date DESC);
+    CREATE TABLE IF NOT EXISTS scores (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      model_id   INTEGER NOT NULL,
+      bench      TEXT NOT NULL,
+      score      REAL NOT NULL,
+      unit       TEXT NOT NULL DEFAULT '%',
+      date       TEXT NOT NULL,
+      note       TEXT NOT NULL DEFAULT '',
+      source     TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_scores_model ON scores(model_id);
+    CREATE INDEX IF NOT EXISTS idx_scores_bench ON scores(bench, date);
+  `);
+  const insM = db.prepare(
+    `INSERT INTO models (id, slug, name, lab, family, date, tier, open_weights, context, price, status, summary, source, ev, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const insS = db.prepare(
+    `INSERT INTO scores (id, model_id, bench, score, unit, date, note, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM scores; DELETE FROM models');
+    for (const m of models) {
+      insM.run(m.id, m.slug, m.name, m.lab || 'other', m.family || '', m.date, m.tier || '', m.open_weights ? 1 : 0,
+               m.context || '', m.price || '', m.status || 'active', m.summary || '', m.source || '', m.ev ?? null,
+               m.created_at || m.date, m.updated_at || m.date);
+    }
+    for (const s of scores) {
+      insS.run(s.id, s.model_id, s.bench, s.score, s.unit || '%', s.date, s.note || '', s.source || '', s.created_at || s.date);
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw err;
+  }
+  console.log(`毒株谱系已镜像：模型 ${models.length} 株 · 评测记录 ${scores.length} 条`);
 }
 
 /* ---- 刊物 posts：战报 / 特稿（含 draft 态），/api/posts 需管理密钥 ---- */
@@ -233,7 +306,7 @@ async function pushImage(file) {
     else if (cmd === 'push-image') await pushImage(argv[1] && !argv[1].startsWith('--') ? argv[1] : '');
     else {
       console.log('UMBRELLA 4365 · 同步工具（线上库为唯一真源）');
-      console.log('  node sync.js pull                    线上 → 本地：档案 + 刊物 + 补给表镜像，引用图片');
+      console.log('  node sync.js pull                    线上 → 本地：档案 + 刊物 + 补给表 + 毒株谱系镜像，引用图片');
       console.log('  node sync.js push-image <图片路径>    本地图片 → 线上 /uploads/（需密钥）');
       console.log('  可选参数：--site <url>  --key <adminKey>');
       process.exitCode = cmd ? 1 : 0;

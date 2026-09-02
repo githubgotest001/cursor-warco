@@ -17,6 +17,7 @@
 | 做站长平台接入、社区分发、外链、复盘 | [GROWTH.md](GROWTH.md) |
 | 跑哨兵 / 侦察 / 战报 / 扇出的 agent 编辑部 | [AUTOMATION.md](AUTOMATION.md) |
 | 写一条档案 / 批量搜集 / 汇编战报 / 生成分发文案 | `.cursor/skills/` 下的 warco-chronicler / scout / dispatch / herald |
+| 给毒株谱系登记模型、补评测分数、按实验室查缺 | `.cursor/skills/warco-strain/`（数据口径与各家信源见其 `references/registry-and-sources.md`） |
 | 弄清 drafts/ 里每个文件是干嘛的、能不能删 | [drafts/README.md](drafts/README.md) |
 
 ## 技术栈
@@ -64,13 +65,13 @@ node server.js      # 启动服务，默认端口 4365；Ctrl+C 停止
 的 id 稳定不变（已被搜索引擎收录），且自动触发 SEO 缓存重建与百度推送：
 
 ```bash
-node sync.js pull                 # 线上 → 本地：档案 + 刊物 + 补给表全量镜像，引用图片增量下载
+node sync.js pull                 # 线上 → 本地：档案 + 刊物 + 补给表 + 毒株谱系全量镜像，引用图片增量下载
 node sync.js push-image 图片路径   # 本地图片 → 线上 /uploads/（需管理密钥），返回可填入 image 字段的路径
 ```
 
-> **pull 镜像三张内容表**：`events`（档案）、`supply`（作战室补给表）走公开接口；`posts`（编辑部的战报 /
-> 特稿，含 draft 态）走 `/api/posts` 需要管理密钥——`data/remote.json` 里有 `adminKey` 就一并镜像，没有则
-> 跳过并提示。**不同步**访问日志 / 收件箱 / 线报：访客日志含加盐 IP 哈希（两边盐不同，本来也对不上）且
+> **pull 镜像五张内容表**：`events`（档案）、`supply`（作战室补给表）、`models` / `scores`（毒株谱系）走公开
+> 接口；`posts`（编辑部的战报 / 特稿，含 draft 态）走 `/api/posts` 需要管理密钥——`data/remote.json` 里有
+> `adminKey` 就一并镜像，没有则跳过并提示。线上尚未部署 `/api/models` 时毒株谱系跳过并提示。**不同步**访问日志 / 收件箱 / 线报：访客日志含加盐 IP 哈希（两边盐不同，本来也对不上）且
 > 体量大，不出服务器；收件箱与线报是待处置队列，只在线上后台操作。所以本地后台「访客监控」显示的是本机
 > 测试流量；**看真实访客数据永远去线上后台**。
 
@@ -112,6 +113,15 @@ gitignore 不会泄露）。`pull` 不需要密钥。
   正文支持空行分段 / `## ` 小节 / `- ` 列表 / `[文字](链接)`）；与档案合流进 RSS。
 - **数据页 `/d/*`**：版本史全表 `/d/versions`、融资估值全史 `/d/funding`（两者 curated 在
   `server.js` 的 `VERSIONS` / `FUNDING` 常量）、套利窗口全史 `/d/windows`（全自动库推导）。
+- **毒株谱系 `/m`**（2026-09-02 起，模型总榜与发展史专栏）：`/m` 首页 = **总排名表**（综合分 + 各维度最近一次
+  公开成绩；综合分 = 各已测维度「相对前沿分」的平均——每维取该模型最近成绩 ÷ 该维度当前最高分 × 100，≥2 维才入榜，
+  仅 1 维的另列不计分）+ **维度榜**（每维前五）+ **能力曲线**（服务端 SVG：灰点 = 公开成绩、红菱 = 刷新纪录、红色
+  前沿阶梯线 + 今日虚线）+ 全球发布时间线（按年紧凑表）；`/m/<slug>` 毒株档案页 = 评分卡（综合分 / 总排名 /
+  各维度成绩与该维度最高）+ 身份卡（实验室 / 谱系 / 发布日 / 定位 / 上下文 / 价格 / 权重 / 状态 / 信源 / 回链档案）
+  + 全部成绩 + 同谱系「上一代 / 下一代」+ 按模型名自动关联的站内档案；`/b/<slug>` 基准页 = 当前榜（每模型最近成绩）+
+  曲线 + **前沿刷新记录**（谁在哪天把纪录抬到多少、在位几天）。数据来自 `models` / `scores` 两表（后台「毒株谱系」
+  维护）；实验室名册 `LABS`、已知基准名册 `BENCHES`（slug + 导语）与总榜维度 `DIMENSIONS`（维度 → 基准优先级列表，
+  基准需累计 ≥ `DIM_MIN_N`=3 条成绩才参与）在 `server.js`；未登记的基准名回退 encodeURIComponent 路径。全部进 sitemap / llms.txt。
 - **读者线报**：首页「☏ 提供线报」弹层匿名投递（`/api/tips`，限速 5 条/小时/IP + 蜜罐字段，
   只存 IP 哈希），后台「收件箱」查阅。
 - **战区徽标**：`front` 字段非空的档案在卡片 / 弹层 / 档案页打「⌖ 战区」徽标（Claude Code /
@@ -174,6 +184,30 @@ gitignore 不会泄露）。`pull` 不需要密钥。
 `posts`（刊物：weekly 战报 / feature 特稿，draft/published 两态）、`drafts`（草稿收件箱：侦察 agent
 投稿 + 核查要点，审核发布后转正为 events 并回写 event_id）、`tips`（读者线报）、`supply`（模型补给表）。
 
+### 毒株谱系（models / scores，2026-09-02 起）
+
+两张表都由 `server.js` 启动时 `CREATE TABLE IF NOT EXISTS` 建出（老库无需迁移脚本）；初始数据用
+`node tools/seed-models.js --site <地址> --key <密钥>` 经 API 写入（站长核对后再跑，见脚本头注释）。
+
+| `models` 字段 | 说明 |
+| --- | --- |
+| `slug` | URL 片段（`/m/<slug>`），留空按名称生成，重名自动追加 `-2` |
+| `name` / `lab` / `family` | 模型名 / 实验室代号（限 `server.js` 的 `LABS` 名册）/ 谱系（同族串成链，如 Claude / GPT / o 系列） |
+| `date` | 发布日（GA 或首发），`YYYY-MM-DD` |
+| `tier` / `context` / `price` / `open_weights` | 定位（旗舰 / 主力 / 走量…）/ 上下文 / 每百万 token 输入 / 输出价格 / 是否开放权重 |
+| `status` | `active` 在役 / `preview` 预览（限量、受限通道）/ `retired` 退役（下架、停供） |
+| `summary` / `source` / `ev` | 一段特稿体摘要 / 官方发布页 URL / 回链站内档案 id |
+
+| `scores` 字段 | 说明 |
+| --- | --- |
+| `model_id` / `bench` | 所属模型 / 基准名（自由文本，后台 datalist 列出 `BENCHES` 名册 + 已用值；版本不可比的基准按版本分名，如 `Terminal-Bench 2.0`） |
+| `score` / `unit` | 分数 / 单位（`%` / `分` / `Elo`，留空取名册默认） |
+| `date` | 成绩公布日（留空 = 模型发布日；同一模型同一基准可多条，用 `note` 区分口径） |
+| `note` / `source` | 口径（版本 · 算力档 · 脚手架 · 官方自报 / 第三方）/ 成绩出处 URL |
+
+前沿线 / 总榜一律按「越高越好」处理；总榜与基准页「当前榜」取每模型**最近一次**成绩（指数类基准随版本重算，
+最近才是现状），前沿线按时间扫历史最高；因训练数据污染撤榜的成绩不收录。
+
 ## 事件线索（漏洞 / 羊毛窗口）
 
 漏洞白嫖类事件常是一个有始有终的窗口（如「8.1 发现 → 8.24 修复」）。给这些事件填相同的
@@ -198,19 +232,20 @@ gitignore 不会泄露）。`pull` 不需要密钥。
 ## 目录结构
 
 ```
-server.js          零依赖服务端（静态资源 + REST API + SSR/SEO + 聚合页 + 作战室/刊物/数据页 + 百度推送 + 鉴权 + 访问记录）
-sync.js            线上 ⇄ 本地同步工具：pull 拉档案 / 刊物 / 补给表镜像 + 图片，push-image 传图（线上库为唯一真源）
+server.js          零依赖服务端（静态资源 + REST API + SSR/SEO + 聚合页 + 作战室/刊物/数据页/毒株谱系 + 百度推送 + 鉴权 + 访问记录）
+sync.js            线上 ⇄ 本地同步工具：pull 拉档案 / 刊物 / 补给表 / 毒株谱系镜像 + 图片，push-image 传图（线上库为唯一真源）
 GROWTH.md          增长作战手册：站长平台接入、社区分发、外链与复盘（站外动作清单）
 AUTOMATION.md      自动化手册：哨兵 / 侦察 / 战报 / 扇出的 agent 编辑部操作规程
 tools/
   sentinel.js      信源哨兵：定时轮询 L0/L2 信源，diff 新信号进 data/sentinel-queue.md（可推 TG）
   seed-supply.js   模型补给表初始数据（一次性）
+  seed-models.js   毒株谱系初始数据：95 株模型 + 104 条评测记录（16 家实验室，国产九家逐家核到最新一代），口径出自站内档案、官方发布页、技术报告与第三方评测 tracker（幂等：同名模型 / 同分成绩跳过，可追加后重跑）
   migrate-2026-08-30.js  一次性迁移：events.front + posts/drafts/tips/supply 表（幂等）
 data/chronicle.db  SQLite 数据库（本地为 sync.js pull 的只读镜像，已 gitignore）
 data/remote.json   sync.js 的线上地址与密钥（可选，已 gitignore）
 public/
   index.html       前台：垂直双线时间树（最新在上 · 左正史 · 右野史）
-  admin.html       后台：RED QUEEN 终端（档案管理 + 收件箱 + 编辑部 + 补给线 + 访客监控 + 系统）
+  admin.html       后台：RED QUEEN 终端（档案管理 + 收件箱 + 编辑部 + 补给线 + 毒株谱系 + 访客监控 + 系统）
   logo.svg         站标：保护伞红白伞面 × Cursor 六边形 × 中央光标
   favicon.ico      收藏夹图标（32/16px，重新生成流程见 drafts/icon-render.html 头部注释）
   apple-touch-icon.png  iOS 主屏图标（180px）
@@ -243,7 +278,11 @@ public/
 | GET | `/api/tips`；PUT / DELETE `/api/tips/:id` | 是 | 线报查阅 / 标记已读 / 删除 |
 | GET | `/api/supply` | 否 | 模型补给表（作战室数据源，公开只读） |
 | POST | `/api/supply`；PUT / DELETE `/api/supply/:id` | 是 | 补给表维护 |
+| GET | `/api/models`；`/api/models/:id` | 否 | 毒株登记表（按发布日倒序，附 `scores_n`）；单条附全部评分 |
+| POST | `/api/models`；PUT / DELETE `/api/models/:id` | 是 | 毒株维护（`lab` 限 `LABS` 名册；PUT 支持部分字段；删除级联其评分）；写入后推送 `/m` 与档案页到百度 |
+| GET | `/api/scores?model_id=&bench=` | 否 | 评测记录（联模型名 / slug / 实验室，按日期倒序） |
+| POST | `/api/scores`；PUT / DELETE `/api/scores/:id` | 是 | 评测记录维护（`date` 留空取模型发布日） |
 | POST | `/api/auth/check` | — | 校验管理密钥（含防爆破限速） |
 
 写操作需请求头 `X-Admin-Key: <ADMIN_KEY>`。SSR 页面：`/warroom`、`/w`、`/w/:issue`、`/t/:slug`、
-`/d/versions|funding|windows` 已全部进 sitemap / llms.txt；刊物与档案合流进 RSS。
+`/d/versions|funding|windows`、`/m`、`/m/:slug`、`/b/:slug` 已全部进 sitemap / llms.txt；刊物与档案合流进 RSS。
