@@ -1113,6 +1113,18 @@ const SERIES_PAGES = {
     h1: '「试用续杯」套利窗口全记录',
     lead: 'cursor-free-vip 类工具靠一键重置设备指纹加临时邮箱无限注册，把 7 天 Pro 试用续成无限，仓库星标数以万计；官方最终不是加强检测，而是整体移除试用体系。本线索记录这场持续近一年的猫鼠游戏从检出到灭活的全过程。',
   },
+  '借道': {
+    slug: 'bot-lane',
+    title: '「借道」套利窗口：Cursor Agent 改走 Grok Bot 车道计费 · 从检出到灭活 · Cursor 野史',
+    h1: '「借道」套利窗口全记录',
+    lead: '名片伪装被灭活当日，场外放出「换道版」：不再让编辑器自称 Bot，而是把 Agent 的整条运行链路搬到 Grok Bot 所用的车道上，消耗重新落进 Bot 周池。本线索记录该玩法从检出起的全部状态节点；存活态势见红后作战室。本站只记录观测与处置，不提供操作步骤。',
+  },
+  '全员回血': {
+    slug: 'quota-reset',
+    title: 'Grok Bot 全员额度重置记录：从「Codex 时刻」到静默回血 · Cursor 野史',
+    h1: 'Grok Bot 全员额度重置记录',
+    lead: 'Grok Bot 下放付费全线当晚官方首次重置全体周额度，场外命名为「Cursor 的 Codex 时刻」；此后的每一次全员归零——有公告的与没有公告的——都在本线索里按时间排列。回血一旦有了节律，就不再是事件，是心跳。',
+  },
 };
 const seriesBySlug = new Map(Object.entries(SERIES_PAGES).map(([name, c]) => [c.slug, name]));
 const seriesPath = name => `/s/${(SERIES_PAGES[name] && SERIES_PAGES[name].slug) || encodeURIComponent(name)}`;
@@ -1718,19 +1730,24 @@ function servePost(req, res, p) {
 let warroomDoc = { at: 0, doc: null };
 const WARROOM_TTL = 5 * 60 * 1000;
 
-/* 从档案库推导窗口态势：
-   存活 = 标题带「（存活）」的档案（按立档惯例，灭活后会改题挂 series）；
-   已灭活 = series 内同时存在「·检出」与「·灭活」节点的成对线索 */
+/* 从档案库推导窗口态势（2026-09-02 定稿：检出即挂 series，不再用「（存活）」标记）：
+   一条 series 的生命周期由它最后一个状态节点决定——
+     · 有「·检出」而最后一个状态节点不是「·灭活」（含「·复燃」「·变异」或根本没有灭活）→ 存活，
+       存活天数从最近一次「·检出 / ·复燃」起算；
+     · 最后一个状态节点是「·灭活」→ 已灭活，窗口 = 首个检出日 → 末次灭活日。
+   兼容旧惯例：未挂 series 且标题带「（存活）」的孤条仍算存活窗口。 */
+const STATE_RE = /·(检出|灭活|复燃|变异)/;
 function windowBoards() {
   const rows = db.prepare('SELECT id, side, date, tag, title, summary, series FROM events ORDER BY date ASC, id ASC').all();
   const todayStr = localNow().slice(0, 10);
   const daysSince = d => Math.max(0, Math.round((new Date(todayStr) - new Date(d)) / 864e5));
+  const live = [], closed = [];
 
-  const live = rows.filter(e => e.title.includes('（存活）')).map(e => ({
-    id: e.id, date: e.date, days: daysSince(e.date), tag: e.tag,
-    title: e.title.replace('（存活）', '').trim(),
-    summary: e.summary,
-  })).reverse();
+  for (const e of rows) {
+    if (!e.series && e.title.includes('（存活）')) {
+      live.push({ id: e.id, date: e.date, days: daysSince(e.date), tag: e.tag, title: e.title.replace('（存活）', '').trim(), summary: e.summary, series: '', revived: false });
+    }
+  }
 
   const bySeries = new Map();
   for (const e of rows) {
@@ -1738,18 +1755,26 @@ function windowBoards() {
     if (!bySeries.has(e.series)) bySeries.set(e.series, []);
     bySeries.get(e.series).push(e);
   }
-  const closed = [];
   for (const [name, arr] of bySeries) {
     const det = arr.find(e => e.title.includes('·检出'));
     if (!det) continue;
-    const kill = [...arr].reverse().find(e => e.title.includes('·灭活'));
-    if (!kill) continue;
-    closed.push({
-      series: name, from: det.date, to: kill.date,
-      span: Math.max(0, Math.round((new Date(kill.date) - new Date(det.date)) / 864e5)),
-      detId: det.id, killId: kill.id, detSummary: det.summary,
-    });
+    const states = arr.filter(e => STATE_RE.test(e.title));
+    const last = states[states.length - 1];
+    if (last && last.title.includes('·灭活')) {
+      closed.push({
+        series: name, from: det.date, to: last.date,
+        span: Math.max(0, Math.round((new Date(last.date) - new Date(det.date)) / 864e5)),
+        detId: det.id, killId: last.id, detSummary: det.summary,
+      });
+    } else {
+      const since = [...arr].reverse().find(e => /·(检出|复燃)/.test(e.title)) || det;
+      live.push({
+        id: since.id, date: since.date, days: daysSince(since.date), tag: since.tag,
+        title: since.title, summary: since.summary, series: name, revived: since.id !== det.id,
+      });
+    }
   }
+  live.sort((a, b) => (a.date < b.date ? 1 : -1));
   closed.sort((a, b) => (a.to < b.to ? 1 : -1));
   return { live, closed, todayStr };
 }
@@ -1826,7 +1851,7 @@ function warroomPageHTML(status) {
   const liveHtml = live.length ? live.map(w => `
       <div class="wr-row">
         <span class="t wr-live"><a href="/ev/${w.id}">${escHtml(w.title)}</a></span>
-        <span class="m">${dotDate(w.date)} 检出 · 存活 <b>${w.days}</b> 天</span>
+        <span class="m">${dotDate(w.date)} ${w.revived ? '复燃' : '检出'} · 存活 <b>${w.days}</b> 天${w.series ? ` · <a href="${seriesPath(w.series)}" style="color:inherit">线索</a>` : ''}</span>
       </div>`).join('') : '<div class="wr-empty">当前无已检出的存活窗口 · 场外静默</div>';
 
   const closedHtml = closed.length ? closed.slice(0, 8).map(w => `
@@ -2038,11 +2063,11 @@ function dataWindowsHTML() {
   const liveRows = live.map(w => `
     <tr>
       <td class="mono"><time datetime="${w.date}">${dotDate(w.date)}</time></td>
-      <td><b>${escHtml(w.title)}</b><div class="dim">${escHtml(clip(w.summary, 60))}</div></td>
+      <td><b>${escHtml(w.series || w.title)}</b><div class="dim">${escHtml(clip(w.summary, 60))}</div></td>
       <td class="mono">—</td>
       <td class="mono">${w.days} 天+</td>
-      <td><span class="chip live">存活</span></td>
-      <td><a href="/ev/${w.id}">检出档案 »</a></td>
+      <td><span class="chip live">${w.revived ? '复燃' : '存活'}</span></td>
+      <td>${w.series ? `<a href="${seriesPath(w.series)}">线索 »</a> ` : ''}<a href="/ev/${w.id}">${w.revived ? '复燃' : '检出'}档案 »</a></td>
     </tr>`).join('');
   const closedRows = closed.map(w => `
     <tr>
