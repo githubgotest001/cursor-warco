@@ -44,7 +44,10 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 function execCmd(cmd, args, timeout = 60000) {
   return new Promise(resolve => {
     execFile(cmd, args, { cwd: ROOT, timeout }, (err, stdout, stderr) => {
-      resolve({ ok: !err, out: String(stdout || '').trim(), err: (String(stderr || '').trim() || (err ? err.message : '')) });
+      /* 超时被 kill 时 stderr 为空、err.message 只有一句 Command failed——单独标注，便于在后台一眼看出是网络问题 */
+      const timedOut = Boolean(err && err.killed && err.signal);
+      const msg = String(stderr || '').trim() || (timedOut ? `超时（${Math.round(timeout / 1000)}s 无响应，已中止）——若是 git 操作，多半是服务器访问不到 GitHub，请走 SSH（必要时挂代理）` : err ? err.message : '');
+      resolve({ ok: !err, out: String(stdout || '').trim(), err: msg, timedOut });
     });
   });
 }
@@ -2520,8 +2523,12 @@ async function handleAPI(req, res, url) {
   if (url.pathname === '/api/system/deploy' && req.method === 'POST') {
     if (!requireAuth(req, res)) return;
     const before = (await execCmd('git', ['rev-parse', '--short', 'HEAD'])).out || '?';
-    const pull = await execCmd('git', ['pull', '--ff-only']);
-    if (!pull.ok) return sendJSON(res, 500, { ok: false, error: `git pull 失败：${pull.err || pull.out}` });
+    /* 境内服务器到 GitHub 常常很慢，给拉取 150s；仍超时则明确提示走 SSH */
+    const pull = await execCmd('git', ['pull', '--ff-only'], 150000);
+    if (!pull.ok) {
+      console.warn(`[部署] git pull 失败（当前 ${before}）：${pull.err || pull.out}`);
+      return sendJSON(res, 500, { ok: false, version: before, error: `git pull 失败：${pull.err || pull.out}` });
+    }
     const after = (await execCmd('git', ['rev-parse', '--short', 'HEAD'])).out || '?';
     if (before === after) {
       return sendJSON(res, 200, { ok: true, updated: false, version: after, log: pull.out || '已是最新' });
