@@ -599,6 +599,11 @@ const BENCHES = {
     title: 'Terminal-Bench 2.0 分数演进：终端 agent 任务成绩全表',
     lead: 'Terminal-Bench 2.0 是 2025 年末改版的终端 agent 题库，题目更长、验证更严，前沿模型发布材料自 Gemini 3 起普遍引用。本页收录该版本的公开成绩与前沿刷新记录。',
   },
+  'Terminal-Bench 2.1': {
+    slug: 'terminal-bench-21', unit: '%',
+    title: 'Terminal-Bench 2.1 分数演进：终端 agent 任务成绩全表',
+    lead: 'Terminal-Bench 2.1 是 2026 年上半年前沿模型发布材料最常引用的终端 agent 题库版本——Fable 5、Kimi K3、GPT-5.6 Sol、DeepSeek V4 与 Gemini 3.8 Flash 都在这张表上对过分。本页收录该版本的公开成绩与前沿刷新记录。',
+  },
   'Terminal-Bench 3.0': {
     slug: 'terminal-bench-3', unit: '%',
     title: 'Terminal-Bench 3.0 分数演进：终端 agent 任务成绩全表',

@@ -46,8 +46,9 @@
 | SWE-bench Verified | swe-bench-verified | % | 编码主基准；取官方主报数，加成进 note |
 | SWE-bench Pro | swe-bench-pro | % | 加难版，Scale 出品 |
 | Terminal-Bench | terminal-bench | % | 2025 初版题库 |
-| Terminal-Bench 2.0 / 2.1 / 3.0 / 4.0 | terminal-bench-2 / -21（原名编码）/ -3 / -4 | % | **版本各一条曲线**，不混录 |
+| Terminal-Bench 2.0 / 2.1 / 3.0 / 4.0 | terminal-bench-2 / -21 / -3 / -4 | % | **版本各一条曲线**，不混录 |
 | Terminal-Bench-Science 0.1 | terminal-bench-science | % | 科研 agent |
+| DeepSWE v1.1 | deepswe | % | 长程软件工程，Google / DeepSeek 发布材料主战场；编码维度第三顺位 |
 | CursorBench | cursorbench | % | Cursor 自家考卷，note 写版本（3.2）与档位；撤榜成绩不录 |
 | AA Intelligence Index | aa-intelligence-index | 分 | Artificial Analysis 综合指数，随版本重算，同模型可多条 |
 | AA Coding Agent Index | aa-coding-agent-index | 分 | AA 编码 agent 指数 |
@@ -56,7 +57,7 @@
 
 ### DIMENSIONS（总榜维度 → 基准优先级；基准累计 ≥3 条成绩才参与）
 
-编码 = SWE-bench Verified → SWE-bench Pro → AA Coding Agent Index ｜ 终端 Agent = TB 4.0 → 3.0 → 2.1 → 2.0 → 初版 ｜ 科研 Agent = TB-Science ｜
+编码 = SWE-bench Verified → SWE-bench Pro → DeepSWE v1.1 → AA Coding Agent Index ｜ 终端 Agent = TB 4.0 → 3.0 → 2.1 → 2.0 → 初版 ｜ 科研 Agent = TB-Science ｜
 Cursor 考卷 = CursorBench ｜ 综合智能 = AA Intelligence Index ｜ 前沿推理 = HLE ｜ 人类偏好 = LMArena Elo
 
 综合分 = 各已测维度「相对前沿分」（该模型最近一次成绩 ÷ 该维度当前最高 × 100）的平均，≥2 维入榜。**补分优先级**：榜首几株缺的维度 > 单维模型的第二维 > 其余。
