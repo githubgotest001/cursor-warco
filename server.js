@@ -583,6 +583,11 @@ const BENCHES = {
     title: 'SWE-bench Pro 分数演进：更难的真实工程题成绩全表',
     lead: 'SWE-bench Pro 是 Scale AI 推出的加难版：题目更长、跨文件更多、含商业代码库私有集，用来区分「刷穿 Verified」之后的前沿模型。本页汇总公开成绩与前沿刷新记录。',
   },
+  'DeepSWE v1.1': {
+    slug: 'deepswe', unit: '%',
+    title: 'DeepSWE v1.1 分数演进：长程软件工程任务成绩全表',
+    lead: 'DeepSWE 考察模型端到端自主完成复杂工程问题的能力，验证器严、题目抗污染，2026 年起成为 Google 与 DeepSeek 发布材料的主战场之一。本页汇总 v1.1 版本的公开成绩与前沿刷新记录。',
+  },
   /* Terminal-Bench 版本间题库不同、分数不可比，因此按版本分成独立基准名各画一条曲线 */
   'Terminal-Bench': {
     slug: 'terminal-bench', unit: '%',
@@ -643,7 +648,7 @@ const benchPath = name => `/b/${(BENCHES[name] && BENCHES[name].slug) || encodeU
    （最高 = 100，即「相对前沿分」）；综合分 = 各已测维度相对前沿分的平均，≥2 个维度才入总榜。
    只有累计 ≥ DIM_MIN_N 条成绩的基准才参与，避免单点成绩自动得 100 把榜单撑歪。 */
 const DIMENSIONS = [
-  { key: 'coding',    name: '编码',        benches: ['SWE-bench Verified', 'SWE-bench Pro', 'AA Coding Agent Index'] },
+  { key: 'coding',    name: '编码',        benches: ['SWE-bench Verified', 'SWE-bench Pro', 'DeepSWE v1.1', 'AA Coding Agent Index'] },
   { key: 'agent',     name: '终端 Agent',  benches: ['Terminal-Bench 4.0', 'Terminal-Bench 3.0', 'Terminal-Bench 2.1', 'Terminal-Bench 2.0', 'Terminal-Bench'] },
   { key: 'science',   name: '科研 Agent',  benches: ['Terminal-Bench-Science 0.1'] },
   { key: 'cursor',    name: 'Cursor 考卷', benches: ['CursorBench'] },

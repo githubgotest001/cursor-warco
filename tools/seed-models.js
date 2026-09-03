@@ -333,6 +333,14 @@ const MODELS = [
   { name: 'Hunyuan Hy4 preview', lab: 'tencent', family: 'Hunyuan Hy', date: '2026-08-28', tier: '开源旗舰 · 预览', context: '1M', open_weights: 1, status: 'preview',
     summary: '深夜一篇文章加一个开源仓库：770B-A49B、1M 上下文、Apache 2.0 全开放，首发进 WorkBuddy / CodeBuddy 与元宝；上线即排队、三天紧急扩容。Arena 代码榜第五、开源第三——「混元是不是废物」的舆论至此翻案。',
     source: 'https://www.tencent.com/zh-cn/tencent-releases-and-open-sources-tencent-hy4-preview/' },
+
+  /* ---- 增量（2026-09-02）：Gemini 3.8 Flash 双发，回链档案 #121 ---- */
+  { name: 'Gemini 3.8 Flash', lab: 'google', family: 'Gemini', date: '2026-09-02', tier: '主力 · Flash', context: '1M', price: '$0.75 / $3.75（介绍价至 2026-12-31；2027 起 $1.50 / $7.50）',
+    summary: '六周内第三只 Flash：售价与 3.7 持平，Terminal-Bench 2.1 89.4% 压过 Opus 5，DeepSWE 距其一步；被反复推迟的 3.5 Pro 据报内部叫停，小杯成了 Google 的当家模型。Antigravity 默认模型当日切换。',
+    source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/', ev: 121 },
+  { name: 'Gemini 3.8 Flash Cyber', lab: 'google', family: 'Gemini', date: '2026-09-02', tier: '网络安全 · 受限', context: '1M', status: 'preview',
+    summary: '与 3.8 Flash 同底座、面向漏洞发现与自动修补的网络安全版，仅经新设的 Fairwind 计划向受信任的政府与关键基础设施机构开放；CWE-Bench pass@1 47.2%，Chrome 安全团队称其正确补丁数为最佳商用方案的 2.6 倍。',
+    source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/', ev: 121 },
 ];
 
 /* ---------- 能力评测记录（model 按名称匹配上表；date 留空 = 模型发布日） ---------- */
@@ -462,6 +470,18 @@ const SCORES = [
   /* Terminal-Bench 3.0：GLM-5.3 发布材料给出的前后代对照 */
   { model: 'GLM-5.2', bench: 'Terminal-Bench 3.0', score: 4.6, date: '2026-08-14', note: '据 GLM-5.3 发布材料对照', source: 'https://www.digitalapplied.com/blog/glm-5-3-weights-bespoke-license-not-mit' },
   { model: 'GLM-5.3', bench: 'Terminal-Bench 3.0', score: 28.3, note: '官方发布材料', source: 'https://www.digitalapplied.com/blog/glm-5-3-weights-bespoke-license-not-mit' },
+
+  /* ---- 增量（2026-09-02）：Gemini 3.8 Flash 发布对照表（Google 自测 14 组）+ AA 指数 ---- */
+  { model: 'Gemini 3.8 Flash', bench: 'Terminal-Bench 2.1', score: 89.4, note: '官方自报（发布对照表）', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
+  { model: 'Gemini 3.8 Flash', bench: 'Terminal-Bench 4.0', score: 19.1, note: '官方自报（发布对照表）', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
+  { model: 'Gemini 3.8 Flash', bench: 'DeepSWE v1.1', score: 73.7, note: '官方自报 · 发布后更新的数字（发布当日表为 71.0）', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
+  { model: 'Gemini 3.8 Flash', bench: 'AA Intelligence Index', score: 59, unit: '分', note: '2026-09 版指数 · 单任务成本 $0.58', source: 'https://the-decoder.com/gemini-3-8-flash-is-googles-third-budget-model-in-six-weeks-while-frontier-models-remain-mia/' },
+  { model: 'Gemini 3.7 Flash', bench: 'DeepSWE v1.1', score: 65.3, date: '2026-09-02', note: '据 Gemini 3.8 Flash 发布对照表', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
+  { model: 'Claude Opus 5', bench: 'DeepSWE v1.1', score: 74.0, date: '2026-09-02', note: '据 Gemini 3.8 Flash 发布对照表', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
+  { model: 'Claude Opus 5', bench: 'Terminal-Bench 2.1', score: 89.1, date: '2026-09-02', note: '据 Gemini 3.8 Flash 发布对照表', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
+  { model: 'Claude Opus 5', bench: 'Terminal-Bench 4.0', score: 51.8, date: '2026-09-02', note: '据 Gemini 3.8 Flash 发布对照表', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
+  { model: 'GPT-5.6 Sol', bench: 'DeepSWE v1.1', score: 72.7, date: '2026-09-02', note: '据 Gemini 3.8 Flash 发布对照表', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
+  { model: 'Claude Sonnet 5', bench: 'DeepSWE v1.1', score: 53.8, date: '2026-09-02', note: '据 Gemini 3.8 Flash 发布对照表', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
 ];
 
 (async () => {
