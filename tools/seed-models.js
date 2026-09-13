@@ -341,6 +341,17 @@ const MODELS = [
   { name: 'Gemini 3.8 Flash Cyber', lab: 'google', family: 'Gemini', date: '2026-09-02', tier: '网络安全 · 受限', context: '1M', status: 'preview',
     summary: '与 3.8 Flash 同底座、面向漏洞发现与自动修补的网络安全版，仅经新设的 Fairwind 计划向受信任的政府与关键基础设施机构开放；CWE-Bench pass@1 47.2%，Chrome 安全团队称其正确补丁数为最佳商用方案的 2.6 倍。',
     source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/', ev: 121 },
+
+  /* ---- 增量（2026-09-13）：Cognition SWE 谱系补登 + DeepSeek V4.1 Flash；SWE-2 回链档案 #136 ---- */
+  { name: 'SWE-1.7', lab: 'cognition', family: 'SWE', date: '2026-07-08', tier: '自研 · 编码',
+    summary: 'Cognition 在月之暗面开源的 Kimi K2.7 Code 底座上再做强化学习训出的编码模型，FrontierCode 1.1 Main 42.3%、Terminal-Bench 2.1 81.5%，较自家上一代 SWE-1.6 的 9.4% 翻了四倍余；不放权重、无独立 API，经 Cerebras 以约每秒千 token 的速度在 Devin 网页、桌面与 CLI 内供应。',
+    source: 'https://cognition.com/blog/swe-1-7' },
+  { name: 'SWE-2', lab: 'cognition', family: 'SWE', date: '2026-09-10', tier: '自研 · 编码',
+    summary: '底座换成 2.8 万亿参数的 Kimi K3，首次把 RL 做到万亿级：FrontierCode 1.1 Main 50.0% 距 Fable 5.1 一分而成本低 64%，Terminal-Bench 2.1 92.8% 为对照表最高；用按帕累托切线定的成本惩罚把 medium / high / max 三档在同一次 RL 里训出。仍不放权重、无 API，只在 Devin 内可用。',
+    source: 'https://cognition.com/blog/swe-2', ev: 136 },
+  { name: 'DeepSeek-V4.1-Flash', lab: 'deepseek', family: 'DeepSeek', date: '2026-09-10', tier: '开源 · 走量', context: '1M', price: '$0.15 / $0.60（低谷价；高峰 $0.30 / $1.20）', open_weights: 1,
+    summary: '新架构家族里最小的一只：552B 总参数、原生多模态、1M 上下文，主打 KV 缓存压缩。官方称多方测试其性能、成本、速度与总耗时全面超过自家旗舰 V4-Pro，于是 V4-Flash 即日退役、V4-Pro 自 9 月 14 日起全部路由到它并按 Flash 价计费——小杯第一次整只吃掉了大杯。',
+    source: 'https://api-docs.deepseek.com/news/news260910' },
 ];
 
 /* ---------- 能力评测记录（model 按名称匹配上表；date 留空 = 模型发布日） ---------- */
@@ -482,6 +493,50 @@ const SCORES = [
   { model: 'Claude Opus 5', bench: 'Terminal-Bench 4.0', score: 51.8, date: '2026-09-02', note: '据 Gemini 3.8 Flash 发布对照表', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
   { model: 'GPT-5.6 Sol', bench: 'DeepSWE v1.1', score: 72.7, date: '2026-09-02', note: '据 Gemini 3.8 Flash 发布对照表', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
   { model: 'Claude Sonnet 5', bench: 'DeepSWE v1.1', score: 53.8, date: '2026-09-02', note: '据 Gemini 3.8 Flash 发布对照表', source: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/' },
+
+  /* ---- 增量（2026-09-13）---- */
+  /* Cognition SWE-2 发布对照表（2026-09-10）：公开结果优先，否则在各家原生 harness 下自测（Claude Code / Codex / Grok Build / Devin CLI），各档取最佳 */
+  { model: 'SWE-2', bench: 'FrontierCode 1.1 Main', score: 50.0, note: '官方自报 · 各档最佳', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'SWE-2', bench: 'DeepSWE v1.1', score: 73.0, note: '官方自报 · 各档最佳', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'SWE-2', bench: 'Terminal-Bench 2.1', score: 92.8, note: '官方自报 · 各档最佳 · 对照表最高', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'SWE-2', bench: 'Terminal-Bench 4.0', score: 27.3, note: '官方自报 · 各档最佳', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'SWE-1.7', bench: 'FrontierCode 1.1 Main', score: 42.3, note: '官方自报（SWE-2 对照表中记为 42.0）', source: 'https://cognition.com/blog/swe-1-7' },
+  { model: 'SWE-1.7', bench: 'Terminal-Bench 2.1', score: 81.5, note: '官方自报', source: 'https://cognition.com/blog/swe-1-7' },
+  { model: 'Kimi K3', bench: 'FrontierCode 1.1 Main', score: 44.2, date: '2026-09-10', note: '据 Cognition SWE-2 发布对照表 · Devin CLI harness', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'Kimi K3', bench: 'DeepSWE v1.1', score: 68.5, date: '2026-09-10', note: '据 Cognition SWE-2 发布对照表 · Devin CLI harness', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'Kimi K3', bench: 'Terminal-Bench 4.0', score: 21.5, date: '2026-09-10', note: '据 Cognition SWE-2 发布对照表 · Devin CLI harness', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'Grok 4.6', bench: 'FrontierCode 1.1 Main', score: 48.0, date: '2026-09-10', note: '据 Cognition SWE-2 发布对照表 · Grok Build harness', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'Grok 4.6', bench: 'DeepSWE v1.1', score: 67.5, date: '2026-09-10', note: '据 Cognition SWE-2 发布对照表 · Grok Build harness', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'Grok 4.6', bench: 'Terminal-Bench 2.1', score: 88.4, date: '2026-09-10', note: '据 Cognition SWE-2 发布对照表 · Grok Build harness', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'Grok 4.6', bench: 'Terminal-Bench 4.0', score: 20.3, date: '2026-09-10', note: '据 Cognition SWE-2 发布对照表 · Grok Build harness', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'Claude Fable 5.1', bench: 'Terminal-Bench 2.1', score: 91.4, date: '2026-09-10', note: '据 Cognition SWE-2 发布对照表 · Claude Code harness', source: 'https://cognition.com/blog/swe-2' },
+  { model: 'GPT-6 Astra', bench: 'Terminal-Bench 2.1', score: 89.9, date: '2026-09-10', note: '据 Cognition SWE-2 发布对照表 · Codex harness', source: 'https://cognition.com/blog/swe-2' },
+  /* OpenAI GPT-6 Astra 发布对照表（2026-09-03）：FrontierCode 1.1 Main 与 AA 编码 Agent 指数 v1.4 两列此前未录 */
+  { model: 'GPT-6 Astra', bench: 'FrontierCode 1.1 Main', score: 53.3, note: '官方自报 · 最大努力档（Extended 子集 64.5）', source: ARCHIVE + '122' },
+  { model: 'GPT-5.6 Sol', bench: 'FrontierCode 1.1 Main', score: 47.5, date: '2026-09-03', note: '据 GPT-6 Astra 发布对照表（Extended 60.6）', source: ARCHIVE + '122' },
+  { model: 'Claude Fable 5.1', bench: 'FrontierCode 1.1 Main', score: 50.9, date: '2026-09-03', note: '据 GPT-6 Astra 发布对照表，与 Cognition SWE-2 表一致（Extended 63.6）', source: ARCHIVE + '122' },
+  { model: 'Claude Fable 5', bench: 'FrontierCode 1.1 Main', score: 53.5, date: '2026-09-03', note: '据 GPT-6 Astra 发布对照表（Extended 64.9）', source: ARCHIVE + '122' },
+  { model: 'Claude Opus 5', bench: 'FrontierCode 1.1 Main', score: 53.4, date: '2026-09-03', note: '据 GPT-6 Astra 发布对照表（Extended 63.6）', source: ARCHIVE + '122' },
+  { model: 'Gemini 3.8 Flash', bench: 'FrontierCode 1.1 Main', score: 43.6, date: '2026-09-03', note: '据 GPT-6 Astra 发布对照表（Extended 56.3）', source: ARCHIVE + '122' },
+  { model: 'Claude Fable 5', bench: 'DeepSWE v1.1', score: 69.9, date: '2026-09-03', note: '据 GPT-6 Astra 发布对照表 · xhigh 档（Cognition 注：Max 档 69.7 反而更低）', source: ARCHIVE + '122' },
+  { model: 'Claude Fable 5', bench: 'Terminal-Bench 4.0', score: 44.5, date: '2026-09-03', note: '据 GPT-6 Astra 发布对照表（Anthropic 自家表为 42.0）', source: ARCHIVE + '122' },
+  { model: 'GPT-6 Astra', bench: 'AA Coding Agent Index', score: 67.0, unit: '分', note: 'v1.4 版指数 · 官方发布对照表', source: ARCHIVE + '122' },
+  { model: 'GPT-5.6 Sol', bench: 'AA Coding Agent Index', score: 65.1, unit: '分', date: '2026-09-03', note: 'v1.4 版指数 · 据 GPT-6 Astra 发布对照表（7 月发布时口径为 80，指数已重算）', source: ARCHIVE + '122' },
+  { model: 'Claude Fable 5', bench: 'AA Coding Agent Index', score: 67.2, unit: '分', date: '2026-09-03', note: 'v1.4 版指数 · 据 GPT-6 Astra 发布对照表', source: ARCHIVE + '122' },
+  { model: 'Claude Opus 5', bench: 'AA Coding Agent Index', score: 68.1, unit: '分', date: '2026-09-03', note: 'v1.4 版指数 · 据 GPT-6 Astra 发布对照表 · 表内最高', source: ARCHIVE + '122' },
+  { model: 'Gemini 3.8 Flash', bench: 'AA Coding Agent Index', score: 61.2, unit: '分', date: '2026-09-03', note: 'v1.4 版指数 · 据 GPT-6 Astra 发布对照表', source: ARCHIVE + '122' },
+  /* Anthropic Fable 5.1 发布对照表（2026-09-01）：HLE 无工具一列与 Sol 的 TB-Science 此前未录 */
+  { model: 'Claude Fable 5.1', bench: 'HLE', score: 60.9, note: '无工具 · 官方自报（带工具 65.0）', source: ARCHIVE + '111' },
+  { model: 'Claude Fable 5', bench: 'HLE', score: 57.8, date: '2026-09-01', note: '无工具 · 据 Fable 5.1 发布对照表（带工具 63.8；Kimi K3 报告对照为 53.3）', source: ARCHIVE + '111' },
+  { model: 'Claude Opus 5', bench: 'HLE', score: 56.6, date: '2026-09-01', note: '无工具 · 据 Fable 5.1 发布对照表（带工具 63.6）', source: ARCHIVE + '111' },
+  { model: 'Claude Opus 5', bench: 'Terminal-Bench 4.0', score: 52.3, date: '2026-09-01', note: 'Anthropic 自报 · 据 Fable 5.1 发布对照表（Google 表 51.8 / OpenAI 表 52.6）', source: ARCHIVE + '111' },
+  { model: 'GPT-5.6 Sol', bench: 'Terminal-Bench-Science 0.1', score: 22.4, date: '2026-09-01', note: '据 Fable 5.1 发布对照表', source: ARCHIVE + '111' },
+  /* DeepSeek-V4.1-Flash 官方更新日志自报（2026-09-10） */
+  { model: 'DeepSeek-V4.1-Flash', bench: 'Terminal-Bench 2.1', score: 90.6, note: '官方更新日志自报', source: 'https://api-docs.deepseek.com/updates' },
+  { model: 'DeepSeek-V4.1-Flash', bench: 'Terminal-Bench 3.0', score: 30.0, note: '官方更新日志自报', source: 'https://api-docs.deepseek.com/updates' },
+  { model: 'DeepSeek-V4.1-Flash', bench: 'Terminal-Bench 4.0', score: 31.2, note: '官方更新日志自报', source: 'https://api-docs.deepseek.com/updates' },
+  { model: 'DeepSeek-V4.1-Flash', bench: 'DeepSWE v1.1', score: 74.2, note: '官方更新日志自报 · 超过 GPT-6 Astra 的 74.1', source: 'https://api-docs.deepseek.com/updates' },
+  { model: 'DeepSeek-V4.1-Flash', bench: 'HLE', score: 36.8, note: '无工具 · 官方更新日志自报（带工具 63.9）', source: 'https://api-docs.deepseek.com/updates' },
 ];
 
 (async () => {

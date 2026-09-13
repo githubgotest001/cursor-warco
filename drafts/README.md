@@ -12,6 +12,8 @@
 | `archive-drafts-2026-08-31.md` `archive-drafts-2026-09-01.md` `archive-drafts-2026-09-02.md` | 侦察草稿（已投线上收件箱 / 已转正的留档） | 09-01、09-02 两份对应档案均已在库（#105–#112），核对无遗漏后删；08-31 的 5 条按收件箱审核结果处置 |
 | `archive-drafts-2026-09-02-b.md` | 09-02 第二批侦察 8 条：增量 3（Grok Bot 计费口径反转 / Grok Bot 接入 X / Astra 定级 Critical）+ 查缺 3（0.43 Agent / Koala 并购 / Cursor CLI）+ 站长线报 2（全员二次回血 / `借道·检出` 换道版），文末附旧档案疑点（#86 source 建议换 x.ai 官方页） | **已全部投进线上收件箱（草稿 id 24–31）**，站长在后台逐条审核发布 / 驳回；发布 07 时记得给 #87 补挂 `全员回血` series；处置完删 |
 | `inbox-post-2026-09-02.js` | 上述 8 条的投递脚本（解析草稿围栏块 + 核查要点 → POST /api/drafts，按标题去重可重跑） | 已执行，收件箱处置完后删 |
+| `archive-drafts-2026-09-13.md` | 09-13 增量侦察 7 条：站长线报 2（`借道·灭活` 09-06 / `Team 席位差·灭活` 09-08）+ 增量 5（Projects 正野双线 / OpenAI Agents API / Cognition SWE-2 / Grok 4.7 延期），文末「已消化未立档」含 7 月沙箱逃逸系列的查缺提示 | **已按站长指令直接录入线上（#131–#137）**，核对无误后删 |
+| `strain-drafts-2026-09-13.md` | 毒株谱系 09-13 增量 + 补分：新株 3（SWE-1.7 / SWE-2 / DeepSeek-V4.1-Flash）、成绩 38 条（SWE-2 / Astra / Fable 5.1 三张对照表未录的列）、V4-Flash 改 retired；文末「旧行疑点 / 待补」 | **已经 `tools/seed-models.js` 写入线上**（行已追加进脚本）；**09-14 后记得把 #71 DeepSeek-V4-Pro 改 retired**；核对后删 |
 
 > 2026-08-31 清理记录：`full-rewrite-2026-08-29.sql`（线上已执行，96 条在库）、`dispatch-001.md`（`/w/1` 已发布）、`feature-spacex.md`（`/t/spacex-merger` 已发布）、`archive-drafts-2026-08-29.md`（已全盘录入）、`inbox-post-2026-08-31.js`（5 条已投收件箱）均按纪律删除。
 
