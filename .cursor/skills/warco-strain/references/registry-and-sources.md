@@ -35,7 +35,7 @@
 
 ### LABS（实验室代号 → 展示名）
 
-`anthropic` Anthropic · `openai` OpenAI · `google` Google DeepMind · `xai` xAI / SpaceXAI · `anysphere` Anysphere（Cursor）· `meta` Meta ·
+`anthropic` Anthropic · `openai` OpenAI · `google` Google DeepMind · `xai` xAI / SpaceXAI · `anysphere` Anysphere（Cursor）· `cognition` Cognition（Devin，SWE 系列）· `meta` Meta ·
 `deepseek` DeepSeek · `alibaba` 阿里 · Qwen · `moonshot` 月之暗面 · Kimi · `zhipu` 智谱 · GLM · `minimax` MiniMax · `bytedance` 字节 · 豆包 Seed ·
 `tencent` 腾讯 · 混元 · `baidu` 百度 · 文心 · `stepfun` 阶跃星辰 · Step · `mistral` Mistral · `other` 其他实验室
 
@@ -49,6 +49,7 @@
 | Terminal-Bench 2.0 / 2.1 / 3.0 / 4.0 | terminal-bench-2 / -21 / -3 / -4 | % | **版本各一条曲线**，不混录 |
 | Terminal-Bench-Science 0.1 | terminal-bench-science | % | 科研 agent |
 | DeepSWE v1.1 | deepswe | % | 长程软件工程，Google / DeepSeek 发布材料主战场；编码维度第三顺位 |
+| FrontierCode 1.1 Main | frontiercode | % | Cognition 出品的「可合并性」基准（150 题取最难 100）；OpenAI Astra / Cognition SWE-2 发布材料主战场；**Main 与 Extended 分开，只录 Main**，暂未挂入总榜维度 |
 | CursorBench | cursorbench | % | Cursor 自家考卷，note 写版本（3.2）与档位；撤榜成绩不录 |
 | AA Intelligence Index | aa-intelligence-index | 分 | Artificial Analysis 综合指数，随版本重算，同模型可多条 |
 | AA Coding Agent Index | aa-coding-agent-index | 分 | AA 编码 agent 指数 |
@@ -75,6 +76,7 @@ Cursor 考卷 = CursorBench ｜ 综合智能 = AA Intelligence Index ｜ 前沿�
 | Google | blog.google（含各语言站）、docs.cloud.google.com …/model-versions（发布日 / 弃用日表） | — | Flash 线迭代极快，Pro 线以官方为准不登传闻 |
 | xAI / SpaceXAI | x.ai/news；Cursor 侧看 cursor.com/blog、forum.cursor.com | — | x.ai 页日期可能是 API 全量日，与 Cursor 上线日不同，两口径都记 |
 | Anysphere | cursor.com/blog、cursor.com/changelog | — | 全部回链站内档案 `ev` |
+| Cognition | cognition.com/blog/swe-<ver>、cognition.com/frontiercode（榜单） | — | SWE 系列不放权重、无 per-token API，只在 Devin 内可用；底座写在博客里（1.7 ← Kimi K2.7，2 ← Kimi K3），对照表附各家原生 harness 自测 |
 | Meta | ai.meta.com/blog、github.com/meta-llama 模型卡（Model Release Date） | huggingface.co/meta-llama | 模型卡日期是终审口径（Llama 4 = 2025-04-05） |
 | DeepSeek | api-docs.deepseek.com/zh-cn/updates（更新日志含自报分） | huggingface.co/deepseek-ai | 直接 fetch 常被拦，走搜索引用；预览 / 正式 checkpoint 分清（V4 预览 04-24，Pro-0813 / Flash-0731） |
 | 阿里 Qwen | qwen.ai/blog?id=<name>、github.com/QwenLM/<ver> README（各尺寸开源日） | huggingface.co/Qwen | Max 级多为 API-only；开权重日与发布日分开记 |

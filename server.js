@@ -554,6 +554,7 @@ const LABS = {
   google:    { name: 'Google DeepMind' },
   xai:       { name: 'xAI / SpaceXAI' },
   anysphere: { name: 'Anysphere（Cursor）' },
+  cognition: { name: 'Cognition（Devin）' },
   meta:      { name: 'Meta' },
   deepseek:  { name: 'DeepSeek' },
   alibaba:   { name: '阿里 · Qwen' },
@@ -587,6 +588,11 @@ const BENCHES = {
     slug: 'deepswe', unit: '%',
     title: 'DeepSWE v1.1 分数演进：长程软件工程任务成绩全表',
     lead: 'DeepSWE 考察模型端到端自主完成复杂工程问题的能力，验证器严、题目抗污染，2026 年起成为 Google 与 DeepSeek 发布材料的主战场之一。本页汇总 v1.1 版本的公开成绩与前沿刷新记录。',
+  },
+  'FrontierCode 1.1 Main': {
+    slug: 'frontiercode', unit: '%',
+    title: 'FrontierCode 1.1 Main 分数演进：「PR 能否被合并」成绩全表',
+    lead: 'FrontierCode 由 Cognition（Devin）出品，评判标准不是「测试通过」而是「这个 PR 维护者会不会合并」：150 道由开源维护者亲自出题的任务，Main 取其中最难的 100 道，踩到任一阻断项即记零分。2026 年 9 月起 OpenAI 的 GPT-6 Astra 与 Cognition 的 SWE-2 发布材料都以它为主战场，前沿模型的分数挤在 50% 上下。本页汇总 1.1 Main 子集的公开成绩与前沿刷新记录。',
   },
   /* Terminal-Bench 版本间题库不同、分数不可比，因此按版本分成独立基准名各画一条曲线 */
   'Terminal-Bench': {
